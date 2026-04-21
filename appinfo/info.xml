@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>chronos</id>
+	<name>Chronos</name>
+	<summary>Time tracking tied to your Nextcloud Tasks lists</summary>
+	<description><![CDATA[
+Chronos turns your Nextcloud Tasks lists into time-tracked projects.
+
+- Check in and check out with a live timer
+- Optionally assign each session to any of your Tasks lists
+- Pause and resume sessions without losing context
+- Add an optional note describing what you are working on
+- Weekly overview with a per-day bar chart and per-project breakdown
+- Log of recent sessions with durations, notes and project color
+- Dashboard widget with full controls (start, pause, stop) from the Nextcloud home
+- Delete sessions from the log when you need to clean up
+
+Built natively on Nextcloud Tasks — no separate project data, no duplicate lists. If you already organise your work in Tasks lists, Chronos simply adds the time layer on top.
+]]></description>
+	<version>0.1.0</version>
+	<licence>AGPL-3.0-or-later</licence>
+	<author mail="dos4s@tutanota.com" homepage="https://dos4s.netrunners.sh">dos4s</author>
+	<namespace>Chronos</namespace>
+	<category>organization</category>
+	<category>office</category>
+	<keywords>time tracking,timesheet,tasks,checkin,pomodoro,productivity,analytics</keywords>
+	<bugs>https://dos4s.netrunners.sh</bugs>
+	<dependencies>
+		<nextcloud min-version="31" max-version="33"/>
+	</dependencies>
+	<navigations>
+		<navigation>
+			<id>chronos</id>
+			<name>Chronos</name>
+			<route>chronos.page.index</route>
+			<icon>app.svg</icon>
+			<type>link</type>
+		</navigation>
+	</navigations>
+</info>
