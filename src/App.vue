@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
@@ -42,6 +42,13 @@ const now = ref(Date.now())
 
 const currentView = ref<'timer' | 'analytics'>('timer')
 const projectFilter = ref<string | null>(null)
+
+const projectGoals = ref<Record<string, number>>(
+	JSON.parse(localStorage.getItem('chronos_goals') || '{}')
+)
+watch(projectGoals, (newVals) => {
+	localStorage.setItem('chronos_goals', JSON.stringify(newVals))
+}, { deep: true })
 
 let tickTimer: ReturnType<typeof setInterval> | null = null
 
@@ -283,6 +290,71 @@ const filteredEntries = computed(() => {
 	return entries.value.filter((e) => e.projectUri === projectFilter.value)
 })
 
+interface DailyStats {
+	dateLabel: string
+	totalMs: number
+	projects: { uri: string | null, ms: number, color: string | null }[]
+}
+
+const last7Days = computed<DailyStats[]>(() => {
+	const days: DailyStats[] = []
+	const todayStart = new Date()
+	todayStart.setHours(0, 0, 0, 0)
+
+	for (let i = 6; i >= 0; i--) {
+		const d = new Date(todayStart)
+		d.setDate(d.getDate() - i)
+		const startMs = d.getTime()
+		const endMs = startMs + 86400000
+
+		const dayLabel = d.toLocaleDateString([], { weekday: 'short' })
+		let dayTotal = 0
+		const pMap = new Map<string, { ms: number, color: string | null }>()
+
+		for (const e of entries.value) {
+			if (e.startTime >= startMs && e.startTime < endMs) {
+				const dur = effectiveDuration(e, now.value)
+				dayTotal += dur
+				const key = e.projectUri || '__none__'
+				if (!pMap.has(key)) pMap.set(key, { ms: 0, color: lookupColor(e.projectUri) })
+				pMap.get(key)!.ms += dur
+			}
+		}
+
+		// Sort segments to render consistently
+		const projs = Array.from(pMap.entries())
+			.map(([k, v]) => ({ uri: k === '__none__' ? null : k, ms: v.ms, color: v.color }))
+			.sort((a, b) => b.ms - a.ms)
+
+		days.push({
+			dateLabel: dayLabel,
+			totalMs: dayTotal,
+			projects: projs,
+		})
+	}
+	return days
+})
+
+const dailyMaxMs = computed(() => {
+	const m = Math.max(...last7Days.value.map((d) => d.totalMs))
+	return m > 0 ? m : 1
+})
+
+const donutGradient = computed(() => {
+	let css = ''
+	let currentDegree = 0
+	const total = projectSummary.value.reduce((acc, p) => acc + p.weekMs, 0)
+	if (total === 0) return 'conic-gradient(var(--color-border) 0 100%)'
+
+	for (const p of projectSummary.value) {
+		const percent = (p.weekMs / total) * 360
+		const color = p.color || 'var(--color-text-maxcontrast)'
+		css += `${color} ${currentDegree}deg ${currentDegree + percent}deg, `
+		currentDegree += percent
+	}
+	return `conic-gradient(${css.slice(0, -2)})`
+})
+
 onMounted(() => {
 	refresh()
 	tickTimer = setInterval(() => {
@@ -306,7 +378,7 @@ onBeforeUnmount(() => {
 						:active="currentView === 'timer' && projectFilter === null"
 						@click="currentView = 'timer'; projectFilter = null">
 						<template #icon>
-							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" width="16" height="16">
 								<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/>
 							</svg>
 						</template>
@@ -317,7 +389,7 @@ onBeforeUnmount(() => {
 						:active="currentView === 'analytics' && projectFilter === null"
 						@click="currentView = 'analytics'; projectFilter = null">
 						<template #icon>
-							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" width="16" height="16">
 								<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
 							</svg>
 						</template>
@@ -523,34 +595,66 @@ onBeforeUnmount(() => {
 						</div>
 					</div>
 
-					<div :class="$style.projectsCard">
-						<div :class="$style.statLabel">By project (7d)</div>
-						<ul v-if="projectSummary.length" :class="$style.projectList">
-							<li
-								v-for="p in projectSummary"
-								:key="p.uri || '__none__'"
-								:class="$style.projectItem">
-								<span
-									:class="$style.projectDot"
-									:style="{ background: p.color || 'var(--color-text-maxcontrast)' }" />
-								<div :class="$style.projectMain">
-									<div :class="$style.projectName">{{ p.name }}</div>
-									<div :class="$style.projectBar">
+					<div :class="$style.chartsGrid">
+						<div :class="$style.dailyChartCard">
+							<div :class="$style.statLabel">Last 7 Days</div>
+							<div :class="$style.dailyChart">
+								<div v-for="(day, i) in last7Days" :key="i" :class="$style.dayCol">
+									<div :class="$style.dayBars">
+										<div v-for="(p, j) in day.projects" :key="j" :class="$style.dayBarSeg" 
+											:style="{ height: ((p.ms / dailyMaxMs) * 100) + '%', background: p.color || 'var(--color-text-maxcontrast)' }"
+											:title="formatRelativeDuration(p.ms)">
+										</div>
+									</div>
+									<div :class="$style.dayLabel">{{ day.dateLabel }}</div>
+								</div>
+							</div>
+						</div>
+
+						<div :class="$style.donutCard">
+							<div :class="$style.statLabel">By project (7d) & Goals</div>
+							<div :class="$style.donutContainer">
+								<div :class="$style.donutChart" :style="{ background: donutGradient }">
+									<div :class="$style.donutHole"></div>
+								</div>
+							</div>
+							
+							<ul v-if="projectSummary.length" :class="[$style.projectList, $style.projectListScroll]">
+								<li
+									v-for="p in projectSummary"
+									:key="p.uri || '__none__'"
+									:class="$style.projectItemGoal">
+									<div :class="$style.projectMainRow">
+										<span
+											:class="$style.projectDot"
+											:style="{ background: p.color || 'var(--color-text-maxcontrast)' }" />
+										<div :class="$style.projectName">{{ p.name }}</div>
+										<div :class="$style.projectDur">{{ formatRelativeDuration(p.weekMs) }}</div>
+									</div>
+									
+									<div :class="$style.projectGoalControls">
+										<input type="number" 
+											:class="$style.goalInput" 
+											v-model.number="projectGoals[p.uri || '__none__']" 
+											placeholder="Goal (h)" min="0" step="1"/>
+										<div :class="$style.goalProgress" v-if="projectGoals[p.uri || '__none__'] > 0">
+											{{ Math.min(100, Math.round((p.weekMs / (projectGoals[p.uri || '__none__'] * 3600000)) * 100)) }}%
+										</div>
+									</div>
+									
+									<div :class="$style.projectBar" v-if="projectGoals[p.uri || '__none__'] > 0">
 										<div
 											:class="$style.projectBarFill"
 											:style="{
-												width: ((p.weekMs / projectMax) * 100) + '%',
-												background: p.color || 'var(--color-primary-element)',
+												width: Math.min(100, ((p.weekMs / (projectGoals[p.uri || '__none__'] * 3600000)) * 100)) + '%',
+												background: p.color || 'var(--color-success)',
 											}" />
 									</div>
-								</div>
-								<div :class="$style.projectDur">
-									{{ formatRelativeDuration(p.weekMs) }}
-								</div>
-							</li>
-						</ul>
-						<div v-else :class="$style.projectsEmpty">
-							No sessions yet this week.
+								</li>
+							</ul>
+							<div v-else :class="$style.projectsEmpty">
+								No sessions yet this week.
+							</div>
 						</div>
 					</div>
 				</template>
@@ -627,6 +731,147 @@ onBeforeUnmount(() => {
 	display: flex;
 	align-items: center;
 	border: 1px solid var(--color-border);
+}
+
+.chartsGrid {
+	display: grid;
+	grid-template-columns: 1fr 340px;
+	gap: 16px;
+	align-items: start;
+}
+
+@media (max-width: 800px) {
+	.chartsGrid {
+		grid-template-columns: 1fr;
+	}
+}
+
+.dailyChartCard,
+.donutCard {
+	background: color-mix(in srgb, var(--color-main-background) 30%, transparent);
+	border: 1px solid color-mix(in srgb, var(--color-main-text) 10%, transparent);
+	backdrop-filter: blur(18px) saturate(1.4);
+	-webkit-backdrop-filter: blur(18px) saturate(1.4);
+	border-radius: var(--border-radius-large);
+	padding: 20px 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-main-text) 6%, transparent);
+}
+
+.dailyChart {
+	display: flex;
+	align-items: flex-end;
+	height: 220px;
+	gap: 8px;
+	padding-top: 10px;
+}
+
+.dayCol {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	align-items: center;
+	height: 100%;
+	gap: 8px;
+}
+
+.dayBars {
+	width: 100%;
+	max-width: 40px;
+	flex: 1;
+	display: flex;
+	flex-direction: column; /* Normal column, we'll order segments correctly */
+	justify-content: flex-end;
+	background: color-mix(in srgb, var(--color-main-text) 4%, transparent);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.dayBarSeg {
+	width: 100%;
+	transition: height 0.4s ease;
+	min-height: 2px;
+}
+
+.dayLabel {
+	font-size: 11px;
+	text-transform: uppercase;
+	color: var(--color-text-maxcontrast);
+	font-weight: 600;
+}
+
+.donutContainer {
+	display: flex;
+	justify-content: center;
+	padding: 10px 0;
+}
+
+.donutChart {
+	width: 140px;
+	height: 140px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.5s ease;
+}
+
+.donutHole {
+	width: 90px;
+	height: 90px;
+	background: var(--color-main-background);
+	border-radius: 50%;
+}
+
+.projectListScroll {
+	max-height: 380px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.projectItemGoal {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+}
+.projectItemGoal:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.projectMainRow {
+	display: grid;
+	grid-template-columns: 10px 1fr auto;
+	align-items: center;
+	gap: 8px;
+}
+
+.projectGoalControls {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding-left: 18px;
+}
+
+.goalInput {
+	width: 80px;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	padding: 4px 6px;
+	font-size: 12px;
+	color: var(--color-main-text);
+}
+
+.goalProgress {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
 }
 
 .projectList {
