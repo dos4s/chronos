@@ -41,7 +41,7 @@ const initialLoading = ref(true)
 const now = ref(Date.now())
 
 const currentView = ref<'timer' | 'analytics'>('timer')
-const projectFilter = ref<string | null>(null)
+const projectFilters = ref<string[]>([])
 
 const projectGoals = ref<Record<string, number>>(
 	JSON.parse(localStorage.getItem('chronos_goals') || '{}')
@@ -213,7 +213,7 @@ const totalToday = computed(() => {
 	startOfDay.setHours(0, 0, 0, 0)
 	const startMs = startOfDay.getTime()
 	let total = 0
-	for (const e of entries.value) {
+	for (const e of filteredEntries.value) {
 		if (e.startTime < startMs) continue
 		total += effectiveDuration(e, now.value)
 	}
@@ -231,7 +231,7 @@ const weekStartMs = computed(() => {
 const weeklyTotalMs = computed(() => {
 	const startMs = weekStartMs.value
 	let total = 0
-	for (const e of entries.value) {
+	for (const e of filteredEntries.value) {
 		const end = e.endTime ?? now.value
 		if (end < startMs) continue
 		total += effectiveDuration(e, now.value)
@@ -250,7 +250,7 @@ interface ProjectSummary {
 const projectSummary = computed<ProjectSummary[]>(() => {
 	const startMs = weekStartMs.value
 	const buckets = new Map<string, ProjectSummary>()
-	for (const e of entries.value) {
+	for (const e of filteredEntries.value) {
 		const end = e.endTime ?? now.value
 		if (end < startMs) continue
 		const key = e.projectUri ?? '__none__'
@@ -278,7 +278,7 @@ const projectMax = computed(() => {
 	return max > 0 ? max : 1
 })
 
-const sessionCount = computed(() => entries.value.filter((e) => e.endTime !== null).length)
+const sessionCount = computed(() => filteredEntries.value.filter((e) => e.endTime !== null).length)
 
 function lookupColor(uri: string | null): string | null {
 	if (!uri) return null
@@ -286,8 +286,25 @@ function lookupColor(uri: string | null): string | null {
 }
 
 const filteredEntries = computed(() => {
-	if (!projectFilter.value) return entries.value
-	return entries.value.filter((e) => e.projectUri === projectFilter.value)
+	if (projectFilters.value.length === 0) return entries.value
+	return entries.value.filter((e) => e.projectUri && projectFilters.value.includes(e.projectUri))
+})
+
+function toggleFilter(uri: string) {
+	const idx = projectFilters.value.indexOf(uri)
+	if (idx > -1) {
+		projectFilters.value.splice(idx, 1)
+	} else {
+		projectFilters.value.push(uri)
+	}
+}
+
+const activeTaskLists = computed(() => {
+	const activeUris = new Set<string>()
+	for (const e of entries.value) {
+		if (e.projectUri) activeUris.add(e.projectUri)
+	}
+	return taskLists.value.filter((l) => activeUris.has(l.uri))
 })
 
 interface DailyStats {
@@ -311,7 +328,7 @@ const last7Days = computed<DailyStats[]>(() => {
 		let dayTotal = 0
 		const pMap = new Map<string, { ms: number, color: string | null }>()
 
-		for (const e of entries.value) {
+		for (const e of filteredEntries.value) {
 			if (e.startTime >= startMs && e.startTime < endMs) {
 				const dur = effectiveDuration(e, now.value)
 				dayTotal += dur
@@ -399,14 +416,23 @@ onBeforeUnmount(() => {
 				<NcAppNavigationCaption name="Projects" />
 				<NcAppNavigationList>
 					<NcAppNavigationItem
-						v-for="p in taskLists"
+						v-for="p in activeTaskLists"
 						:key="p.uri"
-						:id="`proj-${p.uri}`"
 						:name="p.name"
-						:active="projectFilter === p.uri"
-						@click="projectFilter = p.uri; currentView = 'timer'">
+						@click="toggleFilter(p.uri)">
 						<template #icon>
-							<span :class="$style.projectNavDot" :style="{ background: p.color || 'var(--color-primary-element)' }" />
+							<div
+								:class="[$style.filterDot, (projectFilters.length === 0 || projectFilters.includes(p.uri)) ? $style.filterDotActive : $style.filterDotInactive]"
+								:style="{ '--proj-color': p.color || 'var(--color-primary-element)' }">
+								<svg
+									v-if="projectFilters.length === 0 || projectFilters.includes(p.uri)"
+									viewBox="0 0 24 24"
+									width="12"
+									height="12"
+									fill="white">
+									<path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" />
+								</svg>
+							</div>
 						</template>
 					</NcAppNavigationItem>
 				</NcAppNavigationList>
@@ -414,7 +440,7 @@ onBeforeUnmount(() => {
 		</NcAppNavigation>
 
 		<NcAppContent>
-			<div :class="$style.main">
+			<div :class="[$style.main, currentView === 'timer' ? $style.mainTimer : $style.mainAnalytics]">
 				<template v-if="currentView === 'timer'">
 					<div v-if="projectFilter" :class="$style.projectHeader">
 						Filtering by project: <strong>{{ taskLists.find(l => l.uri === projectFilter)?.name }}</strong>
@@ -941,15 +967,42 @@ onBeforeUnmount(() => {
 	font-style: italic;
 }
 
+.filterDot {
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 2px solid var(--proj-color);
+	transition: all 0.2s ease;
+	flex-shrink: 0;
+}
+
+.filterDotActive {
+	background-color: var(--proj-color);
+}
+
+.filterDotInactive {
+	background-color: transparent;
+}
+
 .main {
 	display: flex;
 	flex-direction: column;
 	gap: 24px;
 	padding: 32px 28px 48px;
-	max-width: 820px;
 	margin: 0 auto;
 	width: 100%;
 	box-sizing: border-box;
+}
+
+.mainTimer {
+	max-width: 820px;
+}
+
+.mainAnalytics {
+	max-width: 1200px;
 }
 
 .panel {
