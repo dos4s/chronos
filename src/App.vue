@@ -2,6 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
+import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
+import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
+import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -36,6 +39,9 @@ const selectedProject = ref<TaskList | null>(null)
 const loading = ref(false)
 const initialLoading = ref(true)
 const now = ref(Date.now())
+
+const currentView = ref<'timer' | 'analytics'>('timer')
+const projectFilter = ref<string | null>(null)
 
 let tickTimer: ReturnType<typeof setInterval> | null = null
 
@@ -272,6 +278,11 @@ function lookupColor(uri: string | null): string | null {
 	return taskLists.value.find((l) => l.uri === uri)?.color ?? null
 }
 
+const filteredEntries = computed(() => {
+	if (!projectFilter.value) return entries.value
+	return entries.value.filter((e) => e.projectUri === projectFilter.value)
+})
+
 onMounted(() => {
 	refresh()
 	tickTimer = setInterval(() => {
@@ -288,68 +299,56 @@ onBeforeUnmount(() => {
 	<NcContent app-name="chronos">
 		<NcAppNavigation>
 			<template #list>
-				<div :class="$style.sidebar">
-					<div :class="$style.brand">
-						<svg :class="$style.brandIcon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								d="M6,2V8H6V8L10,12L6,16V16H6V22H18V16H18V16L14,12L18,8V8H18V2H6M16,16.5V20H8V16.5L12,12.5L16,16.5M12,11.5L8,7.5V4H16V7.5L12,11.5Z"
-								fill="currentColor" />
-						</svg>
-						<div :class="$style.brandName">Time Tracker</div>
-					</div>
+				<NcAppNavigationList>
+					<NcAppNavigationItem
+						id="view-timer"
+						name="Timer"
+						:active="currentView === 'timer' && projectFilter === null"
+						@click="currentView = 'timer'; projectFilter = null">
+						<template #icon>
+							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+								<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/>
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
+						id="view-analytics"
+						name="Analytics"
+						:active="currentView === 'analytics' && projectFilter === null"
+						@click="currentView = 'analytics'; projectFilter = null">
+						<template #icon>
+							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+								<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+				</NcAppNavigationList>
 
-					<div :class="$style.statBlock">
-						<div :class="$style.statLabel">Today</div>
-						<div :class="$style.statValueLarge">
-							{{ formatRelativeDuration(totalToday) }}
-						</div>
-					</div>
-
-					<div :class="$style.statBlock">
-						<div :class="$style.statLabel">This week</div>
-						<div :class="$style.statValue">
-							{{ formatRelativeDuration(weeklyTotalMs) }}
-						</div>
-						<div :class="$style.statMeta">{{ sessionCount }} sessions</div>
-					</div>
-
-					<div :class="$style.projectsBlock">
-						<div :class="$style.statLabel">By project (7d)</div>
-						<ul v-if="projectSummary.length" :class="$style.projectList">
-							<li
-								v-for="p in projectSummary"
-								:key="p.uri || '__none__'"
-								:class="$style.projectItem">
-								<span
-									:class="$style.projectDot"
-									:style="{ background: p.color || 'var(--color-text-maxcontrast)' }" />
-								<div :class="$style.projectMain">
-									<div :class="$style.projectName">{{ p.name }}</div>
-									<div :class="$style.projectBar">
-										<div
-											:class="$style.projectBarFill"
-											:style="{
-												width: ((p.weekMs / projectMax) * 100) + '%',
-												background: p.color || 'var(--color-primary-element)',
-											}" />
-									</div>
-								</div>
-								<div :class="$style.projectDur">
-									{{ formatRelativeDuration(p.weekMs) }}
-								</div>
-							</li>
-						</ul>
-						<div v-else :class="$style.projectsEmpty">
-							No sessions yet this week.
-						</div>
-					</div>
-				</div>
+				<NcAppNavigationCaption name="Projects" />
+				<NcAppNavigationList>
+					<NcAppNavigationItem
+						v-for="p in taskLists"
+						:key="p.uri"
+						:id="`proj-${p.uri}`"
+						:name="p.name"
+						:active="projectFilter === p.uri"
+						@click="projectFilter = p.uri; currentView = 'timer'">
+						<template #icon>
+							<span :class="$style.projectNavDot" :style="{ background: p.color || 'var(--color-primary-element)' }" />
+						</template>
+					</NcAppNavigationItem>
+				</NcAppNavigationList>
 			</template>
 		</NcAppNavigation>
 
 		<NcAppContent>
 			<div :class="$style.main">
-				<transition name="fade" mode="out-in">
+				<template v-if="currentView === 'timer'">
+					<div v-if="projectFilter" :class="$style.projectHeader">
+						Filtering by project: <strong>{{ taskLists.find(l => l.uri === projectFilter)?.name }}</strong>
+					</div>
+
+					<transition name="fade" mode="out-in">
 					<section
 						v-if="active"
 						key="active"
@@ -442,8 +441,8 @@ onBeforeUnmount(() => {
 				<section :class="$style.log">
 					<div :class="$style.logHeader">
 						<h2 :class="$style.sectionTitle">Recent sessions</h2>
-						<span v-if="entries.length" :class="$style.logCount">
-							{{ entries.length }} {{ entries.length === 1 ? 'entry' : 'entries' }}
+						<span v-if="filteredEntries.length" :class="$style.logCount">
+							{{ filteredEntries.length }} {{ filteredEntries.length === 1 ? 'entry' : 'entries' }}
 						</span>
 					</div>
 
@@ -451,9 +450,9 @@ onBeforeUnmount(() => {
 						<NcLoadingIcon :size="32" />
 					</div>
 
-					<ul v-else-if="entries.length" :class="$style.entryList">
+					<ul v-else-if="filteredEntries.length" :class="$style.entryList">
 						<li
-							v-for="e in entries"
+							v-for="e in filteredEntries"
 							:key="e.id"
 							:class="[$style.entryRow, { [$style.entryRowActive]: e.endTime === null }]">
 							<span
@@ -502,6 +501,59 @@ onBeforeUnmount(() => {
 						name="No sessions yet"
 						description="Your first check-in will appear here." />
 				</section>
+				</template>
+
+				<template v-else-if="currentView === 'analytics'">
+					<div :class="$style.logHeader">
+						<h2 :class="$style.sectionTitle">Analytics Overview</h2>
+					</div>
+					<div :class="$style.analyticsGrid">
+						<div :class="$style.statCard">
+							<div :class="$style.statLabel">Today</div>
+							<div :class="$style.statValueLarge">
+								{{ formatRelativeDuration(totalToday) }}
+							</div>
+						</div>
+						<div :class="$style.statCard">
+							<div :class="$style.statLabel">This week</div>
+							<div :class="$style.statValue">
+								{{ formatRelativeDuration(weeklyTotalMs) }}
+							</div>
+							<div :class="$style.statMeta">{{ sessionCount }} sessions</div>
+						</div>
+					</div>
+
+					<div :class="$style.projectsCard">
+						<div :class="$style.statLabel">By project (7d)</div>
+						<ul v-if="projectSummary.length" :class="$style.projectList">
+							<li
+								v-for="p in projectSummary"
+								:key="p.uri || '__none__'"
+								:class="$style.projectItem">
+								<span
+									:class="$style.projectDot"
+									:style="{ background: p.color || 'var(--color-text-maxcontrast)' }" />
+								<div :class="$style.projectMain">
+									<div :class="$style.projectName">{{ p.name }}</div>
+									<div :class="$style.projectBar">
+										<div
+											:class="$style.projectBarFill"
+											:style="{
+												width: ((p.weekMs / projectMax) * 100) + '%',
+												background: p.color || 'var(--color-primary-element)',
+											}" />
+									</div>
+								</div>
+								<div :class="$style.projectDur">
+									{{ formatRelativeDuration(p.weekMs) }}
+								</div>
+							</li>
+						</ul>
+						<div v-else :class="$style.projectsEmpty">
+							No sessions yet this week.
+						</div>
+					</div>
+				</template>
 			</div>
 		</NcAppContent>
 	</NcContent>
@@ -512,45 +564,31 @@ onBeforeUnmount(() => {
 	background: transparent !important;
 }
 
-.sidebar {
-	display: flex;
-	flex-direction: column;
+.projectNavDot {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	display: inline-block;
+}
+
+.analyticsGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 	gap: 16px;
-	padding: 20px 16px 24px;
-	color: var(--color-main-text);
+	margin-bottom: 24px;
 }
 
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 4px 0 8px;
-}
-
-.brandIcon {
-	width: 28px;
-	height: 28px;
-	color: var(--color-primary-element);
-	flex-shrink: 0;
-}
-
-.brandName {
-	font-size: 18px;
-	font-weight: 700;
-	letter-spacing: -0.01em;
-}
-
-.statBlock,
-.projectsBlock {
+.statCard,
+.projectsCard {
 	background: color-mix(in srgb, var(--color-main-background) 30%, transparent);
 	border: 1px solid color-mix(in srgb, var(--color-main-text) 10%, transparent);
 	backdrop-filter: blur(18px) saturate(1.4);
 	-webkit-backdrop-filter: blur(18px) saturate(1.4);
 	border-radius: var(--border-radius-large);
-	padding: 14px 16px;
+	padding: 20px 24px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 12px;
 	box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-main-text) 6%, transparent);
 }
 
@@ -563,21 +601,32 @@ onBeforeUnmount(() => {
 }
 
 .statValue {
-	font-size: 20px;
+	font-size: 28px;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 }
 
 .statValueLarge {
-	font-size: 28px;
+	font-size: 36px;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 	letter-spacing: -0.02em;
 }
 
 .statMeta {
-	font-size: 12px;
+	font-size: 13px;
 	color: var(--color-text-maxcontrast);
+}
+
+.projectHeader {
+	font-size: 15px;
+	padding: 12px 16px;
+	background: var(--color-background-hover);
+	border-radius: var(--border-radius-large);
+	color: var(--color-main-text);
+	display: flex;
+	align-items: center;
+	border: 1px solid var(--color-border);
 }
 
 .projectList {
