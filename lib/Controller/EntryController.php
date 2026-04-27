@@ -123,7 +123,23 @@ class EntryController extends Controller {
 			return new JSONResponse(['error' => 'not_paused'], Http::STATUS_CONFLICT);
 		}
 
-		$entry->setPausedDuration($entry->getPausedDuration() + ($this->nowMs() - $pausedAt));
+		$now = $this->nowMs();
+		$duration = $now - $pausedAt;
+
+		$pauses = [];
+		if ($entry->getPausesBlob() !== null) {
+			$parsed = json_decode($entry->getPausesBlob(), true);
+			if (is_array($parsed)) {
+				$pauses = $parsed;
+			}
+		}
+		$pauses[] = [
+			'start' => $pausedAt,
+			'end' => $now,
+		];
+		
+		$entry->setPausesBlob(json_encode($pauses));
+		$entry->setPausedDuration($entry->getPausedDuration() + $duration);
 		$entry->setPausedAt(null);
 		return new JSONResponse($this->mapper->update($entry));
 	}
@@ -146,7 +162,20 @@ class EntryController extends Controller {
 		// auto-finalize any ongoing pause
 		$pausedAt = $entry->getPausedAt();
 		if ($pausedAt !== null) {
-			$entry->setPausedDuration($entry->getPausedDuration() + ($now - $pausedAt));
+			$duration = $now - $pausedAt;
+			$pauses = [];
+			if ($entry->getPausesBlob() !== null) {
+				$parsed = json_decode($entry->getPausesBlob(), true);
+				if (is_array($parsed)) {
+					$pauses = $parsed;
+				}
+			}
+			$pauses[] = [
+				'start' => $pausedAt,
+				'end' => $now,
+			];
+			$entry->setPausesBlob(json_encode($pauses));
+			$entry->setPausedDuration($entry->getPausedDuration() + $duration);
 			$entry->setPausedAt(null);
 		}
 
@@ -161,6 +190,57 @@ class EntryController extends Controller {
 		$limit = max(1, min($limit, 500));
 		$offset = max(0, $offset);
 		return new JSONResponse($this->mapper->findAllForUser($userId, $limit, $offset));
+	}
+
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/entries/{id}')]
+	public function update(
+		int $id,
+		int $startTime,
+		?int $endTime = null,
+		?string $pausesBlob = null,
+		?string $note = null
+	): JSONResponse {
+		$userId = $this->getUserId();
+		try {
+			$entry = $this->mapper->find($id);
+		} catch (DoesNotExistException) {
+			return new JSONResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
+		}
+
+		if ($entry->getUserId() !== $userId) {
+			return new JSONResponse(['error' => 'forbidden'], Http::STATUS_FORBIDDEN);
+		}
+
+		if ($endTime !== null && $startTime > $endTime) {
+			return new JSONResponse(['error' => 'invalid_times'], Http::STATUS_BAD_REQUEST);
+		}
+
+		// Calculate the physical total paused duration automatically based on pausesBlob provided
+		$pausedDuration = 0;
+		if ($pausesBlob !== null) {
+			$parsed = json_decode($pausesBlob, true);
+			if (is_array($parsed)) {
+				foreach ($parsed as $pause) {
+					if (isset($pause['start'], $pause['end']) && $pause['start'] <= $pause['end']) {
+						// Hard constraint to prevent visual glitches: pauses MUST be within session bounds
+						$start = max($startTime, $pause['start']);
+						$end = $endTime !== null ? min($endTime, $pause['end']) : $pause['end'];
+						if ($start < $end) {
+							$pausedDuration += ($end - $start);
+						}
+					}
+				}
+			}
+		}
+
+		$entry->setStartTime($startTime);
+		$entry->setEndTime($endTime);
+		$entry->setPausesBlob($pausesBlob);
+		$entry->setPausedDuration($pausedDuration);
+		$entry->setNote($this->normalize($note));
+
+		return new JSONResponse($this->mapper->update($entry));
 	}
 
 	#[NoAdminRequired]

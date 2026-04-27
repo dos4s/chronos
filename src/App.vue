@@ -10,7 +10,10 @@ import NcContent from '@nextcloud/vue/components/NcContent'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcModal from '@nextcloud/vue/components/NcModal'
 import { getDialogBuilder, showError, showSuccess } from '@nextcloud/dialogs'
+import VueCal from 'vue-cal'
+import 'vue-cal/dist/vuecal.css'
 
 interface Entry {
 	id: number
@@ -22,6 +25,7 @@ interface Entry {
 	pausedDuration: number
 	projectUri: string | null
 	projectName: string | null
+	pausesBlob: string | null
 }
 
 interface TaskList {
@@ -40,7 +44,7 @@ const loading = ref(false)
 const initialLoading = ref(true)
 const now = ref(Date.now())
 
-const currentView = ref<'timer' | 'analytics'>('timer')
+const currentView = ref<'timer' | 'analytics' | 'calendar'>('timer')
 const projectFilters = ref<string[]>([])
 
 const projectGoals = ref<Record<string, number>>(
@@ -49,6 +53,11 @@ const projectGoals = ref<Record<string, number>>(
 watch(projectGoals, (newVals) => {
 	localStorage.setItem('chronos_goals', JSON.stringify(newVals))
 }, { deep: true })
+
+// Dynamic calendar height: fills the remaining viewport
+const windowHeight = ref(window.innerHeight)
+window.addEventListener('resize', () => { windowHeight.value = window.innerHeight })
+const calHeight = computed(() => Math.max(500, windowHeight.value - 200))
 
 let tickTimer: ReturnType<typeof setInterval> | null = null
 
@@ -63,7 +72,7 @@ function csrfToken(): string {
 }
 
 async function api<T>(
-	method: 'GET' | 'POST' | 'DELETE',
+	method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 	path: string,
 	body?: unknown,
 ): Promise<T> {
@@ -129,6 +138,113 @@ function checkIn() {
 	}
 	runAction('/entries/check-in', body, 'Checked in', 'Check-in failed').then(() => {
 		note.value = ''
+	})
+}
+
+// ──────────────────────────────────────────────
+// SESSION EDITOR MODAL STATE
+// ──────────────────────────────────────────────
+const showEditorModal = ref(false)
+const editorData = ref<{
+	entry: Entry | null,
+	dateString: string,
+	startTime: string,
+	endTime: string,
+	pauses: { id: number, start: string, end: string }[]
+}>({
+	entry: null,
+	dateString: '',
+	startTime: '',
+	endTime: '',
+	pauses: []
+})
+
+let editorPauseIdCounter = 0
+
+function msToTimeString(ms: number): string {
+	if (!ms) return ''
+	const d = new Date(ms)
+	const hh = String(d.getHours()).padStart(2, '0')
+	const mm = String(d.getMinutes()).padStart(2, '0')
+	return `${hh}:${mm}`
+}
+
+function timeStringToMs(timeStr: string, baseDateStr: string): number {
+	const defaultVal = Date.now()
+	if (!timeStr) return defaultVal
+	const [hh, mm] = timeStr.split(':')
+	const t = new Date(baseDateStr)
+	t.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0)
+	return t.getTime()
+}
+
+function openSessionEditorModal(calEvent: any) {
+	const entry = calEvent.originalEntry
+	if (!entry) return
+	
+	const baseDate = new Date(entry.startTime)
+	const yyyy = baseDate.getFullYear()
+	const mm = String(baseDate.getMonth() + 1).padStart(2, '0')
+	const dd = String(baseDate.getDate()).padStart(2, '0')
+	const dateStr = `${yyyy}-${mm}-${dd}`
+
+	editorData.value.entry = entry
+	editorData.value.dateString = dateStr
+	editorData.value.startTime = msToTimeString(entry.startTime)
+	editorData.value.endTime = entry.endTime ? msToTimeString(entry.endTime) : ''
+	
+	editorData.value.pauses = []
+	if (entry.pausesBlob) {
+		try {
+			const p = JSON.parse(entry.pausesBlob)
+			if (Array.isArray(p)) {
+				editorData.value.pauses = p.map(pause => ({
+					id: editorPauseIdCounter++,
+					start: msToTimeString(pause.start),
+					end: msToTimeString(pause.end)
+				}))
+			}
+		} catch(e) {}
+	}
+	showEditorModal.value = true
+}
+
+function addEditorPause() {
+	editorData.value.pauses.push({
+		id: editorPauseIdCounter++,
+		start: '',
+		end: ''
+	})
+}
+
+function removeEditorPause(id: number) {
+	editorData.value.pauses = editorData.value.pauses.filter(p => p.id !== id)
+}
+
+function saveEditorModal() {
+	const entry = editorData.value.entry
+	if (!entry) return
+	
+	const baseDateStr = editorData.value.dateString
+	const startMs = timeStringToMs(editorData.value.startTime, baseDateStr)
+	const endMs = editorData.value.endTime ? timeStringToMs(editorData.value.endTime, baseDateStr) : (entry.endTime || Date.now())
+	
+	if (editorData.value.endTime && endMs <= startMs) {
+		showError("La hora de fin debe ser posterior a la de inicio.")
+		return
+	}
+
+	const pausesParsed = editorData.value.pauses
+		.filter(p => p.start && p.end)
+		.map(p => ({
+			start: timeStringToMs(p.start, baseDateStr),
+			end: timeStringToMs(p.end, baseDateStr)
+		}))
+		.filter(p => p.start < p.end && p.start >= startMs && p.end <= endMs)
+		.sort((a,b) => a.start - b.start)
+	
+	submitCalibrationEdit(entry, startMs, endMs, pausesParsed).then(() => {
+		showEditorModal.value = false
 	})
 }
 
@@ -245,6 +361,197 @@ interface ProjectSummary {
 	color: string | null
 	weekMs: number
 	entries: number
+}
+
+// ------------------------------------
+// VUE CALENDAR: CHUNKS LOGIC
+// ------------------------------------
+interface VueCalEvent {
+	start: Date
+	end: Date
+	title: string
+	content: string
+	class: string
+	id: string // Format: `entryId_chunkIndex` to rebuild later
+	originalEntry: Entry
+	projectColor: string | null
+}
+
+// Live preview override during top-resize drag
+const activeTopResizeStart = ref<{ entryId: number; startMs: number } | null>(null)
+
+const calendarEvents = computed<VueCalEvent[]>(() => {
+	const preview = activeTopResizeStart.value // reactive dependency for live preview
+	const evts: VueCalEvent[] = []
+	for (const e of filteredEntries.value) {
+		if (!e.endTime) continue
+		const pColor = taskLists.value.find(t => t.uri === e.projectUri)?.color || null
+		const baseClass = pColor ? 'cal-project-event' : 'cal-default-event'
+
+		let pauses: { start: number; end: number }[] = []
+		if (e.pausesBlob) {
+			try {
+				const p = JSON.parse(e.pausesBlob)
+				if (Array.isArray(p)) {
+					pauses = p.filter(x => x.start && x.end).sort((a, b) => a.start - b.start)
+				}
+			} catch (err) {}
+		}
+
+		// Apply live preview override for the first chunk's start
+		const effectiveStart = (preview && preview.entryId === e.id) ? preview.startMs : e.startTime
+
+		const chunks: any[] = []
+		let pointer = effectiveStart
+		let chunkIdx = 0
+		for (const p of pauses) {
+			if (p.start > pointer) {
+				chunks.push({
+					id: `${e.id}_${chunkIdx++}`,
+					start: new Date(pointer),
+					end: new Date(p.start),
+					title: e.projectName || 'Unassigned',
+					content: e.note || '',
+					class: baseClass,
+					originalEntry: e,
+					projectColor: pColor,
+					draggable: true,
+					resizable: true,
+				})
+			}
+			
+			// Visual Pause event
+			if (p.end > p.start) {
+				evts.push({
+					id: `${e.id}_pause_${chunkIdx++}`,
+					start: new Date(p.start),
+					end: new Date(p.end),
+					title: 'Break',
+					content: 'Rest',
+					class: 'calPauseEvent',
+					originalEntry: e,
+					isPause: true,
+					draggable: false,
+					resizable: false,
+				})
+			}
+			pointer = Math.max(pointer, p.end)
+		}
+		if (pointer < e.endTime) {
+			chunks.push({
+				id: `${e.id}_${chunkIdx++}`,
+				start: new Date(pointer),
+				end: new Date(e.endTime),
+				title: e.projectName || 'Unassigned',
+				content: e.note || '',
+				class: baseClass,
+				originalEntry: e,
+				projectColor: pColor,
+				draggable: true,
+				resizable: true,
+			})
+		}
+
+		if (chunks.length > 0) {
+			chunks[0].isFirstChunk = true
+			chunks[chunks.length - 1].isLastChunk = true
+			evts.push(...chunks)
+		}
+	}
+	return evts
+})
+
+async function submitCalibrationEdit(entry: Entry, newStart: number, newEnd: number, newPauses: {start:number, end:number}[]) {
+	const body = {
+		startTime: newStart,
+		endTime: newEnd,
+		pausesBlob: JSON.stringify(newPauses),
+		note: entry.note
+	}
+	loading.value = true
+	try {
+		await api<Entry>('PUT', `/entries/${entry.id}`, body)
+		await refresh()
+		showSuccess('Session updated')
+	} catch (e) {
+		showError('Failed to update session')
+		console.error(e)
+	} finally {
+		loading.value = false
+	}
+}
+
+// ── Calendar events are now read-only visuals.
+// ── Editing is done via double-click → openSessionEditorModal()
+
+// ──────────────────────────────────────────────
+// CONTEXT MENU – right-click on event
+// ──────────────────────────────────────────────
+interface CalCtxMenu {
+	visible: boolean
+	x: number
+	y: number
+	event: VueCalEvent | null
+	breakStartTime: string
+	breakDuration: number
+}
+
+const contextMenu = ref<CalCtxMenu>({
+	visible: false, x: 0, y: 0, event: null,
+	breakStartTime: '', breakDuration: 30,
+})
+
+function showContextMenu(mouseEvt: MouseEvent, calEvt: any) {
+	mouseEvt.preventDefault()
+	mouseEvt.stopPropagation()
+	const ev: VueCalEvent = calEvt
+	// Default break start = 30 min after event start
+	const defaultBreakStart = new Date(ev.start.getTime() + 30 * 60 * 1000)
+	const hh = String(defaultBreakStart.getHours()).padStart(2, '0')
+	const mm = String(defaultBreakStart.getMinutes()).padStart(2, '0')
+	contextMenu.value = {
+		visible: true,
+		x: mouseEvt.clientX,
+		y: mouseEvt.clientY,
+		event: ev,
+		breakStartTime: `${hh}:${mm}`,
+		breakDuration: 30,
+	}
+}
+
+function closeContextMenu() {
+	contextMenu.value.visible = false
+}
+
+function addBreakFromMenu() {
+	const ev = contextMenu.value.event
+	if (!ev) return
+	closeContextMenu()
+
+	const entry = ev.originalEntry
+	const [hh, mm] = contextMenu.value.breakStartTime.split(':').map(Number)
+	const dayStart = new Date(ev.start)
+	dayStart.setHours(0, 0, 0, 0)
+	const breakStart = dayStart.getTime() + hh * 3600000 + mm * 60000
+	const breakEnd = breakStart + contextMenu.value.breakDuration * 60000
+
+	// Validate it fits inside this chunk
+	if (breakStart <= ev.start.getTime() || breakEnd >= ev.end.getTime()) {
+		showError('Break must fit inside the session block')
+		return
+	}
+
+	let pauses: { start: number; end: number }[] = []
+	if (entry.pausesBlob) {
+		try {
+			const p = JSON.parse(entry.pausesBlob)
+			if (Array.isArray(p)) pauses = p
+		} catch {}
+	}
+	pauses.push({ start: breakStart, end: breakEnd })
+	pauses.sort((a, b) => a.start - b.start)
+
+	submitCalibrationEdit(entry, entry.startTime, entry.endTime!, pauses)
 }
 
 const projectSummary = computed<ProjectSummary[]>(() => {
@@ -408,6 +715,17 @@ onBeforeUnmount(() => {
 						<template #icon>
 							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" width="16" height="16">
 								<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
+						id="view-calendar"
+						name="Session Editor"
+						:active="currentView === 'calendar'"
+						@click="currentView = 'calendar'">
+						<template #icon>
+							<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" width="16" height="16">
+								<path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z" />
 							</svg>
 						</template>
 					</NcAppNavigationItem>
@@ -682,6 +1000,120 @@ onBeforeUnmount(() => {
 								No sessions yet this week.
 							</div>
 						</div>
+					</div>
+				</template>
+
+				<template v-else-if="currentView === 'calendar'">
+					<div :class="$style.logHeader">
+						<h2 :class="$style.sectionTitle">Session Editor</h2>
+					</div>
+					<div :class="[$style.panel, $style.calWrapper]">
+						<p :class="$style.calSubtitle">Drag to adjust hours or split sessions to add un-tracked breaks magically.</p>
+						<vue-cal
+							:class="['vuecal--blue-theme', $style.nextcloudCalTheme]"
+							hide-view-selector
+							:time-from="6 * 60"
+							:time-to="24 * 60"
+							:time-step="30"
+							:scroll-to="'08:00'"
+							:events="calendarEvents"
+							:editable-events="{ title: false, drag: false, resize: false, delete: false, create: false }"
+							:style="{ height: calHeight + 'px', width: '100%', borderRadius: '8px' }"
+						>
+							<template #event="{ event }">
+								<div
+									:class="$style.customEventContent"
+									:style="{ borderLeft: `5px solid ${event.projectColor || 'var(--color-primary)'}` }"
+									@contextmenu.prevent.stop="showContextMenu($event, event)"
+									@dblclick.prevent.stop="openSessionEditorModal(event)"
+								>
+									<strong>{{ event.title }}</strong><br>
+									<small v-if="event.content">{{ event.content }}</small>
+								</div>
+							</template>
+						</vue-cal>
+
+						<!-- RIGHT-CLICK CONTEXT MENU -->
+						<Teleport to="body">
+							<div
+								v-if="contextMenu.visible"
+								:class="$style.ctxOverlay"
+								@click.self="closeContextMenu"
+							>
+								<div
+									:class="$style.ctxMenu"
+									:style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+								>
+									<div :class="$style.ctxTitle">Add Break</div>
+									<div :class="$style.ctxRow">
+										<label :class="$style.ctxLabel">Start time</label>
+										<input
+											v-model="contextMenu.breakStartTime"
+											type="time"
+											:class="$style.ctxInput"
+										>
+									</div>
+									<div :class="$style.ctxRow">
+										<label :class="$style.ctxLabel">Duration</label>
+										<select v-model="contextMenu.breakDuration" :class="$style.ctxInput">
+											<option :value="15">15 min</option>
+											<option :value="30">30 min</option>
+											<option :value="45">45 min</option>
+											<option :value="60">60 min</option>
+										</select>
+									</div>
+									<div :class="$style.ctxActions">
+										<button :class="$style.ctxCancel" @click="closeContextMenu">Cancel</button>
+										<button :class="$style.ctxConfirm" @click="addBreakFromMenu">Add Break</button>
+									</div>
+								</div>
+							</div>
+						</Teleport>
+
+						<!-- SESSION EDITOR MODAL -->
+						<NcModal v-if="showEditorModal" @close="showEditorModal = false" :title="'Editar Sesión'">
+							<div :class="$style.editorModalContent">
+								<h3>Proyecto: {{ editorData.entry?.projectName || 'Sin asignar' }}</h3>
+								<div :class="$style.formGroup">
+									<label>Hora de Inicio</label>
+									<input type="time" v-model="editorData.startTime" />
+								</div>
+								<div :class="$style.formGroup">
+									<label>Hora de Fin</label>
+									<input type="time" v-model="editorData.endTime" :disabled="!editorData.entry?.endTime" />
+									<small v-if="!editorData.entry?.endTime">La sesión está en curso.</small>
+								</div>
+								
+								<div :class="$style.pausesSection">
+									<div :class="$style.pausesHeader">
+										<h4>Pausas Registradas</h4>
+										<NcButton @click="addEditorPause" type="tertiary" size="small">
+											<template #icon>
+												<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/></svg>
+											</template>
+											Añadir Descanso
+										</NcButton>
+									</div>
+									
+									<div v-for="p in editorData.pauses" :key="p.id" :class="$style.pauseRow">
+										<input type="time" v-model="p.start" />
+										<span>—</span>
+										<input type="time" v-model="p.end" />
+										<NcButton @click="removeEditorPause(p.id)" type="tertiary" size="small" aria-label="Borrar">
+											<template #icon>
+												<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" fill="currentColor"/></svg>
+											</template>
+										</NcButton>
+									</div>
+									<div v-if="editorData.pauses.length === 0" :class="$style.noPauses">Sin pausas añadidas.</div>
+								</div>
+								
+								<div :class="$style.modalActions">
+									<NcButton @click="showEditorModal = false" type="secondary">Cancelar</NcButton>
+									<NcButton @click="saveEditorModal" type="primary">Guardar Cambios</NcButton>
+								</div>
+							</div>
+						</NcModal>
 					</div>
 				</template>
 			</div>
@@ -1005,6 +1437,58 @@ onBeforeUnmount(() => {
 	max-width: 1200px;
 }
 
+.mainCalendar {
+	max-width: 1200px;
+}
+
+.cal-wrapper {
+	width: 100%;
+	padding: 24px;
+	box-sizing: border-box;
+}
+
+.cal-subtitle {
+	color: var(--color-text-maxcontrast);
+	margin-top: -10px;
+	margin-bottom: 20px;
+	font-size: 13px;
+}
+
+/* Vue-cal native overrides for Nextcloud Dark/Light compat */
+.vuecal {
+	border-radius: var(--border-radius-large);
+	border-color: var(--color-border);
+	background: var(--color-main-background);
+}
+
+.vuecal__title-bar {
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
+}
+
+.vuecal__cell {
+	background: transparent;
+	color: var(--color-main-text);
+}
+
+.custom-event-content {
+	background: var(--color-background-dark);
+	border-radius: 4px;
+	height: 100%;
+	padding: 4px;
+	color: var(--color-main-text);
+	box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: flex-start;
+}
+
+.vuecal__event {
+	background-color: transparent !important;
+}
+
 .panel {
 	display: flex;
 	flex-direction: column;
@@ -1303,5 +1787,264 @@ onBeforeUnmount(() => {
 :global(.fade-leave-to) {
 	opacity: 0;
 	transform: translateY(6px);
+}
+
+/* Vue-cal native overrides for Nextcloud Dark/Light compat */
+.calWrapper {
+	width: 100%;
+	padding: 24px;
+	box-sizing: border-box;
+}
+
+.calSubtitle {
+	color: var(--color-text-maxcontrast);
+	margin-top: -10px;
+	margin-bottom: 20px;
+	font-size: 13px;
+}
+
+.nextcloudCalTheme {
+	border-radius: var(--border-radius-large);
+	border-color: var(--color-border);
+	background: var(--color-main-background);
+}
+
+:global(.vuecal__title-bar) {
+	background: var(--color-background-hover) !important;
+	color: var(--color-main-text) !important;
+}
+
+:global(.vuecal__cell) {
+	background: transparent !important;
+	color: var(--color-main-text) !important;
+}
+
+:global(.vuecal__event) {
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+
+.customEventContent {
+	background: var(--color-background-dark);
+	border-radius: 4px;
+	height: 100%;
+	padding: 6px 8px;
+	color: var(--color-main-text);
+	box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: flex-start;
+	cursor: default;
+	user-select: none;
+}
+
+:global(.calPauseEvent) {
+	background: repeating-linear-gradient(45deg, 
+		var(--color-background-hover) 0px, 
+		var(--color-background-hover) 10px, 
+		transparent 10px, 
+		transparent 20px
+	) !important;
+	border: 1px dashed var(--color-border) !important;
+	color: var(--color-text-maxcontrast) !important;
+	opacity: 0.6;
+	cursor: default !important;
+}
+
+/* ── Double-click hint ── */
+.customEventContent {
+	cursor: pointer;
+}
+
+.customEventContent::after {
+	content: '✏️';
+	position: absolute;
+	bottom: 4px;
+	right: 6px;
+	font-size: 10px;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+:global(.vuecal__event:hover) .customEventContent::after {
+	opacity: 0.7;
+}
+
+/* ── SESSION EDITOR MODAL ── */
+.editorModalContent {
+	padding: 24px;
+	min-width: 380px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.editorModalContent h3 {
+	margin: 0 0 4px;
+	font-size: 1.1rem;
+	color: var(--color-main-text);
+}
+
+.formGroup {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.formGroup label {
+	font-weight: 600;
+	font-size: 0.85rem;
+	color: var(--color-text-maxcontrast);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.formGroup input[type="time"],
+.pauseRow input[type="time"] {
+	padding: 8px 12px;
+	border-radius: 6px;
+	border: 1px solid var(--color-border);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-family: inherit;
+	font-size: 1rem;
+	width: 100%;
+}
+
+.formGroup input[type="time"]:disabled {
+	opacity: 0.5;
+}
+
+.pausesSection {
+	border-top: 1px solid var(--color-border);
+	padding-top: 16px;
+}
+
+.pausesHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.pausesHeader h4 {
+	margin: 0;
+	font-size: 0.95rem;
+	color: var(--color-main-text);
+}
+
+.pauseRow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.pauseRow span {
+	color: var(--color-text-maxcontrast);
+	flex-shrink: 0;
+}
+
+.noPauses {
+	font-size: 0.85rem;
+	color: var(--color-text-maxcontrast);
+	font-style: italic;
+	text-align: center;
+	padding: 12px 0;
+}
+
+.modalActions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding-top: 8px;
+	border-top: 1px solid var(--color-border);
+}
+
+/* CONTEXT MENU */
+.ctxOverlay {
+	position: fixed;
+	inset: 0;
+	z-index: 9000;
+}
+
+.ctxMenu {
+	position: fixed;
+	z-index: 9001;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	padding: 16px;
+	width: 230px;
+	box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.ctxTitle {
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--color-main-text);
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.ctxRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.ctxLabel {
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+	flex-shrink: 0;
+}
+
+.ctxInput {
+	background: var(--color-background-hover);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+	color: var(--color-main-text);
+	padding: 4px 8px;
+	flex: 1;
+	min-width: 0;
+	font-size: 13px;
+}
+
+.ctxActions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.ctxCancel {
+	padding: 6px 12px;
+	border-radius: var(--border-radius);
+	border: 1px solid var(--color-border);
+	background: transparent;
+	color: var(--color-main-text);
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.ctxConfirm {
+	padding: 6px 12px;
+	border-radius: var(--border-radius);
+	border: none;
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 13px;
+}
+
+/* Hide vue-cal's native bottom resize handle completely */
+:global(.vuecal__event-resize-handle) {
+	display: none !important;
 }
 </style>

@@ -24,6 +24,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setProjectUri(?string $projectUri)
  * @method string|null getProjectName()
  * @method void setProjectName(?string $projectName)
+ * @method string|null getPausesBlob()
+ * @method void setPausesBlob(?string $pausesBlob)
  */
 class Entry extends Entity implements JsonSerializable {
 
@@ -35,6 +37,7 @@ class Entry extends Entity implements JsonSerializable {
 	protected int $pausedDuration = 0;
 	protected ?string $projectUri = null;
 	protected ?string $projectName = null;
+	protected ?string $pausesBlob = null;
 
 	public function __construct() {
 		$this->addType('id', 'integer');
@@ -42,6 +45,7 @@ class Entry extends Entity implements JsonSerializable {
 		$this->addType('endTime', 'integer');
 		$this->addType('pausedAt', 'integer');
 		$this->addType('pausedDuration', 'integer');
+		$this->addType('pausesBlob', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -55,6 +59,7 @@ class Entry extends Entity implements JsonSerializable {
 			'pausedDuration' => $this->pausedDuration,
 			'projectUri' => $this->projectUri,
 			'projectName' => $this->projectName,
+			'pausesBlob' => $this->pausesBlob,
 		];
 	}
 }
