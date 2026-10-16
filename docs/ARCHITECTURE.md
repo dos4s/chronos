@@ -786,9 +786,17 @@ Time-dependent tests always mock `ITimeFactory` (server) or the clock (Vitest fa
 
 **Two PHP suites.** `tests/phpunit-unit.xml` runs everything that needs only the app's own code — services,
 pure logic, request parsing — against the OCP package's implementations, so it runs in CI and on a
-developer machine (`composer test:unit`). `tests/phpunit.xml` is for tests that need a live server and runs
-inside a Nextcloud checkout (`composer test:integration`); the migration's database fixtures belong there.
-The frontend has `npm run test` (Vitest) and `npm run typecheck`; pull requests run all of them.
+developer machine (`composer test:unit`). `tests/phpunit.xml` runs the tests that need a live server, from
+inside a Nextcloud checkout (`composer test:integration`). The frontend has `npm run test` (Vitest) and
+`npm run typecheck`; pull requests run all of them.
+
+**What the integration suite is for.** CI can prove the code is consistent; only an instance can prove the
+migration landed and that a constraint behaves on the engine in use. So that suite answers "did the upgrade
+work?" in one command: the schema after migration, no session left in milliseconds, no orphaned pause, the
+unique index refusing a second running session while allowing any number of finished ones, a session's
+whole life with its pauses, and a VTODO reaching the index with its dates and dependencies. It works under
+its own `chronos-itest-*` user ids and an impossible calendar id, and cleans up after itself. The README
+gives the commands.
 
 ## 19. Risks
 

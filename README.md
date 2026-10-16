@@ -64,6 +64,40 @@ Nextcloud checkout (`apps/chronos` or `custom_apps/chronos`), which is what `tes
 
 Every one of these runs on pull requests.
 
+## Verifying an upgrade on your own instance
+
+**Back up the database first.** Nextcloud migrations cannot be rolled back, and 0.2.0 converts every
+session from milliseconds to seconds and moves pauses into their own table.
+
+```bash
+# 1. deploy, then run the migrations
+sudo -u www-data php occ upgrade                     # or: occ migrations:migrate chronos
+sudo -u www-data php occ app:enable chronos
+
+# 2. ask the app whether the schema is what it expects, on your database
+cd /var/www/nextcloud/custom_apps/chronos
+composer install
+composer run test:integration
+```
+
+The integration suite is the quickest honest answer to "did that upgrade work?". It checks, against the
+database this instance really uses:
+
+- every table and second-based column is there, and the millisecond columns are gone
+- no session is still holding a millisecond timestamp, and no pause is orphaned
+- two simultaneous check-ins cannot both open a session — the unique index that replaced a
+  check-then-insert race — while any number of finished sessions can coexist
+- a session runs, pauses, resumes and ends with its pause recorded, and an edit merges overlapping pauses
+- a VTODO lands in the task index with its dates and dependencies, and re-indexing replaces rather than
+  duplicates
+
+It creates its own rows under `chronos-itest-*` user ids and a calendar id that cannot exist, and removes
+them afterwards, so it does not touch real data.
+
+Then open Chronos once as a normal user: that queues the one-off import of your existing task lists. The
+hourly reconcile job keeps the index level with CalDAV afterwards; `occ background-job:list` shows both,
+and `occ background-job:execute <id>` runs one immediately.
+
 ## Architecture
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the design document: goals, the data model, how Chronos
