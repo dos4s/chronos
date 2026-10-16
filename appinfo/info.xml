@@ -24,7 +24,6 @@ Built natively on Nextcloud Tasks — no separate project data, no duplicate lis
 	<namespace>Chronos</namespace>
 	<category>organization</category>
 	<category>office</category>
-	<keywords>time tracking,timesheet,tasks,checkin,pomodoro,productivity,analytics</keywords>
 	<bugs>https://dos4s.netrunners.sh</bugs>
 	<dependencies>
 		<nextcloud min-version="32" max-version="33"/>

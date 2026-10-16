@@ -6,8 +6,8 @@ namespace OCA\Chronos\Core\Settings;
 
 use OCA\Chronos\AppInfo\Application;
 use OCA\Chronos\Core\Error\ValidationFailedException;
+use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
-use OCP\IConfig;
 
 /**
  * Feature toggles (§13).
@@ -83,7 +83,7 @@ class FeatureToggles {
 
 	public function __construct(
 		private IAppConfig $appConfig,
-		private IConfig $config,
+		private IUserConfig $userConfig,
 	) {
 	}
 
@@ -117,12 +117,12 @@ class FeatureToggles {
 		if (!$this->isAvailable($module)) {
 			return false;
 		}
-		return $this->config->getUserValue(
+		return $this->userConfig->getValueBool(
 			$userId,
 			Application::APP_ID,
 			$this->userKey($module),
-			'1',
-		) === '1';
+			true,
+		);
 	}
 
 	/**
@@ -184,11 +184,11 @@ class FeatureToggles {
 	 */
 	public function setEnabledForUser(string $module, string $userId, bool $enabled): void {
 		$this->assertKnown($module);
-		$this->config->setUserValue(
+		$this->userConfig->setValueBool(
 			$userId,
 			Application::APP_ID,
 			$this->userKey($module),
-			$enabled ? '1' : '0',
+			$enabled,
 		);
 	}
 

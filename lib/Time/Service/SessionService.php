@@ -248,11 +248,11 @@ class SessionService {
 	 * @throws NotFoundException|ForbiddenException
 	 */
 	public function deleteSession(string $userId, int $id): void {
-		$this->transactional(function () use ($userId, $id): null {
+		$this->transactional(function () use ($userId, $id): bool {
 			$entry = $this->requireOwned($userId, $id);
 			$this->pauseMapper->deleteForEntry($entry->getId());
 			$this->entryMapper->delete($entry);
-			return null;
+			return true;
 		});
 	}
 

@@ -663,7 +663,7 @@ dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The sess
 Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means fixed and released;
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
-D17–D23 were found while implementing M1 and were not in the original list. Four of them are why none of
+D17–D24 were found while implementing M1 and were not in the original list. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
@@ -693,6 +693,7 @@ requests never fires.
 | D21 | Timer navigation compared against an undefined `projectFilter`, left from the move to multi-select filters | `App.vue` | The Timer entry never showed as active | Removed with the rewrite | M1 | done |
 | D22 | `.nvmrc` asked for node 20 while `package.json` requires `^24` | `.nvmrc` | Developers and CI on different majors | Align `.nvmrc` with `engines` | M1 | done |
 | D23 | No workflow ran either test suite, and `composer test:unit` needed a server checkout | `.github/workflows`, `tests/` | Tests existed but never ran | Server-independent unit suites, plus PHPUnit and Vitest workflows | M1 | done |
+| D24 | `appinfo/info.xml` carried a `<keywords>` element, which the app store schema does not define | `appinfo/info.xml` | `info.xml` failed schema validation, so an App Store release would have been rejected | Removed; validated against the schema | M1 | done |
 
 ## 18. Testing strategy
 
