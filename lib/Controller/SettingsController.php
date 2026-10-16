@@ -33,6 +33,7 @@ class SettingsController extends Controller {
 	public function modules(): JSONResponse {
 		return new JSONResponse([
 			'modules' => $this->toggles->getUserState($this->currentUser->getUid()),
+			'available' => $this->toggles->getAdminState(),
 			'requirements' => $this->toggles->getRequirements(),
 		]);
 	}
@@ -49,6 +50,7 @@ class SettingsController extends Controller {
 	public function adminModules(): JSONResponse {
 		return new JSONResponse([
 			'modules' => $this->toggles->getAdminState(),
+			'implemented' => $this->toggles->getImplemented(),
 			'requirements' => $this->toggles->getRequirements(),
 		]);
 	}

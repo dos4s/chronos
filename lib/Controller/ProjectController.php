@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Chronos\Controller;
 
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Settings\FeatureToggles;
 use OCA\Chronos\Core\Support\CurrentUser;
 use OCA\Chronos\Projects\ProjectView;
 use OCA\Chronos\Projects\Service\ProjectService;
@@ -28,6 +29,7 @@ class ProjectController extends Controller {
 	public function __construct(
 		IRequest $request,
 		private ProjectService $projects,
+		private FeatureToggles $toggles,
 		private CurrentUser $currentUser,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -51,9 +53,14 @@ class ProjectController extends Controller {
 		bool $archived = false,
 		int $sort = 0,
 	): JSONResponse {
+		$userId = $this->currentUser->getUid();
+		// Listing projects is core — the task views need it — while
+		// configuring one is the projects module's (§13).
+		$this->toggles->requireEnabled(FeatureToggles::MODULE_PROJECTS, $userId);
+
 		return new JSONResponse(
 			$this->projects->configure(
-				$this->currentUser->getUid(),
+				$userId,
 				$project,
 				$areaId,
 				$parentUri,

@@ -5,6 +5,7 @@ export default createAppConfig(
 	{
 		main: resolve(join('src', 'main.ts')),
 		dashboard: resolve(join('src', 'dashboard.ts')),
+		settings: resolve(join('src', 'settings.ts')),
 	},
 	{
 		createEmptyCSSEntryPoints: true,

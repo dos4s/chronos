@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import type { Task, TaskType, TaskWritePayload } from '../types/index.ts'
+import type { StatusChange, Task, TaskType, TaskWritePayload } from '../types/index.ts'
 
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
-import { reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
+import { messageFor } from '../api/client.ts'
+import { fetchHistory } from '../api/workflows.ts'
+import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
+import { useWorkflowsStore } from '../stores/workflows.ts'
 import { fromDateInput, toDateInput, toTimeInput } from '../utils/dateInput.ts'
+import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 
 const props = defineProps<{ task: Task }>()
 const emit = defineEmits<{ close: [], save: [changes: Partial<TaskWritePayload>] }>()
+
+const workflows = useWorkflowsStore()
+const { workflowId, statuses } = useCurrentWorkflow()
+
+const history = ref<StatusChange[]>([])
+const loadingHistory = ref(false)
+
+const currentStatus = computed(() => workflows.statusOf(props.task, workflowId.value))
 
 const form = reactive({
 	startDate: '',
@@ -20,7 +34,25 @@ const form = reactive({
 	priority: 0,
 	percent: '' as number | '',
 	type: 'task' as TaskType,
+	statusKey: '',
+	comment: '',
 })
+
+/**
+ * Whether the status the user picked needs a note. The server has the last
+ * word; this only asks for one before the write rather than after it.
+ */
+const transition = computed(() => {
+	const from = currentStatus.value
+	const to = statuses.value.find((status) => status.key === form.statusKey)
+	if (from === undefined || from === null || to === undefined || from.id === to.id) {
+		return null
+	}
+	return workflows.find(workflowId.value)?.transitions
+		.find((rule) => rule.fromStatusId === from.id && rule.toStatusId === to.id) ?? null
+})
+
+const needsComment = computed(() => transition.value?.requiresComment === true)
 
 watch(() => props.task, (task) => {
 	form.startAllDay = task.startIsDate
@@ -34,7 +66,53 @@ watch(() => props.task, (task) => {
 	form.priority = task.priority
 	form.percent = task.percent ?? ''
 	form.type = task.type
+	form.statusKey = workflows.statusOf(task, workflowId.value)?.key ?? ''
+	form.comment = ''
+
+	void loadHistory(task.uid)
 }, { immediate: true })
+
+async function loadHistory(uid: string): Promise<void> {
+	history.value = []
+	if (workflowId.value === null) {
+		return
+	}
+
+	loadingHistory.value = true
+	try {
+		history.value = await fetchHistory(uid)
+	} catch (error) {
+		showError(messageFor(error))
+	} finally {
+		loadingHistory.value = false
+	}
+}
+
+function statusName(key: string | null): string {
+	if (key === null) {
+		return t('chronos', 'No status')
+	}
+	return statuses.value.find((status) => status.key === key)?.name ?? key
+}
+
+function changeLabel(change: StatusChange): string {
+	if (change.fromKey !== change.toKey) {
+		return t('chronos', '{from} → {to}', {
+			from: statusName(change.fromKey),
+			to: statusName(change.toKey),
+		})
+	}
+	if (change.fromAssignee !== change.toAssignee) {
+		return change.toAssignee === null
+			? t('chronos', 'Unassigned')
+			: t('chronos', 'Assigned to {user}', { user: change.toAssignee })
+	}
+	return statusName(change.toKey)
+}
+
+function changeWhen(change: StatusChange): string {
+	return `${formatDate(change.changedAt)} ${formatTimeOfDay(change.changedAt)}`
+}
 
 function save() {
 	const startAt = form.startDate === ''
@@ -44,7 +122,7 @@ function save() {
 		? null
 		: fromDateInput(form.dueDate, form.dueAllDay, form.dueTime)
 
-	emit('save', {
+	const changes: Partial<TaskWritePayload> = {
 		startAt,
 		startIsDate: form.startAllDay,
 		dueAt,
@@ -52,7 +130,16 @@ function save() {
 		priority: Number(form.priority) || 0,
 		percent: form.percent === '' ? null : Number(form.percent),
 		type: form.type,
-	})
+	}
+
+	if (workflowId.value !== null && form.statusKey !== '') {
+		changes.statusKey = form.statusKey
+		if (form.comment.trim() !== '') {
+			changes.comment = form.comment.trim()
+		}
+	}
+
+	emit('save', changes)
 }
 </script>
 
@@ -62,6 +149,26 @@ function save() {
 			<h3 :class="$style.title">
 				{{ task.summary || t('chronos', 'Untitled task') }}
 			</h3>
+
+			<label v-if="workflowId !== null" :class="$style.field">
+				<span :class="$style.legend">{{ t('chronos', 'Status') }}</span>
+				<select v-model="form.statusKey">
+					<option v-for="status in statuses" :key="status.key" :value="status.key">
+						{{ status.name }}
+					</option>
+				</select>
+				<small v-if="currentStatus">
+					{{ t('chronos', 'Other apps see this as {status}', { status: currentStatus.vtodoStatus }) }}
+				</small>
+			</label>
+
+			<label v-if="needsComment" :class="$style.field">
+				<span :class="$style.legend">{{ t('chronos', 'Note') }}</span>
+				<input
+					v-model="form.comment"
+					type="text"
+					:placeholder="t('chronos', 'This change needs a note')">
+			</label>
 
 			<fieldset :class="$style.group">
 				<legend :class="$style.legend">
@@ -130,6 +237,28 @@ function save() {
 					</select>
 				</label>
 			</div>
+
+			<section v-if="workflowId !== null" :class="$style.history">
+				<h4 :class="$style.legend">
+					{{ t('chronos', 'History') }}
+				</h4>
+				<p v-if="loadingHistory" :class="$style.empty">
+					{{ t('chronos', 'Loading…') }}
+				</p>
+				<p v-else-if="history.length === 0" :class="$style.empty">
+					{{ t('chronos', 'Nothing has happened to this task yet.') }}
+				</p>
+				<ul v-else :class="$style.changes">
+					<li v-for="change in history" :key="change.id">
+						<span :class="$style.changeWhat">{{ changeLabel(change) }}</span>
+						<span :class="$style.changeWhen">
+							{{ changeWhen(change) }} ·
+							{{ change.source === 'external' ? t('chronos', 'another app') : change.changedBy }}
+						</span>
+						<span v-if="change.comment" :class="$style.changeNote">{{ change.comment }}</span>
+					</li>
+				</ul>
+			</section>
 
 			<div :class="$style.actions">
 				<NcButton variant="secondary" @click="emit('close')">
@@ -203,6 +332,45 @@ function save() {
 .field small {
 	color: var(--color-text-maxcontrast);
 	font-size: 11px;
+}
+
+.history {
+	border-top: 1px solid var(--color-border);
+	padding-top: 12px;
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+.empty {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.changes {
+	list-style: none;
+	padding: 0;
+	margin: 8px 0 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.changeWhat {
+	display: block;
+	font-size: 13px;
+}
+
+.changeWhen {
+	display: block;
+	font-size: 11px;
+	color: var(--color-text-maxcontrast);
+}
+
+.changeNote {
+	display: block;
+	font-size: 12px;
+	font-style: italic;
 }
 
 .actions {

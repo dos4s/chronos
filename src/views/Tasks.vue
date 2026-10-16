@@ -14,11 +14,15 @@ import ProjectSettingsDialog from '../components/ProjectSettingsDialog.vue'
 import TaskComposer from '../components/TaskComposer.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import TaskRow from '../components/TaskRow.vue'
+import { useModulesStore } from '../stores/modules.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
+import { useWorkflowsStore } from '../stores/workflows.ts'
 
+const modules = useModulesStore()
 const projects = useProjectsStore()
 const tasks = useTasksStore()
+const workflows = useWorkflowsStore()
 
 const project = ref<LabelledProject | null>(null)
 const editing = ref<Task | null>(null)
@@ -55,7 +59,19 @@ onMounted(async () => {
 		await projects.refresh()
 	}
 	project.value ??= options.value[0] ?? null
+	// Statuses are needed to draw a single row, so they are loaded with the
+	// view rather than when a dialog first asks for them.
+	await workflows.ensureLoaded()
 })
+
+/**
+ * Settings can have given the project a workflow, which gives its tasks a
+ * status, so the list is read again.
+ */
+async function settingsClosed(): Promise<void> {
+	configuring.value = false
+	await tasks.refresh()
+}
 
 async function saveDetails(changes: Partial<TaskWritePayload>) {
 	const task = editing.value
@@ -91,7 +107,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				:inputLabel="t('chronos', 'Project')"
 				:placeholder="t('chronos', 'Pick a project')" />
 			<NcButton
-				v-if="project"
+				v-if="project && (modules.projects || modules.workflow)"
 				variant="tertiary"
 				:aria-label="t('chronos', 'Project settings')"
 				@click="configuring = true">
@@ -155,7 +171,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 		<ProjectSettingsDialog
 			v-if="configuring && project"
 			:project="project"
-			@close="configuring = false" />
+			@close="settingsClosed" />
 	</div>
 </template>
 

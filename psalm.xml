@@ -33,6 +33,7 @@
 				<directory name="lib/Core/Middleware" />
 				<directory name="lib/Dashboard" />
 				<directory name="lib/Migration" />
+				<directory name="lib/Settings" />
 			</errorLevel>
 		</UnusedClass>
 		<!-- QBMapper hydrates entity properties and sets the id after insert. -->
@@ -41,6 +42,7 @@
 				<directory name="lib/Core/Index" />
 				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />
+				<directory name="lib/Workflow/Db" />
 			</errorLevel>
 		</PossiblyUnusedProperty>
 		<PropertyNotSetInConstructor>
@@ -48,6 +50,7 @@
 				<directory name="lib/Core/Index" />
 				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />
+				<directory name="lib/Workflow/Db" />
 			</errorLevel>
 		</PropertyNotSetInConstructor>
 		<!-- `/** @var ISchemaWrapper $schema */` is the documented migration idiom. -->

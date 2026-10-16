@@ -13,6 +13,7 @@ use OCA\Chronos\Core\Event\TaskDeletedEvent;
 use OCA\Chronos\Core\Event\TaskIndexedEvent;
 use OCA\Chronos\Core\Event\TaskSource;
 use OCA\Chronos\Core\Event\TaskStatusChangedEvent;
+use OCA\Chronos\Core\Task\StatusGateway;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDateTimeZone;
@@ -21,9 +22,11 @@ use OCP\IDateTimeZone;
  * Keeps the index in step with CalDAV, and tells the rest of the app what
  * changed (§11.4).
  *
- * This is the only writer of `chronos_tasks`. It compares what a task said
- * before with what it says now, so modules get a `TaskStatusChanged` rather
- * than having to diff rows themselves.
+ * This is the writer of `chronos_tasks` for everything a VTODO says. It
+ * compares what a task said before with what it says now, so modules get a
+ * `TaskStatusChanged` rather than having to diff rows themselves. The only
+ * writes that do not come through here are the two bulk status updates on
+ * `TaskMapper`, used when a project gains or loses a workflow.
  */
 class TaskIndexer {
 
@@ -31,6 +34,7 @@ class TaskIndexer {
 		private TaskMapper $tasks,
 		private TaskLinkMapper $links,
 		private VTodoParser $parser,
+		private StatusGateway $statuses,
 		private IEventDispatcher $dispatcher,
 		private ITimeFactory $timeFactory,
 		private IDateTimeZone $dateTimeZone,
@@ -81,12 +85,24 @@ class TaskIndexer {
 		$task = $existing ?? new Task();
 		$previous = $existing === null ? null : [
 			'status' => $existing->getVtodoStatus(),
+			'statusId' => $existing->getStatusId(),
 			'startAt' => $existing->getStartAt(),
 			'dueAt' => $existing->getDueAt(),
 			'assignee' => $existing->getAssignee(),
 		];
 
 		$this->apply($task, $parsed, $userId, $calendarId, $calendarUri, $objectUri, (string)($objectData['etag'] ?? ''), $now);
+
+		// Which workflow status the key means is the workflow module's to say,
+		// and it is also the module that knows what to do when a client has
+		// dropped the property (§7, §12.1).
+		$task->setStatusId($this->statuses->resolveForIndex(
+			$userId,
+			$calendarId,
+			$parsed->statusKey,
+			$parsed->vtodoStatus,
+			$existing?->getStatusId(),
+		));
 
 		$task = $existing === null ? $this->tasks->insert($task) : $this->tasks->update($task);
 
@@ -179,7 +195,7 @@ class TaskIndexer {
 	}
 
 	/**
-	 * @param array{status: string|null, startAt: int|null, dueAt: int|null, assignee: string|null}|null $previous
+	 * @param array{status: string|null, statusId: int|null, startAt: int|null, dueAt: int|null, assignee: string|null}|null $previous
 	 */
 	private function announce(Task $task, ?array $previous, TaskSource $source): void {
 		$this->dispatcher->dispatchTyped(new TaskIndexedEvent($task, $previous === null, $source));
@@ -188,8 +204,13 @@ class TaskIndexer {
 			return;
 		}
 
-		if ($previous['status'] !== $task->getVtodoStatus()) {
-			$this->dispatcher->dispatchTyped(new TaskStatusChangedEvent($task, $previous['status'], $source));
+		if ($previous['status'] !== $task->getVtodoStatus() || $previous['statusId'] !== $task->getStatusId()) {
+			$this->dispatcher->dispatchTyped(new TaskStatusChangedEvent(
+				$task,
+				$previous['status'],
+				$source,
+				$previous['statusId'],
+			));
 		}
 
 		if ($previous['startAt'] !== $task->getStartAt() || $previous['dueAt'] !== $task->getDueAt()) {

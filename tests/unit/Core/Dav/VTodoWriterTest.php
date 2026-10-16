@@ -46,6 +46,38 @@ class VTodoWriterTest extends TestCase {
 		self::assertSame('NEEDS-ACTION', $task->vtodoStatus);
 	}
 
+	public function testTheWorkflowStatusIsWrittenAsAnExtensionProperty(): void {
+		$data = $this->writer->create('task-1', new TaskWrite(
+			summary: 'Waiting on the customer',
+			status: 'IN-PROCESS',
+			statusKey: 'waiting_customer',
+		), self::NOW);
+
+		self::assertStringContainsString('X-CHRONOS-STATUS:waiting_customer', $data);
+		// Every other client still sees a sensible standard status (§12.1).
+		self::assertStringContainsString('STATUS:IN-PROCESS', $data);
+		self::assertSame('waiting_customer', $this->parse($data)->statusKey);
+	}
+
+	public function testATaskWithNoWorkflowCarriesNoWorkflowStatus(): void {
+		$data = $this->writer->create('task-1', new TaskWrite(summary: 'Plain'), self::NOW);
+
+		self::assertStringNotContainsString('X-CHRONOS-STATUS', $data);
+		self::assertNull($this->parse($data)->statusKey);
+	}
+
+	public function testAWriteWithoutAWorkflowStatusRemovesTheOneThatWasThere(): void {
+		$withStatus = $this->writer->create('task-1', new TaskWrite(
+			summary: 'Was in a workflow',
+			statusKey: 'doing',
+		), self::NOW);
+
+		$without = $this->writer->apply($withStatus, new TaskWrite(summary: 'Now in none'), self::NOW);
+
+		self::assertNotNull($without);
+		self::assertStringNotContainsString('X-CHRONOS-STATUS', $without);
+	}
+
 	public function testAnAllDayDateIsWrittenAsADate(): void {
 		$data = $this->writer->create('task-1', new TaskWrite(
 			summary: 'Due that day',

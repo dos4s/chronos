@@ -92,6 +92,76 @@ export interface Task {
 	updatedAt: UnixSeconds
 }
 
+/** One status of a workflow, and a kanban column once that view exists. */
+export interface WorkflowStatus {
+	id: number
+	workflowId: number
+	key: string
+	name: string
+	color: string | null
+	sort: number
+	/** What every other CalDAV client sees instead of this status. */
+	vtodoStatus: VTodoStatus
+	isInitial: boolean
+	isFinal: boolean
+	slaPaused: boolean
+	autoTimer: boolean
+	requiresAssignee: boolean
+	wipLimit: number | null
+}
+
+export interface WorkflowTransition {
+	id: number
+	workflowId: number
+	fromStatusId: number
+	toStatusId: number
+	requiresComment: boolean
+}
+
+/** A workflow with its statuses in order; no transitions means any move. */
+export interface Workflow {
+	id: number
+	name: string
+	isTemplate: boolean
+	statuses: WorkflowStatus[]
+	transitions: WorkflowTransition[]
+}
+
+export interface WorkflowTemplate {
+	key: string
+	name: string
+	statuses: {
+		key: string
+		name: string
+		vtodoStatus: VTodoStatus
+		isInitial: boolean
+		isFinal: boolean
+		slaPaused: boolean
+		autoTimer: boolean
+		requiresAssignee: boolean
+	}[]
+}
+
+/** One row of a task's status history. */
+export interface StatusChange {
+	id: number
+	taskUid: string
+	fromStatusId: number | null
+	toStatusId: number | null
+	fromKey: string | null
+	toKey: string | null
+	fromAssignee: string | null
+	toAssignee: string | null
+	changedBy: string
+	/** Which side of CalDAV the change came from. */
+	source: 'chronos' | 'external'
+	comment: string | null
+	changedAt: UnixSeconds
+}
+
+/** Which modules this instance offers and this user wants (§13). */
+export type ModuleState = Record<string, boolean>
+
 /**
  * The fields Chronos manages on a task. A write replaces all of them, so the
  * caller sends the task as it should end up, not only what changed.
@@ -107,6 +177,10 @@ export interface TaskWritePayload {
 	percent: number | null
 	parentUid: string | null
 	type: TaskType
+	/** A workflow status, by key; left out keeps the one the task is in. */
+	statusKey?: string | null
+	/** A note on the status change, which a transition may require. */
+	comment?: string | null
 }
 
 export interface CheckInPayload {

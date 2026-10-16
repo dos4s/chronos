@@ -54,6 +54,8 @@ class TaskController extends Controller {
 		?int $percent = null,
 		?string $parentUid = null,
 		?string $type = null,
+		?string $statusKey = null,
+		?string $comment = null,
 	): JSONResponse {
 		$write = TaskWrite::fromParams(
 			$summary,
@@ -66,6 +68,8 @@ class TaskController extends Controller {
 			$percent,
 			$parentUid,
 			$type,
+			$statusKey,
+			$comment,
 		);
 
 		return new JSONResponse(
@@ -88,6 +92,8 @@ class TaskController extends Controller {
 		?int $percent = null,
 		?string $parentUid = null,
 		?string $type = null,
+		?string $statusKey = null,
+		?string $comment = null,
 		?string $etag = null,
 	): JSONResponse {
 		$write = TaskWrite::fromParams(
@@ -101,6 +107,8 @@ class TaskController extends Controller {
 			$percent,
 			$parentUid,
 			$type,
+			$statusKey,
+			$comment,
 		);
 
 		return new JSONResponse(

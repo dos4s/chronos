@@ -8,9 +8,10 @@ namespace OCA\Chronos\Core\Dav;
  * A VTODO as the index needs it (§7).
  *
  * Everything here comes from the task itself. What Chronos knows but iCalendar
- * cannot carry — the workflow status, the sprint, custom fields — is read from
- * `X-CHRONOS-*` by the module that owns it, once that module exists (§7); the
- * index keeps the columns ready.
+ * cannot carry is read from `X-CHRONOS-*`: the workflow status key as of M2,
+ * and the sprint and custom fields once those modules exist (§7). Each stays
+ * a key, not a decision — which status it means is the workflow module's to
+ * resolve, because the Chronos tables are the authority on that.
  */
 final class ParsedTask {
 
@@ -30,6 +31,7 @@ final class ParsedTask {
 		public readonly ?string $parentUid,
 		public readonly ?string $summary,
 		public readonly ?string $vtodoStatus,
+		public readonly ?string $statusKey,
 		public readonly int $priority,
 		public readonly ?int $startAt,
 		public readonly bool $startIsDate,

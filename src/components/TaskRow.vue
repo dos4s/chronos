@@ -5,8 +5,10 @@ import { t } from '@nextcloud/l10n'
 import { computed, ref } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
+import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
 import { useNow } from '../composables/useNow.ts'
 import { useTasksStore } from '../stores/tasks.ts'
+import { useWorkflowsStore } from '../stores/workflows.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isCompleted, isDueToday, isOverdue } from '../utils/tasks.ts'
 
@@ -14,6 +16,8 @@ const props = defineProps<{ node: TaskNode, depth: number, readOnly: boolean }>(
 const emit = defineEmits<{ edit: [node: TaskNode], addSubtask: [node: TaskNode] }>()
 
 const tasks = useTasksStore()
+const workflows = useWorkflowsStore()
+const { workflowId } = useCurrentWorkflow()
 const { now } = useNow()
 
 const editing = ref(false)
@@ -23,6 +27,9 @@ const task = computed(() => props.node.task)
 const done = computed(() => isCompleted(task.value))
 const overdue = computed(() => isOverdue(task.value, now.value))
 const dueToday = computed(() => isDueToday(task.value, now.value))
+
+/** The workflow status, which is more exact than the standard one (§12.1). */
+const status = computed(() => workflows.statusOf(task.value, workflowId.value))
 
 const dueLabel = computed(() => {
 	const due = task.value.dueAt
@@ -90,6 +97,12 @@ async function commit() {
 				</button>
 
 				<div :class="$style.meta">
+					<span
+						v-if="status"
+						:class="$style.status"
+						:style="status.color ? { borderColor: status.color, color: status.color } : undefined">
+						{{ status.name }}
+					</span>
 					<span v-if="task.type === 'milestone'" :class="$style.tag">{{ t('chronos', 'Milestone') }}</span>
 					<span v-if="task.type === 'subproject'" :class="$style.tag">{{ t('chronos', 'Subproject') }}</span>
 					<span
@@ -200,6 +213,14 @@ async function commit() {
 	gap: 8px;
 	font-size: 12px;
 	color: var(--color-text-maxcontrast);
+}
+
+.status {
+	padding: 1px 6px;
+	border: 1px solid var(--color-border-dark);
+	border-radius: var(--border-radius);
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
 }
 
 .tag {

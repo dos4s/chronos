@@ -17,6 +17,7 @@ use OCA\Chronos\Core\Error\ValidationFailedException;
 final class TaskWrite {
 
 	private const MAX_SUMMARY = 512;
+	private const MAX_COMMENT = 2048;
 
 	public function __construct(
 		public readonly string $summary,
@@ -29,7 +30,34 @@ final class TaskWrite {
 		public readonly ?int $percent = null,
 		public readonly ?string $parentUid = null,
 		public readonly string $type = ParsedTask::TYPE_TASK,
+		/** The workflow status asked for, as a key; null leaves it alone. */
+		public readonly ?string $statusKey = null,
+		/** A note on the status change, which a transition may require. */
+		public readonly ?string $comment = null,
 	) {
+	}
+
+	/**
+	 * The same write with the status the workflow settled on (§12.1).
+	 *
+	 * The status is decided once, by the workflow module, and the write then
+	 * carries both what every client sees and what Chronos records.
+	 */
+	public function withStatus(StatusWrite $status): self {
+		return new self(
+			summary: $this->summary,
+			status: $status->vtodoStatus ?? $this->status,
+			priority: $this->priority,
+			startAt: $this->startAt,
+			startIsDate: $this->startIsDate,
+			dueAt: $this->dueAt,
+			dueIsDate: $this->dueIsDate,
+			percent: $this->percent,
+			parentUid: $this->parentUid,
+			type: $this->type,
+			statusKey: $status->statusKey,
+			comment: $this->comment,
+		);
 	}
 
 	/**
@@ -46,6 +74,8 @@ final class TaskWrite {
 		?int $percent,
 		?string $parentUid,
 		?string $type,
+		?string $statusKey = null,
+		?string $comment = null,
 	): self {
 		$summary = trim($summary ?? '');
 		if ($summary === '') {
@@ -68,6 +98,22 @@ final class TaskWrite {
 			throw new ValidationFailedException('invalid_type');
 		}
 
+		$statusKey = $statusKey === null ? null : strtolower(trim($statusKey));
+		if ($statusKey === '') {
+			$statusKey = null;
+		}
+		if ($statusKey !== null && preg_match('/^[a-z0-9_-]{1,64}$/', $statusKey) !== 1) {
+			throw new ValidationFailedException('invalid_status_key');
+		}
+
+		$comment = $comment === null ? null : trim($comment);
+		if ($comment === '') {
+			$comment = null;
+		}
+		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT) {
+			throw new ValidationFailedException('comment_too_long');
+		}
+
 		return new self(
 			summary: $summary,
 			status: $status,
@@ -79,6 +125,8 @@ final class TaskWrite {
 			percent: $percent === null ? null : max(0, min(100, $percent)),
 			parentUid: $parentUid === null || trim($parentUid) === '' ? null : trim($parentUid),
 			type: $type,
+			statusKey: $statusKey,
+			comment: $comment,
 		);
 	}
 }

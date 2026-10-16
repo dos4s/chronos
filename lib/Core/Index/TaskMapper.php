@@ -22,6 +22,37 @@ class TaskMapper extends QBMapper {
 	 * The index row for a CalDAV object. This is the lookup the listener uses,
 	 * because an event gives it the calendar and the object URI.
 	 */
+	/**
+	 * Gives the tasks of a calendar the workflow status that matches the
+	 * standard status they already have, for the ones that have none yet.
+	 *
+	 * This and `clearStatuses()` are the only writes of `chronos_tasks` that
+	 * are not the indexer's: attaching a workflow to a project would otherwise
+	 * leave every existing task without a status until the hourly reconcile
+	 * noticed. Nothing that already has a status is touched.
+	 */
+	public function fillStatusWhereUnset(int $calendarId, string $vtodoStatus, int $statusId): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('status_id', $qb->createNamedParameter($statusId, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('calendar_id', $qb->createNamedParameter($calendarId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('vtodo_status', $qb->createNamedParameter($vtodoStatus)))
+			->andWhere($qb->expr()->isNull('status_id'));
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Forgets the workflow statuses of a calendar's tasks, for a project whose
+	 * workflow has been taken away. The standard status never depended on it.
+	 */
+	public function clearStatuses(int $calendarId): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('status_id', $qb->createNamedParameter(null, IQueryBuilder::PARAM_NULL))
+			->where($qb->expr()->eq('calendar_id', $qb->createNamedParameter($calendarId, IQueryBuilder::PARAM_INT)));
+		$qb->executeStatement();
+	}
+
 	public function findByObject(int $calendarId, string $objectUri): ?Task {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')

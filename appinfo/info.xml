@@ -16,9 +16,13 @@ Chronos turns your Nextcloud Tasks lists into time-tracked projects.
 - Dashboard widget with full controls (start, pause, stop) from the Nextcloud home
 - Delete sessions from the log when you need to clean up
 
-Built natively on Nextcloud Tasks — no separate project data, no duplicate lists. If you already organise your work in Tasks lists, Chronos simply adds the time layer on top.
+- Tasks read and written as VTODOs in your own lists, with subtasks, dates, priority and progress
+- Projects grouped into areas, archiving, and one project recorded as part of another
+- Workflows with statuses of your own, transition rules and a history of every status change
+
+Built natively on Nextcloud Tasks — no separate project data, no duplicate lists. If you already organise your work in Tasks lists, Chronos simply adds the time and project layers on top.
 ]]></description>
-	<version>0.2.1</version>
+	<version>0.3.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author mail="dos4s@tutanota.com" homepage="https://dos4s.netrunners.sh">dos4s</author>
 	<namespace>Chronos</namespace>
@@ -31,6 +35,10 @@ Built natively on Nextcloud Tasks — no separate project data, no duplicate lis
 	<background-jobs>
 		<job>OCA\Chronos\Core\Index\ReconcileJob</job>
 	</background-jobs>
+	<settings>
+		<admin>OCA\Chronos\Settings\AdminSettings</admin>
+		<personal>OCA\Chronos\Settings\PersonalSettings</personal>
+	</settings>
 	<navigations>
 		<navigation>
 			<id>chronos</id>
