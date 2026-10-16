@@ -34,6 +34,11 @@ can grow. See `docs/ARCHITECTURE.md` §20 (M1).
 
 ### Changed
 
+- Dependencies brought up to date one at a time, each behind the full check suite: `@nextcloud/vue` 9.13,
+  `@nextcloud/dialogs` 7.5, `@nextcloud/vite-config` 2.5.4, `@nextcloud/stylelint-config` 3.2.2, Vite 7.3.7,
+  Vue 3.5.44, `@vue/tsconfig` 0.9.1, rector 2.7 and `nextcloud/coding-standard` 1.5. Vite 8 is declined
+  while `@nextcloud/vite-config` requires Vite 7; TypeScript 7 waits on the eslint config, which has to move
+  to eslint 10 first (`docs/ARCHITECTURE.md` §17, D14)
 - All stored timestamps and durations are UNIX seconds; the API sends and accepts seconds only, and rejects
   millisecond values from a stale page with `400 timestamp_unit`
 - One `SessionService` holds every session rule, used by the app, the quick links and the widget alike

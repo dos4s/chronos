@@ -684,7 +684,7 @@ requests never fires.
 | D11 | Hard-coded English UI strings | Vue files | Not translatable | `@nextcloud/l10n` | M1, then ongoing | ongoing: the app and the widget are translated; new views keep it up |
 | D12 | `supportsVTODO()` returns true when the component set is unknown | `TaskListController` | Event-only calendars may appear as projects | Treat unknown as not VTODO | M2 | planned |
 | D13 | `stringParam()` fallback for JSON body parsing | `EntryController` | Masks request-format bugs | Typed request parsing | M1 | done |
-| D14 | Pending Dependabot majors (TypeScript 7, Vite 8) | open PRs | Build breakage if merged blindly | Merge one at a time with a build check | M1 | open: untouched in v0.2.0, so the majors are still pending |
+| D14 | Pending Dependabot majors (TypeScript 7, Vite 8) | open PRs | Build breakage if merged blindly | Merge one at a time with a build check | M1 | part done: see below |
 | D15 | **Milliseconds** stored and exchanged; column names `start_time`/`end_time` don't state the unit | `chronos_entries`, API, frontend | Diverges from Nextcloud/CalDAV seconds; unit bugs when the task index is added | Migration and conventions in §8 | M1 | done |
 | D16 | Duration formatting duplicated in app and widget | `App.vue`, `DashboardWidget.vue` | Divergent display | `formatDuration(seconds)` | M1 | done |
 | D17 | **Tool configuration was gitignored:** `psalm.xml`, `.php-cs-fixer.dist.php`, `rector.php` and `openapi.json` were untracked | `.gitignore` | Every CI lint and analysis job ran without its configuration | Track the files and drop those ignore rules | M1 | done |
@@ -695,6 +695,15 @@ requests never fires.
 | D22 | `.nvmrc` asked for node 20 while `package.json` requires `^24` | `.nvmrc` | Developers and CI on different majors | Align `.nvmrc` with `engines` | M1 | done |
 | D23 | No workflow ran either test suite, and `composer test:unit` needed a server checkout | `.github/workflows`, `tests/` | Tests existed but never ran | Server-independent unit suites, plus PHPUnit and Vitest workflows | M1 | done |
 | D24 | `appinfo/info.xml` carried a `<keywords>` element, which the app store schema does not define | `appinfo/info.xml` | `info.xml` failed schema validation, so an App Store release would have been rejected | Removed; validated against the schema | M1 | done |
+
+**D14 in detail.** Taken one at a time, each with the full check suite behind it:
+
+| Update | Outcome |
+|---|---|
+| `@nextcloud/vue` 9.6 → 9.13, `@nextcloud/dialogs` 7.3 → 7.5, `@nextcloud/vite-config` 2.5.2 → 2.5.4, `@nextcloud/stylelint-config` 3.2.1 → 3.2.2, `vite` 7.3.2 → 7.3.7, `vue` → 3.5.44, `@vue/tsconfig` 0.8.1 → 0.9.1 | in v0.2.0 |
+| `rector/rector` 2.4 → 2.7, `nextcloud/coding-standard` 1.4 → 1.5 | in v0.2.0; `cs:check` still passes with no reformatting |
+| **Vite 8** | **declined.** `@nextcloud/vite-config` 2.5.4 — the current release, and the package that encodes how a Nextcloud app bundle is built — requires `vite ^7.3.6`. npm only overrides that peer with a warning, which would leave the build running outside what the config supports. Revisit when that package takes Vite 8 |
+| **TypeScript 7** and **`@nextcloud/eslint-config` 9** | **their own change.** `@vue/tsconfig` 0.9.1 accepts TypeScript 7, but the eslint config still pins `typescript ^5.0.2`, so the two have to move together. Config 9 needs eslint 10 and a flat `eslint.config.js`, and its rule set (import sorting, attribute hyphenation, multi-word component names) reports ~140 findings across the frontend. That is a worthwhile migration and a poor fit inside a milestone's diff |
 
 ## 18. Testing strategy
 
