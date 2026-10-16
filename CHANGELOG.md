@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
+The task layer, finished: projects can now be grouped and configured, and tasks can move through statuses
+of your own rather than only the four iCalendar ones.
+
 ### Added
 
 - **Areas and project settings.** Projects can be grouped into areas — Work, Personal, Homelab — which
@@ -16,12 +21,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   being in an area.
 - A project only gets a settings row once it is configured, and loses it again when its settings go back to
   the defaults, so an untouched task list still needs no row anywhere (`docs/ARCHITECTURE.md` §6, §10.2).
+- **Workflows.** A project can have statuses of its own, created from a **Support**, **Development** or
+  **Personal** template. Every status maps to exactly one standard iCalendar `STATUS`, so a task in
+  "Waiting for customer" is still `IN-PROCESS` to the Tasks app and to your phone, and one in "Rejected"
+  is still `CANCELLED`. Statuses can be renamed, coloured and given a work-in-progress limit; their keys
+  and their mapping stay as they are, because changing one would quietly change what the tasks already in
+  that status mean.
+- **Transition rules.** A workflow with no rules allows every move, which is how a template arrives; add
+  rules and only those moves are allowed, each able to require a note. A status can also require that the
+  task have an assignee. Both are enforced on the server, before anything is written.
+- **Status history.** Every status change and every assignee change is recorded — whoever made it, from
+  whichever side of CalDAV — with who, when, from where and the note, and it is shown on the task. This
+  ships now rather than with service levels because time in a state cannot be worked out afterwards.
+- **Settings pages.** An administrator chooses which modules this instance offers; each user chooses which
+  of those they see. `projects` and `workflow` are the first two there is anything to choose. A module
+  switched off keeps its data, and its endpoints answer like endpoints that are not there.
+- The workflow status travels in `X-CHRONOS-STATUS`, and the Chronos tables remain the authority on it: a
+  client that strips the property loses nothing, and Chronos writes it again on its next write. If another
+  client ticks a task off, the workflow status follows the standard one to a final status — which is also
+  what keeps the Chronos checkbox working under a workflow.
+- Attaching a workflow to a project gives the tasks already in it the status that matches the standard
+  status they have, so a list never sits without statuses waiting for something to re-read it.
 
 ### Changed
 
 - `GET /tasklists` is now `GET /projects`, and reports what Chronos knows about each list — its area, its
-  parent, whether it is archived — beside the list itself. The old route is gone; nothing outside this app
-  used it.
+  parent, whether it is archived, which workflow it uses — beside the list itself. The old route is gone;
+  nothing outside this app used it.
+- The task API takes a `statusKey` and a `comment`, and `GET /tasks/{uid}/history` returns a task's status
+  history.
 
 ## [0.2.1] - 2026-10-16
 

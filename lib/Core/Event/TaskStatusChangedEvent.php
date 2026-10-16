@@ -8,8 +8,11 @@ use OCA\Chronos\Core\Index\Task;
 use OCP\EventDispatcher\Event;
 
 /**
- * The standard `STATUS` of a task changed. The workflow module turns this into
- * a history row and, from M6, into an SLA clock change.
+ * A task's status changed: the standard `STATUS`, the workflow status, or both.
+ *
+ * The two move independently — "In progress" and "Review" are both
+ * `IN-PROCESS` — so this fires for either, and the workflow module turns it
+ * into a history row and, from M6, into an SLA clock change.
  */
 class TaskStatusChangedEvent extends Event {
 
@@ -17,8 +20,16 @@ class TaskStatusChangedEvent extends Event {
 		private Task $task,
 		private ?string $previousStatus,
 		private TaskSource $source,
+		private ?int $previousStatusId = null,
 	) {
 		parent::__construct();
+	}
+
+	/**
+	 * The workflow status the task had before, if it had one.
+	 */
+	public function getPreviousStatusId(): ?int {
+		return $this->previousStatusId;
 	}
 
 	public function getTask(): Task {

@@ -16,6 +16,7 @@ use OCA\Chronos\Core\Index\Task;
 use OCA\Chronos\Core\Index\TaskIndexer;
 use OCA\Chronos\Core\Index\TaskLinkMapper;
 use OCA\Chronos\Core\Index\TaskMapper;
+use OCA\Chronos\Core\Task\StatusGateway;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -32,10 +33,13 @@ class TaskIndexerTest extends TestCase {
 
 	private TaskMapper&MockObject $tasks;
 	private TaskLinkMapper&MockObject $links;
+	private StatusGateway&MockObject $statuses;
 	private TaskIndexer $indexer;
 
 	/** @var list<Event> */
 	private array $events = [];
+	/** What the workflow module resolves a status to; null means no workflow. */
+	private ?int $resolvedStatusId = null;
 	private ?Task $saved = null;
 
 	protected function setUp(): void {
@@ -70,10 +74,17 @@ class TaskIndexerTest extends TestCase {
 		$zone = $this->createMock(IDateTimeZone::class);
 		$zone->method('getTimeZone')->willReturn(new DateTimeZone('Europe/Madrid'));
 
+		// No workflow unless a test says otherwise, which is what the index
+		// stores for a project that has none.
+		$this->statuses = $this->createMock(StatusGateway::class);
+		$this->statuses->method('resolveForIndex')
+			->willReturnCallback(fn (): ?int => $this->resolvedStatusId);
+
 		$this->indexer = new TaskIndexer(
 			$this->tasks,
 			$this->links,
 			new VTodoParser(),
+			$this->statuses,
 			$dispatcher,
 			$timeFactory,
 			$zone,
@@ -284,6 +295,40 @@ class TaskIndexerTest extends TestCase {
 			['uri' => $uid . '.ics', 'etag' => '"etag-1"', 'calendardata' => $data, 'component' => 'vtodo'],
 			$source,
 		);
+	}
+
+	public function testItStoresTheWorkflowStatusTheWorkflowModuleResolves(): void {
+		$this->tasks->method('findByObject')->willReturn(null);
+		$this->resolvedStatusId = 42;
+
+		$task = $this->index(['UID:task-1', 'SUMMARY:A ticket', 'X-CHRONOS-STATUS:review']);
+
+		self::assertSame(42, $task?->getStatusId());
+	}
+
+	public function testAWorkflowStatusChangeIsAnnouncedEvenWhenTheStandardOneDoesNot(): void {
+		// "In progress" and "Review" are both IN-PROCESS (§12.1), so without
+		// this the move between them would go unrecorded — and status history
+		// cannot be reconstructed afterwards.
+		$existing = $this->existing(['status' => 'IN-PROCESS']);
+		$existing->setStatusId(3);
+		$this->tasks->method('findByObject')->willReturn($existing);
+		$this->resolvedStatusId = 4;
+
+		$this->index(['UID:task-1', 'SUMMARY:A ticket', 'STATUS:IN-PROCESS', 'X-CHRONOS-STATUS:review']);
+
+		$changed = $this->firstEvent(TaskStatusChangedEvent::class);
+		self::assertInstanceOf(TaskStatusChangedEvent::class, $changed);
+		self::assertSame(3, $changed->getPreviousStatusId());
+		self::assertSame(4, $changed->getTask()->getStatusId());
+	}
+
+	public function testWithNoWorkflowTheIndexKeepsNoStatus(): void {
+		$this->tasks->method('findByObject')->willReturn(null);
+
+		$task = $this->index(['UID:task-1', 'SUMMARY:A plain task', 'X-CHRONOS-STATUS:review']);
+
+		self::assertNull($task?->getStatusId());
 	}
 
 	/**

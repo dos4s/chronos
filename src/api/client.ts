@@ -111,6 +111,28 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'A project cannot be part of itself')
 		case 'project_cycle':
 			return t('chronos', 'That would make the two projects part of each other')
+		case 'module_disabled':
+			return t('chronos', 'That part of Chronos is switched off')
+		case 'workflow_not_found':
+		case 'unknown_workflow':
+			return t('chronos', 'That workflow no longer exists')
+		case 'unknown_template':
+			return t('chronos', 'That template does not exist')
+		case 'status_not_found':
+		case 'unknown_status':
+		case 'invalid_status_key':
+			return t('chronos', 'That status is not one of this workflow’s')
+		case 'project_has_no_workflow':
+		case 'workflow_unavailable':
+			return t('chronos', 'This project has no workflow, so it has no statuses')
+		case 'transition_not_allowed':
+			return t('chronos', 'This workflow does not allow that move')
+		case 'comment_required':
+			return t('chronos', 'This change needs a note')
+		case 'comment_too_long':
+			return t('chronos', 'That note is too long')
+		case 'assignee_required':
+			return t('chronos', 'That status needs the task to have an assignee')
 		case 'forbidden':
 		case 'not_authenticated':
 			return t('chronos', 'You are not allowed to do that')

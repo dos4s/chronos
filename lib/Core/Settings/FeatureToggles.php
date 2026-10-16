@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Chronos\Core\Settings;
 
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Error\ForbiddenException;
 use OCA\Chronos\Core\Error\ValidationFailedException;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
@@ -65,13 +66,14 @@ class FeatureToggles {
 	/**
 	 * Which modules actually ship code yet. A module stays unavailable until
 	 * its milestone lands, so a half-built module can never be switched on by
-	 * accident; each milestone flips its own flag.
+	 * accident; each milestone flips its own flag. `projects` and `workflow`
+	 * ship with M2.
 	 *
 	 * @var array<string, bool>
 	 */
 	private const IMPLEMENTED = [
-		self::MODULE_PROJECTS => false,
-		self::MODULE_WORKFLOW => false,
+		self::MODULE_PROJECTS => true,
+		self::MODULE_WORKFLOW => true,
 		self::MODULE_KANBAN => false,
 		self::MODULE_FIELDS => false,
 		self::MODULE_SLA => false,
@@ -95,13 +97,22 @@ class FeatureToggles {
 			return true;
 		}
 		$this->assertKnown($module);
-		// psalm: every flag below is still false, so it reads this as dead code.
-		// The suppressions go away as soon as the first module ships.
-		/** @psalm-suppress RedundantCondition */
 		if (self::IMPLEMENTED[$module] !== true) {
 			return false;
 		}
 		return $this->appConfig->getValueBool(Application::APP_ID, $this->adminKey($module));
+	}
+
+	/**
+	 * Refuses the request when the module behind it is switched off, so an
+	 * endpoint of a disabled module answers like one that is not there (§13).
+	 *
+	 * @throws ForbiddenException|ValidationFailedException
+	 */
+	public function requireEnabled(string $module, string $userId): void {
+		if (!$this->isEnabledForUser($module, $userId)) {
+			throw new ForbiddenException('module_disabled');
+		}
 	}
 
 	/**
@@ -123,6 +134,19 @@ class FeatureToggles {
 			$this->userKey($module),
 			true,
 		);
+	}
+
+	/**
+	 * @return array<string, bool> every optional module → whether this build
+	 *                             has it at all
+	 */
+	public function getImplemented(): array {
+		$state = [];
+		foreach (self::OPTIONAL as $module) {
+			$state[$module] = self::IMPLEMENTED[$module];
+		}
+
+		return $state;
 	}
 
 	/**
@@ -158,7 +182,6 @@ class FeatureToggles {
 	 */
 	public function setAvailable(string $module, bool $enabled): void {
 		$this->assertKnown($module);
-		/** @psalm-suppress RedundantCondition until the first optional module ships */
 		if ($enabled && self::IMPLEMENTED[$module] !== true) {
 			throw new ValidationFailedException('module_not_implemented');
 		}

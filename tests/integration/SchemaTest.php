@@ -34,6 +34,10 @@ class SchemaTest extends TestCase {
 			'chronos_task_links',
 			'chronos_areas',
 			'chronos_projects',
+			'chronos_workflows',
+			'chronos_statuses',
+			'chronos_transitions',
+			'chronos_status_history',
 		] as $table) {
 			self::assertTrue($this->db->tableExists($table), $table . ' is missing');
 		}
@@ -71,6 +75,16 @@ class SchemaTest extends TestCase {
 			['chronos_projects', 'parent_project_id'],
 			['chronos_projects', 'workflow_id'],
 			['chronos_projects', 'archived'],
+			['chronos_statuses', 'status_key'],
+			['chronos_statuses', 'vtodo_status'],
+			['chronos_statuses', 'is_initial'],
+			['chronos_statuses', 'auto_timer'],
+			['chronos_statuses', 'wip_limit'],
+			['chronos_transitions', 'requires_comment'],
+			['chronos_status_history', 'task_uid'],
+			['chronos_status_history', 'from_key'],
+			['chronos_status_history', 'to_key'],
+			['chronos_status_history', 'changed_at'],
 		];
 	}
 

@@ -14,6 +14,17 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
 - Session editor: see your day as a calendar and correct times or add breaks you forgot to log
 - Dashboard widget with the full controls from the Nextcloud home
 - Quick links for check-in and check-out, for a desktop shortcut or a hotkey
+- **Tasks**: read and written as VTODOs in your own lists, nested under their parents, with dates,
+  priority, progress and subtasks — edited on your phone, they show up here, and the other way round
+- **Projects and areas**: group your lists, archive one without deleting anything, and record that one
+  project is part of another
+- **Workflows**: statuses of your own, from a Support, Development or Personal template, with transition
+  rules and a history of every status change. Every status maps to one of the four standard iCalendar
+  statuses, so your other clients always see something sensible
+
+Projects and workflows are modules: an administrator chooses what the instance offers under
+*Administration settings → Additional settings*, and each user chooses what they see under *Personal
+settings → Additional settings*. Switching a module off keeps its data.
 
 ## Requirements
 

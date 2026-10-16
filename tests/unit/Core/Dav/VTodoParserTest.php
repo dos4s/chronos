@@ -255,6 +255,26 @@ class VTodoParserTest extends TestCase {
 		return $this->parser->parse($data, $this->madrid);
 	}
 
+	public function testItReadsTheWorkflowStatusKey(): void {
+		$task = $this->parse(['UID:task-1', 'SUMMARY:A ticket', 'STATUS:IN-PROCESS', 'X-CHRONOS-STATUS:Waiting_Customer']);
+
+		// Keys are lower case, so a client that changed the case of the
+		// property value still names the same status.
+		self::assertSame('waiting_customer', $task?->statusKey);
+	}
+
+	public function testAWorkflowStatusKeyThatCannotBeOneIsIgnored(): void {
+		$task = $this->parse(['UID:task-1', 'SUMMARY:A ticket', 'X-CHRONOS-STATUS:not a key at all']);
+
+		self::assertNull($task?->statusKey);
+	}
+
+	public function testATaskWithoutTheExtensionPropertyHasNoWorkflowStatus(): void {
+		$task = $this->parse(['UID:task-1', 'SUMMARY:A ticket', 'STATUS:NEEDS-ACTION']);
+
+		self::assertNull($task?->statusKey);
+	}
+
 	private function iso(?int $at): string {
 		self::assertNotNull($at);
 		return (new DateTimeImmutable('@' . $at))->format('c');

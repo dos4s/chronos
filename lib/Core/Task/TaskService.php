@@ -21,6 +21,10 @@ use OCP\Security\ISecureRandom;
  * Reading and writing tasks (§11.1).
  *
  * Reads come from the index, which is fast and already scoped by project.
+ * A status change goes through the workflow first, which says what to write
+ * and refuses a move the workflow does not allow — or, with no workflow
+ * module, leaves the four standard statuses as they are (§12.1).
+ *
  * Writes go to CalDAV through the gateway and carry the etag the client based
  * its change on, so two people editing the same task cannot silently overwrite
  * each other. The index then updates itself from the listener, which makes the
@@ -35,6 +39,7 @@ class TaskService {
 		private VTodoWriter $writer,
 		private TaskIndexer $indexer,
 		private TaskMapper $tasks,
+		private StatusGateway $statuses,
 		private ITimeFactory $timeFactory,
 		private ISecureRandom $random,
 	) {
@@ -52,11 +57,32 @@ class TaskService {
 	}
 
 	/**
+	 * One task, by the UID the API refers to it by. Reading it is also what
+	 * says whether this user may see it at all.
+	 *
+	 * @throws NotFoundException
+	 */
+	public function get(string $userId, string $uid): Task {
+		[$task] = $this->requireTask($userId, $uid);
+
+		return $task;
+	}
+
+	/**
 	 * @throws NotFoundException|ForbiddenException
 	 */
 	public function create(string $userId, string $projectRef, TaskWrite $write): Task {
 		$calendar = $this->requireCalendar($userId, $projectRef);
 		$this->requireWritable($calendar);
+
+		$write = $write->withStatus($this->statuses->prepareWrite(
+			$userId,
+			$calendar->ref,
+			null,
+			$write->statusKey,
+			$write->status,
+			$write->comment,
+		));
 
 		$uid = $this->random->generate(self::UID_LENGTH, ISecureRandom::CHAR_ALPHANUMERIC);
 		$objectUri = $uid . '.ics';
@@ -81,6 +107,17 @@ class TaskService {
 		if ($current === null) {
 			throw new NotFoundException('task_not_found');
 		}
+
+		// The workflow decides what the status becomes, and refuses a move it
+		// does not allow, before anything is written (§12.1).
+		$write = $write->withStatus($this->statuses->prepareWrite(
+			$userId,
+			$calendar->ref,
+			$task,
+			$write->statusKey,
+			$write->status,
+			$write->comment,
+		));
 
 		$calendarData = $this->writer->apply($current['calendarData'], $write, $this->timeFactory->getTime());
 		if ($calendarData === null) {

@@ -423,8 +423,12 @@ query serves a user by first asking CalDAV which calendars they can see.
   `is_initial`, `is_final`, `sla_paused`, `auto_timer`, `requires_assignee`, `wip_limit`)
 - **`chronos_transitions`** (`workflow_id`, `from_status_id`, `to_status_id`, `requires_comment`) — no rows =
   any transition allowed
-- **`chronos_status_history`** (`id`, `task_uid`, `from_status_id`, `to_status_id`, `from_assignee`,
-  `to_assignee`, `changed_by`, `source` `chronos`/`external`, `comment`, `changed_at`)
+- **`chronos_status_history`** (`id`, `task_uid`, `from_status_id`, `to_status_id`, `from_key`, `to_key`,
+  `from_assignee`, `to_assignee`, `changed_by`, `source` `chronos`/`external`, `comment`, `changed_at`)
+  — `from_key` and `to_key` were added to the original list while building M2: a status id stops meaning
+  anything the moment its workflow is deleted, and history is the one thing here that cannot be rebuilt, so
+  each row also keeps the keys as they were. Deleting a workflow therefore clears the ids and leaves the
+  rows readable.
 - **`chronos_board_ranks`** (`project_id`, `task_uid`, `status_id`, `rank` VARCHAR(64)) — card order within a
   column as a lexicographic rank (§15.5)
 
@@ -548,6 +552,23 @@ Each status maps to exactly one standard `STATUS`, so a task in "Waiting for cus
 
 Without the workflow module, the kanban uses the four standard statuses.
 
+**As built in M2.** A workflow is created from a template and then belongs to the user: it is their copy to
+rename, recolour and limit. A status keeps its key and its standard-status mapping for life — the index and
+every other client read those, and changing one would quietly change what the tasks already in that status
+mean; a different mapping is a different workflow. A template arrives with no transition rows, so every
+move is allowed until the user says otherwise. Attaching a workflow to a project gives the tasks already
+there the status that matches the standard status they have, so a list does not sit without statuses until
+something re-reads it; taking the workflow away forgets them again. `auto_timer` is recorded but does
+nothing until M5, which is where the timer learns about tasks.
+
+**What a status change writes.** `X-CHRONOS-STATUS` carries the key and `STATUS` the standard status, both
+decided in one place (`Core/Task/StatusGateway`, implemented by the workflow module). The Chronos tables
+are the authority: a client that strips the property loses nothing, because the index still holds the
+status and Chronos writes the property again on its next write. If another client changes the standard
+status — ticking a task off in the Tasks app — the workflow status follows it to a status with that
+mapping, preferring a final one for `COMPLETED` and `CANCELLED` and the initial one for `NEEDS-ACTION`.
+That is also what lets the Chronos checkbox keep working under a workflow.
+
 ### 12.2 Time
 - Check-in, pause and check-out work as today; sessions gain an optional `task_uid` (M5).
 - One `SessionService` implements all session rules; controllers, quick links and the dashboard widget all
@@ -610,6 +631,15 @@ setting); dragging between quadrants updates those fields.
   nothing for them to show, and a store nothing reads is just code to maintain.
 - Dependencies are explicit: `sla` requires `workflow`; `sprints` and `roadmap` require `gantt`. Enabling a
   module enables its requirements; disabling a required module asks first.
+- **State after M2:** `projects` and `workflow` are implemented and switchable, and the **settings pages**
+  are here: an admin page for what the instance offers and a personal page for what the user sees, both
+  built from one Vue entry point (`src/settings.ts`). Each endpoint of an optional module refuses a request
+  when its module is off, so a switched-off module answers like one that is not there. Listing projects is
+  *not* part of the `projects` module — the task views cannot work without it — while areas, project
+  settings and the parent link are.
+- One compromise: a listener cannot be left unregistered, because registration happens before the
+  container may read config, so the status-history listener is registered always and checks the toggle
+  itself. A switched-off module still records nothing, which is what the rule is for.
 
 ## 14. Code structure and conventions
 
@@ -737,7 +767,8 @@ dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The sess
 Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means fixed and released;
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
-D17–D24 were found while implementing M1, and D25–D27 by the first upgrade of a real instance and were not in the original list. Four of them are why none of
+D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, and D28–D29 are
+what M2 knowingly left for the milestone that can do them properly. None of them were in the original list. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
@@ -771,6 +802,8 @@ requests never fires.
 | D25 | **The seconds migration dropped pause time no pause described:** `paused_seconds` was recomputed from the pause rows, so a legacy `paused_duration` with an empty or missing `pauses_blob` became zero — and that time became worked time | `Version2000…` | On the one instance upgraded, two sessions lost 2 h 31 m of pause time, overstating work by the same amount | Compare the legacy total with what the pauses account for and add the difference back as a pause (§8.7) | M2 | done in 0.2.1; an instance already on 0.2.0 needs the comparison run against its pre-upgrade backup |
 | D26 | **The integration suite could not run on a real instance:** `tests/bootstrap.php` required the server's own test bootstrap, which a release tarball does not ship | `tests/bootstrap.php` | The suite written to verify an upgrade could not be run where it was needed | Fall back to booting `lib/base.php` | M2 | done |
 | D27 | An integration test defined `count()`, which PHPUnit declares final, and two others assumed a pause could be measured inside the same second | `tests/integration/` | The suite aborted, then failed two tests, on first real run | Renamed; assert the invariant instead of the row count | M2 | done |
+| D28 | **Transition rules have no UI:** `PUT /workflows/{id}/transitions` replaces them, but nothing in the app draws them | `WorkflowController`, `src/components/` | A workflow's rules can only be set through the API, so in practice every move stays allowed | Edit them where they are visible: the kanban dims a column a card may not go to (F5) | M3 | planned |
+| D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 
@@ -903,12 +936,21 @@ listing rather than shown as a project that cannot be opened. `GET /tasklists` b
 now carries those settings. Subprojects already work, as a container VTODO (`X-CHRONOS-TYPE:SUBPROJECT`,
 §6) from part 1.
 
-Still to come in M2: workflows, statuses and status history (the templates Q4 settles are in §12.1);
-**promote to list**, which needs a multi-object CalDAV move and has `chronos_projects.parent_project_id`
-waiting for it; and the **spike**, which needs a live server and a phone and so could not be run from the
-development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
-`RELTYPE`s; the design already assumes the worst and keeps Chronos's tables authoritative, so building
-ahead of it was safe — but it must be run before M2 ships.
+**Part 4 implemented** — workflows, statuses, transitions and status history: `chronos_workflows`,
+`chronos_statuses`, `chronos_transitions`, `chronos_status_history`, the three templates Q4 settled, an API
+for all of it, `X-CHRONOS-STATUS` in both directions, transition and `requires_assignee` enforcement on
+every write, and a history row for every status and assignee change — whoever made it, from whichever side
+of CalDAV. The task layer asks about statuses through one interface (`Core/Task/StatusGateway`), so with
+the module switched off it has exactly one code path and the four standard statuses. The **feature-toggle
+settings pages** land here too, as §13 said they would: `projects` and `workflow` are the first two
+modules there is anything to toggle.
+
+Still to come in M2: **promote to list**, which needs a multi-object CalDAV move and has
+`chronos_projects.parent_project_id` waiting for it; a UI for transition rules, which the API has and the
+kanban (M3) is where they are worth drawing (D28); and the **spike**, which needs a live server and a phone
+and so could not be run from the development machine. The spike only confirms how other clients treat
+`X-CHRONOS-*` and unknown `RELTYPE`s; the design already assumes the worst and keeps Chronos's tables
+authoritative, so building ahead of it was safe — but it must be run before M2 is called finished.
 
 ### M3 — Kanban · v0.4.0
 - Shared drag engine (`useDrag`): pointer events, threshold, autoscroll, keyboard, live region.

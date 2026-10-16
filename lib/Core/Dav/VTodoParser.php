@@ -26,6 +26,7 @@ use Throwable;
 class VTodoParser {
 
 	private const X_TYPE = 'X-CHRONOS-TYPE';
+	private const X_STATUS = 'X-CHRONOS-STATUS';
 	private const PRINCIPAL_PREFIX = 'principals/users/';
 
 	/**
@@ -63,6 +64,7 @@ class VTodoParser {
 			parentUid: $parentUid,
 			summary: $this->text($todo->SUMMARY),
 			vtodoStatus: $this->status($todo),
+			statusKey: $this->statusKey($todo),
 			priority: $this->priority($todo),
 			startAt: $start['at'] ?? null,
 			startIsDate: $start['isDate'] ?? false,
@@ -181,6 +183,21 @@ class VTodoParser {
 	private function status(VTodo $todo): ?string {
 		$status = strtoupper($this->text($todo->STATUS) ?? '');
 		return in_array($status, ParsedTask::VTODO_STATUSES, true) ? $status : null;
+	}
+
+	/**
+	 * The workflow status a client wrote back, if it kept the property at all.
+	 * A client that strips it loses nothing: the index still holds the status,
+	 * and Chronos writes the property again on its next write (§7).
+	 */
+	private function statusKey(VTodo $todo): ?string {
+		$key = $this->text($todo->{self::X_STATUS});
+		if ($key === null) {
+			return null;
+		}
+
+		$key = strtolower($key);
+		return preg_match('/^[a-z0-9_-]{1,64}$/', $key) === 1 ? $key : null;
 	}
 
 	private function priority(VTodo $todo): int {

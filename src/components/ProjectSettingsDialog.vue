@@ -2,21 +2,33 @@
 import type { Project } from '../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import { useModulesStore } from '../stores/modules.ts'
 import { useProjectsStore } from '../stores/projects.ts'
+import { useWorkflowsStore } from '../stores/workflows.ts'
 
 const props = defineProps<{ project: Project }>()
 const emit = defineEmits<{ close: [] }>()
 
+const modules = useModulesStore()
 const projects = useProjectsStore()
+const workflows = useWorkflowsStore()
 
 const form = reactive({
 	areaId: '' as number | '',
 	parentUri: '',
 	archived: false,
+	workflowId: '' as number | '',
+})
+
+/** The template a new workflow is started from, while one is being added. */
+const newWorkflowTemplate = ref<string | null>(null)
+
+onMounted(() => {
+	void workflows.ensureLoaded()
 })
 
 /** The new-area name, shown only while the user is adding one. */
@@ -29,7 +41,9 @@ watch(() => props.project, (project) => {
 	form.areaId = project.areaId ?? ''
 	form.parentUri = project.parentUri ?? ''
 	form.archived = project.archived
+	form.workflowId = project.workflowId ?? ''
 	newArea.value = null
+	newWorkflowTemplate.value = null
 	renaming.value = false
 }, { immediate: true })
 
@@ -80,14 +94,39 @@ function startRenaming(): void {
 	renaming.value = true
 }
 
+async function addWorkflow(): Promise<void> {
+	const template = newWorkflowTemplate.value
+	if (template === null || template === '') {
+		newWorkflowTemplate.value = null
+		return
+	}
+
+	const workflow = await workflows.createFromTemplate(template, null)
+	if (workflow !== null) {
+		form.workflowId = workflow.id
+	}
+	newWorkflowTemplate.value = null
+}
+
 async function save(): Promise<void> {
 	saving.value = true
-	const ok = await projects.configure(props.project.uri, {
+
+	const wanted = form.workflowId === '' ? null : Number(form.workflowId)
+	// The workflow belongs to its own module, so it is set through its own
+	// endpoint — which is also what gives the tasks already in the project a
+	// status (§12.1).
+	const workflowSaved = !modules.workflow || (props.project.workflowId ?? null) === wanted
+		? true
+		: await workflows.assign(props.project.uri, wanted)
+
+	// With the projects module off there is nothing of its to save, and its
+	// endpoint would refuse the request anyway (§13).
+	const ok = workflowSaved && (!modules.projects || await projects.configure(props.project.uri, {
 		areaId: form.areaId === '' ? null : Number(form.areaId),
 		parentUri: form.parentUri === '' ? null : form.parentUri,
 		archived: form.archived,
 		sort: props.project.sort,
-	})
+	}))
 	saving.value = false
 
 	if (ok) {
@@ -107,7 +146,7 @@ async function save(): Promise<void> {
 				{{ t('chronos', 'The list itself lives in the Tasks app. These settings are Chronos’s own.') }}
 			</NcNoteCard>
 
-			<label :class="$style.field">
+			<label v-if="modules.projects" :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Area') }}</span>
 				<div :class="$style.row">
 					<select v-model="form.areaId" :class="$style.grow">
@@ -142,7 +181,7 @@ async function save(): Promise<void> {
 				</small>
 			</label>
 
-			<label v-if="newArea !== null" :class="$style.field">
+			<label v-if="modules.projects && newArea !== null" :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Name of the new area') }}</span>
 				<div :class="$style.row">
 					<input
@@ -157,7 +196,7 @@ async function save(): Promise<void> {
 				</div>
 			</label>
 
-			<label v-if="renaming" :class="$style.field">
+			<label v-if="modules.projects && renaming" :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Rename area') }}</span>
 				<div :class="$style.row">
 					<input
@@ -171,7 +210,7 @@ async function save(): Promise<void> {
 				</div>
 			</label>
 
-			<label :class="$style.field">
+			<label v-if="modules.projects" :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Part of') }}</span>
 				<select v-model="form.parentUri">
 					<option value="">{{ t('chronos', 'Nothing — this is a top-level project') }}</option>
@@ -182,7 +221,43 @@ async function save(): Promise<void> {
 				<small>{{ t('chronos', 'For a project split out of a larger one, so the two stay related.') }}</small>
 			</label>
 
-			<label :class="$style.checkbox">
+			<label v-if="modules.workflow" :class="$style.field">
+				<span :class="$style.legend">{{ t('chronos', 'Workflow') }}</span>
+				<div :class="$style.row">
+					<select v-model="form.workflowId" :class="$style.grow">
+						<option value="">{{ t('chronos', 'None — the four standard statuses') }}</option>
+						<option v-for="workflow in workflows.workflows" :key="workflow.id" :value="workflow.id">
+							{{ workflow.name }}
+						</option>
+					</select>
+					<NcButton
+						variant="tertiary"
+						:aria-label="t('chronos', 'New workflow')"
+						@click="newWorkflowTemplate = ''">
+						{{ t('chronos', 'New') }}
+					</NcButton>
+				</div>
+				<small>
+					{{ t('chronos', 'Statuses are this project’s own; other apps always see one of the four standard ones.') }}
+				</small>
+			</label>
+
+			<label v-if="newWorkflowTemplate !== null" :class="$style.field">
+				<span :class="$style.legend">{{ t('chronos', 'Start from a template') }}</span>
+				<div :class="$style.row">
+					<select v-model="newWorkflowTemplate" :class="$style.grow">
+						<option value="">{{ t('chronos', 'Pick a template') }}</option>
+						<option v-for="template in workflows.templates" :key="template.key" :value="template.key">
+							{{ template.name }}
+						</option>
+					</select>
+					<NcButton variant="secondary" @click="addWorkflow">
+						{{ t('chronos', 'Create') }}
+					</NcButton>
+				</div>
+			</label>
+
+			<label v-if="modules.projects" :class="$style.checkbox">
 				<input v-model="form.archived" type="checkbox">
 				<span>
 					{{ t('chronos', 'Archived') }}

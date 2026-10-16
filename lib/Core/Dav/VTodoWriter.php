@@ -29,6 +29,7 @@ class VTodoWriter {
 
 	private const PRODID = '-//Chronos//Nextcloud//EN';
 	private const X_TYPE = 'X-CHRONOS-TYPE';
+	private const X_STATUS = 'X-CHRONOS-STATUS';
 
 	/**
 	 * A new task, as an iCalendar document.
@@ -105,6 +106,9 @@ class VTodoWriter {
 
 		$this->setParent($todo, $write->parentUid);
 		$this->setOrRemove($todo, self::X_TYPE, $write->type === 'task' ? null : strtoupper($write->type));
+		// The workflow status, for the clients that keep it; the Chronos tables
+		// remain the authority either way (§7).
+		$this->setOrRemove($todo, self::X_STATUS, $write->statusKey);
 	}
 
 	/**
