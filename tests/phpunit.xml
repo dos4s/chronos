@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" bootstrap="bootstrap.php" timeoutForSmallTests="900" timeoutForMediumTests="900" timeoutForLargeTests="900" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.4/phpunit.xsd" cacheDirectory=".phpunit.cache">
-	<testsuite name="Time Tracker Tests">
-		<directory suffix="Test.php">.</directory>
+<!--
+	The tests that need a running Nextcloud: they use its database and its
+	service container. Run them from inside a server checkout, where the app
+	sits in apps/ or custom_apps/:
+
+		composer run test:integration
+
+	Everything that needs nothing but the app's own code lives in
+	phpunit-unit.xml and runs anywhere, including CI.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	bootstrap="bootstrap.php"
+	colors="true"
+	timeoutForSmallTests="900"
+	timeoutForMediumTests="900"
+	timeoutForLargeTests="900"
+	cacheDirectory=".phpunit.cache"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.4/phpunit.xsd">
+	<testsuite name="Chronos integration tests">
+		<directory suffix="Test.php">integration</directory>
 	</testsuite>
 	<source>
 		<include>
