@@ -160,6 +160,82 @@ class PauseNormalizerTest extends TestCase {
 		self::assertNull($this->normalizer->openStart([]));
 	}
 
+	/**
+	 * The case a live upgrade turned up: two sessions from before the
+	 * `pauses_blob` column had a `paused_duration` and no pauses at all, so
+	 * recomputing from the pauses alone moved two and a half hours of pause
+	 * time into worked time.
+	 */
+	public function testRestoresPauseTimeNoPauseDescribed(): void {
+		$result = $this->normalizer->withLegacyTotal([], 7911, 1_776_668_795, 1_776_712_023);
+
+		self::assertSame(7911, $this->normalizer->closedSeconds($result));
+		self::assertCount(1, $result);
+		// Placed as late as the session allows, because only the duration was
+		// ever recorded.
+		self::assertSame(1_776_712_023, $result[0]['end']);
+	}
+
+	public function testRestoresOnlyTheDifference(): void {
+		$existing = [['start' => 1000, 'end' => 1300]];
+
+		$result = $this->normalizer->withLegacyTotal($existing, 600, 900, 5000);
+
+		self::assertSame(600, $this->normalizer->closedSeconds($result));
+	}
+
+	public function testAddsNothingWhenThePausesAlreadyAccountForTheTotal(): void {
+		$existing = [['start' => 1000, 'end' => 1600]];
+
+		self::assertSame($existing, $this->normalizer->withLegacyTotal($existing, 600, 900, 5000));
+		self::assertSame($existing, $this->normalizer->withLegacyTotal($existing, 300, 900, 5000));
+		self::assertSame($existing, $this->normalizer->withLegacyTotal($existing, 0, 900, 5000));
+	}
+
+	public function testRestoredTimeNeverOverlapsAnExistingPause(): void {
+		$existing = [['start' => 2000, 'end' => 2500], ['start' => 4000, 'end' => 4200]];
+
+		$result = $this->normalizer->withLegacyTotal($existing, 1500, 1000, 5000);
+
+		self::assertSame(1500, $this->normalizer->closedSeconds($result));
+		// Still sorted, still not overlapping: the invariant the whole class is for.
+		self::assertSame($result, $this->normalizer->normalize($result, 1000, 5000));
+	}
+
+	public function testRestoredTimeCannotExceedTheSession(): void {
+		// The old total claims more pause than the session was long.
+		$result = $this->normalizer->withLegacyTotal([], 99_999, 1000, 2000);
+
+		self::assertSame(1000, $this->normalizer->closedSeconds($result));
+		self::assertSame([['start' => 1000, 'end' => 2000]], $result);
+	}
+
+	/**
+	 * A session that is paused right now has nowhere to put the restored time
+	 * except up against the pause it is already in, so the two become one
+	 * pause that started earlier. The time is still accounted for — it is in
+	 * the open pause, and lands in the total when the session resumes.
+	 */
+	public function testRestoringIntoAPausedSessionExtendsThatPauseBackwards(): void {
+		$existing = [['start' => 4000, 'end' => null]];
+
+		$result = $this->normalizer->withLegacyTotal($existing, 600, 1000, null);
+
+		self::assertSame([['start' => 3400, 'end' => null]], $result);
+		self::assertSame(3400, $this->normalizer->openStart($result));
+
+		// Resuming at 4600 closes it, and the restored 600 seconds are there.
+		$resumed = $this->normalizer->normalize([['start' => 3400, 'end' => 4600]], 1000, 5000);
+		self::assertSame(1200, $this->normalizer->closedSeconds($resumed));
+	}
+
+	public function testRestoresIntoARunningSessionWithNoOpenPause(): void {
+		$result = $this->normalizer->withLegacyTotal([], 600, 1000, null);
+
+		self::assertSame(600, $this->normalizer->closedSeconds($result));
+		self::assertSame([['start' => 1000, 'end' => 1600]], $result);
+	}
+
 	public function testIsIdempotent(): void {
 		$once = $this->normalizer->normalize([
 			['start' => 500, 'end' => 1000],

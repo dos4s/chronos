@@ -188,6 +188,24 @@ class Version2000Date20261016120000 extends SimpleMigrationStep {
 		// the result instead of dividing the old one (§8.7).
 		$normalized = $this->normalizer->normalize($shapes, $startAt, $endAt);
 
+		// The old total and the old pause list could disagree: a quick
+		// check-out added to the total without recording a pause (D2), and
+		// sessions older than the blob column have a total and no pauses at
+		// all. Recomputing from the pauses alone would turn that time into
+		// worked time, so whatever the pauses do not account for is added back
+		// as one (§8.7).
+		$legacyPaused = $this->durationSeconds($row['paused_duration'] ?? null);
+		$accounted = $this->normalizer->closedSeconds($normalized);
+		if ($legacyPaused > $accounted) {
+			$normalized = $this->normalizer->withLegacyTotal($normalized, $legacyPaused, $startAt, $endAt);
+			$this->logger->warning(sprintf(
+				'Chronos: session %d recorded %d seconds of pause that no pause described; '
+					. 'restored as a pause at the end of the session, since when it happened was never recorded',
+				$id,
+				$legacyPaused - $accounted,
+			), ['app' => Application::APP_ID]);
+		}
+
 		$this->deletePauses($id);
 		foreach ($normalized as $pause) {
 			$insert = $this->db->getQueryBuilder();
@@ -360,6 +378,19 @@ class Version2000Date20261016120000 extends SimpleMigrationStep {
 		}
 
 		return $shapes;
+	}
+
+	/**
+	 * A duration, as opposed to a point in time: `paused_duration` was always
+	 * written in milliseconds, so it is divided rather than being guessed at
+	 * by magnitude the way a timestamp is.
+	 */
+	private function durationSeconds(mixed $value): int {
+		if ($value === null || is_bool($value) || !is_numeric($value)) {
+			return 0;
+		}
+
+		return max(0, intdiv((int)$value, 1000));
 	}
 
 	private function toSeconds(mixed $value): ?int {

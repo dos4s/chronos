@@ -59,14 +59,16 @@ class SessionLifecycleTest extends TestCase {
 		self::assertNotNull($ended['endAt']);
 		self::assertNull($ended['pausedSinceAt']);
 
-		// The pause survived as a row, and the total agrees with it.
-		$stored = $this->pauses->findForEntry((int)$ended['id']);
-		self::assertCount(1, $stored);
-		self::assertNotNull($stored[0]->getEndAt());
-		self::assertSame(
-			$stored[0]->getEndAt() - $stored[0]->getStartAt(),
-			$ended['pausedSeconds'],
-		);
+		// The cached total always agrees with the rows, which is the invariant
+		// that matters. The count is deliberately not asserted here: all of
+		// this happens inside one second, and a pause that starts and ends in
+		// the same second is not a pause at one-second resolution (§8.1).
+		$total = 0;
+		foreach ($this->pauses->findForEntry((int)$ended['id']) as $pause) {
+			self::assertNotNull($pause->getEndAt(), 'a finished session has no open pause');
+			$total += $pause->getEndAt() - $pause->getStartAt();
+		}
+		self::assertSame($total, $ended['pausedSeconds']);
 	}
 
 	public function testASecondCheckInIsRefused(): void {
@@ -84,6 +86,11 @@ class SessionLifecycleTest extends TestCase {
 		$this->sessions->checkIn(self::USER);
 		$this->sessions->pause(self::USER);
 
+		// Long enough for the pause to exist at one-second resolution; without
+		// this the pause would open and close in the same second and be
+		// dropped, which would hide what this test is about.
+		sleep(2);
+
 		$this->sessions->checkOutIfRunning(self::USER);
 
 		$sessions = $this->sessions->listSessions(self::USER, 10, 0);
@@ -91,6 +98,7 @@ class SessionLifecycleTest extends TestCase {
 		self::assertCount(1, $sessions[0]['pauses']);
 		self::assertNotNull($sessions[0]['pauses'][0]['endAt']);
 		self::assertNull($sessions[0]['pausedSinceAt']);
+		self::assertGreaterThanOrEqual(1, $sessions[0]['pausedSeconds']);
 	}
 
 	public function testEditingASessionMergesOverlappingPauses(): void {

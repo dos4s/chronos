@@ -311,6 +311,13 @@ Existing `chronos_entries` stores milliseconds in `start_time`, `end_time`, `pau
 | 3 | `Version2001…` `changeSchema` | drop `start_time`, `end_time`, `paused_at`, `paused_duration`; replace index `ch_entries_user_end_idx` with `(user_id, end_at)`; add `(user_id, start_at)` |
 | 4 | M2 release | drop `pauses_blob` (kept one release as a safety copy) |
 
+**The old total and the old pause list could disagree**, and the first version of this migration lost the
+difference. Two causes, both real: the quick check-out added to `paused_duration` without appending to
+`pauses_blob` (D2), and sessions older than the blob column have a total and no pauses at all. Recomputing
+purely from the pauses then turned that time into *worked* time. Step 2 now compares the legacy total with
+what the pauses account for and adds the difference back as a pause, placed as late in the session as there
+is room for — only the duration was ever recorded, never when it happened (D25).
+
 Safety:
 - **Idempotent:** step 2 only converts rows where `start_at IS NULL`; re-running it is a no-op.
 - **Detection check:** any row with `start_time < 100 000 000 000` is already in seconds and is copied
@@ -548,6 +555,8 @@ Without the workflow module, the kanban uses the four standard statuses.
 - Rollups task → parent → subproject → project, from the index tree.
 - `auto_timer` statuses can start/stop the timer on transition (per-user setting, off by default).
 - Two measures, never mixed: **work time** (sessions) and **time in state** (status history).
+- One second is the resolution (§8.1), so a pause that starts and ends within the same second is not a
+  pause and is not recorded. The cached `paused_seconds` always equals the sum of the pause rows.
 
 ### 12.3 Assignment, time-in-state, SLA
 - Assignee in `ATTENDEE`; changes logged in status history.
@@ -728,7 +737,7 @@ dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The sess
 Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means fixed and released;
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
-D17–D24 were found while implementing M1 and were not in the original list. Four of them are why none of
+D17–D24 were found while implementing M1, and D25–D27 by the first upgrade of a real instance and were not in the original list. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
@@ -759,6 +768,9 @@ requests never fires.
 | D22 | `.nvmrc` asked for node 20 while `package.json` requires `^24` | `.nvmrc` | Developers and CI on different majors | Align `.nvmrc` with `engines` | M1 | done |
 | D23 | No workflow ran either test suite, and `composer test:unit` needed a server checkout | `.github/workflows`, `tests/` | Tests existed but never ran | Server-independent unit suites, plus PHPUnit and Vitest workflows | M1 | done |
 | D24 | `appinfo/info.xml` carried a `<keywords>` element, which the app store schema does not define | `appinfo/info.xml` | `info.xml` failed schema validation, so an App Store release would have been rejected | Removed; validated against the schema | M1 | done |
+| D25 | **The seconds migration dropped pause time no pause described:** `paused_seconds` was recomputed from the pause rows, so a legacy `paused_duration` with an empty or missing `pauses_blob` became zero — and that time became worked time | `Version2000…` | On the one instance upgraded, two sessions lost 2 h 31 m of pause time, overstating work by the same amount | Compare the legacy total with what the pauses account for and add the difference back as a pause (§8.7) | M2 | done in 0.2.1; an instance already on 0.2.0 needs the comparison run against its pre-upgrade backup |
+| D26 | **The integration suite could not run on a real instance:** `tests/bootstrap.php` required the server's own test bootstrap, which a release tarball does not ship | `tests/bootstrap.php` | The suite written to verify an upgrade could not be run where it was needed | Fall back to booting `lib/base.php` | M2 | done |
+| D27 | An integration test defined `count()`, which PHPUnit declares final, and two others assumed a pause could be measured inside the same second | `tests/integration/` | The suite aborted, then failed two tests, on first real run | Renamed; assert the invariant instead of the row count | M2 | done |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 

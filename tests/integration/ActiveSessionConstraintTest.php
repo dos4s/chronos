@@ -61,7 +61,7 @@ class ActiveSessionConstraintTest extends TestCase {
 		$this->insert(active: false);
 		$this->insert(active: false);
 
-		self::assertSame(3, $this->count());
+		self::assertSame(3, $this->countSessions());
 	}
 
 	public function testCheckingOutFreesTheUserToCheckInAgain(): void {
@@ -95,7 +95,7 @@ class ActiveSessionConstraintTest extends TestCase {
 		return $qb->getLastInsertId();
 	}
 
-	private function count(): int {
+	private function countSessions(): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'rows'))
 			->from('chronos_entries')
