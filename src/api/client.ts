@@ -92,6 +92,25 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'This page is out of date — please reload')
 		case 'not_found':
 			return t('chronos', 'That session no longer exists')
+		case 'project_not_found':
+			return t('chronos', 'That project no longer exists')
+		case 'project_read_only':
+			return t('chronos', 'That list is shared with you read-only')
+		case 'task_not_found':
+			return t('chronos', 'That task no longer exists')
+		case 'area_not_found':
+		case 'unknown_area':
+			return t('chronos', 'That area no longer exists')
+		case 'name_required':
+			return t('chronos', 'A name is needed')
+		case 'name_too_long':
+			return t('chronos', 'That name is too long')
+		case 'invalid_color':
+			return t('chronos', 'That colour is not a hex value like #0082c9')
+		case 'project_own_parent':
+			return t('chronos', 'A project cannot be part of itself')
+		case 'project_cycle':
+			return t('chronos', 'That would make the two projects part of each other')
 		case 'forbidden':
 		case 'not_authenticated':
 			return t('chronos', 'You are not allowed to do that')
