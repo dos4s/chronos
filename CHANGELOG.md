@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-16
+
+Two more found on the live instance, this time by a script that writes a real task into a real list —
+which is now in the repository as `scripts/live-check.php`, since it has earned its place.
+
+### Fixed
+
+- **Attaching a workflow skipped every task that had no status.** Most clients write no `STATUS` at all
+  until a task is started or finished — 40 of 229 tasks on the instance this was found on — and those were
+  left with no workflow status until something edited them. They now get the initial status, which is the
+  same answer the index gives when it reads such a task (D31).
+- **Every change Chronos made was recorded as having come from another app.** The listener is told which
+  writes are Chronos's own, but it was told *after* the write, and Nextcloud dispatches the
+  calendar-object event from inside it — so the register was always empty by the time it was read, and a
+  delete was never announced at all. Status history credited "another app" with every status change you
+  made here. It is now announced before the write (D32).
+
+### Added
+
+- `scripts/live-check.php`: the verification that needs a real calendar — a workflow created and attached,
+  a task walked through its statuses, its history read back, then all of it undone. The README has the
+  command.
+
 ## [0.3.1] - 2026-10-16
 
 Found by deploying 0.3.0 to a real instance and running the integration suite there, which is the only

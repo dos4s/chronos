@@ -123,11 +123,7 @@ class CalendarObjectListener implements IEventListener {
 	 * @param array<array-key, mixed> $objectData
 	 */
 	private function sourceOf(int $calendarId, array $objectData): TaskSource {
-		$claimed = $this->writes->claim(
-			$calendarId,
-			(string)($objectData['uri'] ?? ''),
-			(string)($objectData['etag'] ?? ''),
-		);
+		$claimed = $this->writes->claim($calendarId, (string)($objectData['uri'] ?? ''));
 
 		return $claimed ? TaskSource::Chronos : TaskSource::External;
 	}

@@ -468,10 +468,17 @@ Status history is created in M2, before SLA exists, because it can't be reconstr
 1. The UI calls a Chronos API (e.g. move a card to "Waiting for customer"), sending the task's known `etag`.
 2. The owning service validates (workflow rules) and calls `CalDavGateway::updateTask()` with an etag
    precondition.
-3. The gateway writes the VTODO, records `(uid, new etag)` as *expected*, and returns the new etag.
-4. Nextcloud fires the calendar-object updated event; the listener sees the expected etag and records the
-   source as `chronos` (no echo loop).
+3. The gateway records the object as one it is *about to write*, writes the VTODO, and returns the new etag.
+4. Nextcloud fires the calendar-object updated event from inside that write; the listener finds the object
+   in the register, claims it, and records the source as `chronos` (no echo loop).
 5. On etag mismatch the API returns `412` with the current task; the UI resolves it (§15.6).
+
+**The echo is announced before the write, not after.** `CalDavBackend` dispatches the calendar-object
+event from inside the call that writes the object, so a registry filled afterwards is always too late and
+every Chronos write is recorded as having come from somewhere else (D32). `WriteRegistry` is therefore
+told before the call, keyed by calendar and object URI only — the etag does not exist yet — counted, so
+two writes to one object in a request are two events, and cleared again if the write throws. A delete is a
+write like any other and is announced the same way.
 
 ### 11.2 Write from another client
 1. The phone marks a task done → DAVx5 syncs → Nextcloud fires the updated event.
@@ -773,9 +780,10 @@ Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
 D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, D28–D29 are what
-M2 knowingly left for the milestone that can do them properly, and D30 came from the second real upgrade.
-None of them were in the original list. Twice now the integration suite on a real instance has found
-something no amount of CI could: D25 and D30 both. Four of them are why none of
+M2 knowingly left for the milestone that can do them properly, and D30–D32 came from the second real
+upgrade. None of them were in the original list. Three times now, checking against a real instance has
+found something no amount of CI could: D25 and D30 from the integration suite, and D31 and D32 from
+`scripts/live-check.php`, which exercises the parts that need an actual calendar. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
@@ -810,6 +818,8 @@ requests never fires.
 | D26 | **The integration suite could not run on a real instance:** `tests/bootstrap.php` required the server's own test bootstrap, which a release tarball does not ship | `tests/bootstrap.php` | The suite written to verify an upgrade could not be run where it was needed | Fall back to booting `lib/base.php` | M2 | done |
 | D27 | An integration test defined `count()`, which PHPUnit declares final, and two others assumed a pause could be measured inside the same second | `tests/integration/` | The suite aborted, then failed two tests, on first real run | Renamed; assert the invariant instead of the row count | M2 | done |
 | D28 | **Transition rules have no UI:** `PUT /workflows/{id}/transitions` replaces them, but nothing in the app draws them | `WorkflowController`, `src/components/` | A workflow's rules can only be set through the API, so in practice every move stays allowed | Edit them where they are visible: the kanban dims a column a card may not go to (F5) | M3 | planned |
+| D31 | **Attaching a workflow skipped every task with no `STATUS`:** the bulk fill matched the four standard statuses, but most clients write none until a task is started or finished — 40 of 229 tasks on the real instance, and all 6 of the list the check ran against | `WorkflowService::assignToProject`, `TaskMapper::fillStatusWhereUnset` | A project given a workflow showed most of its tasks with no status at all, until each was edited | Fill the tasks with no standard status with the initial status, which is the same answer the index gives when it reads one | M2 | done in 0.3.2 |
+| D32 | **Every Chronos write was recorded as external:** `WriteRegistry` was told about a write *after* the backend call, but the backend dispatches the calendar-object event from inside it, so the listener always found the registry empty — and a delete was never announced at all | `CalDavGateway`, `WriteRegistry`, `CalendarObjectListener` | Harmless until M2, because nothing read the source; status history then credited every change Chronos made to "another app" | Announce the write before the call, keyed without the etag, counted, and cleared if it throws (§11.1) | M2 | done in 0.3.2 |
 | D30 | **A status whose standard status was `NEEDS-ACTION` could not be inserted:** the entity defaulted `vtodoStatus` to that value, `Entity::setter()` therefore recorded no change, `QBMapper` left the column out of the insert, and a NOT NULL column with no default refused the row — so creating any workflow failed on MySQL | `Workflow/Db/Status`, `Version5000…` | Every workflow template failed to create on a real database; unit tests with mocked mappers could not see it | Default the property to a value no status has, give the column a database default (`Version5001…`), and assert the insert would carry each NOT NULL field | M2 | done in 0.3.1 |
 | D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
 
@@ -855,6 +865,13 @@ It has earned itself twice: D25, where the seconds migration dropped pause time 
 D30, where every workflow template failed to insert because a mapper omits a field whose value equals the
 entity's default — neither visible to a test with a mocked mapper. **A release is not deployed until this
 suite has run against the instance it is deployed to.**
+
+**And what needs a real calendar.** The suite works on an impossible calendar id, so it never writes a
+VTODO. `scripts/live-check.php` does: against a list the user names, it creates a workflow, attaches it,
+walks one throwaway task through its statuses, reads the history back, and undoes all of it. That is where
+D31 and D32 were found — a fill that skipped the tasks carrying no `STATUS`, and every Chronos write being
+credited to another app. Run it after deploying, as `www-data`:
+`php scripts/live-check.php <user> <list-uri>`.
 
 ## 19. Risks
 

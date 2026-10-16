@@ -17,13 +17,13 @@ class WriteRegistryTest extends TestCase {
 	}
 
 	public function testRecognisesItsOwnWrite(): void {
-		$this->registry->expect(7, 'task.ics', '"abc"');
+		$this->registry->expect(7, 'task.ics');
 
-		self::assertTrue($this->registry->claim(7, 'task.ics', '"abc"'));
+		self::assertTrue($this->registry->claim(7, 'task.ics'));
 	}
 
 	public function testDoesNotRecogniseSomeoneElsesWrite(): void {
-		self::assertFalse($this->registry->claim(7, 'task.ics', '"abc"'));
+		self::assertFalse($this->registry->claim(7, 'task.ics'));
 	}
 
 	/**
@@ -31,24 +31,52 @@ class WriteRegistryTest extends TestCase {
 	 * object is the same (§11.1).
 	 */
 	public function testAWriteIsOnlyClaimedOnce(): void {
-		$this->registry->expect(7, 'task.ics', '"abc"');
+		$this->registry->expect(7, 'task.ics');
 
-		self::assertTrue($this->registry->claim(7, 'task.ics', '"abc"'));
-		self::assertFalse($this->registry->claim(7, 'task.ics', '"abc"'));
+		self::assertTrue($this->registry->claim(7, 'task.ics'));
+		self::assertFalse($this->registry->claim(7, 'task.ics'));
 	}
 
-	public function testADifferentEtagIsADifferentWrite(): void {
-		$this->registry->expect(7, 'task.ics', '"abc"');
+	/**
+	 * One request can write the same task twice — create it, then move it —
+	 * and each write has an event of its own to claim.
+	 */
+	public function testTwoWritesToOneObjectAreTwoClaims(): void {
+		$this->registry->expect(7, 'task.ics');
+		$this->registry->expect(7, 'task.ics');
 
-		self::assertFalse($this->registry->claim(7, 'task.ics', '"def"'));
+		self::assertTrue($this->registry->claim(7, 'task.ics'));
+		self::assertTrue($this->registry->claim(7, 'task.ics'));
+		self::assertFalse($this->registry->claim(7, 'task.ics'));
+	}
+
+	/**
+	 * A write that threw never reached the backend, so no event will arrive to
+	 * claim it. Left standing, it would make the next change from anywhere
+	 * look like Chronos's own (D32).
+	 */
+	public function testAWriteThatFailedIsNotClaimedLater(): void {
+		$this->registry->expect(7, 'task.ics');
+		$this->registry->forget(7, 'task.ics');
+
+		self::assertFalse($this->registry->claim(7, 'task.ics'));
+	}
+
+	public function testForgettingOneOfTwoWritesLeavesTheOther(): void {
+		$this->registry->expect(7, 'task.ics');
+		$this->registry->expect(7, 'task.ics');
+		$this->registry->forget(7, 'task.ics');
+
+		self::assertTrue($this->registry->claim(7, 'task.ics'));
+		self::assertFalse($this->registry->claim(7, 'task.ics'));
 	}
 
 	public function testObjectsAreKeptApart(): void {
-		$this->registry->expect(7, 'one.ics', '"abc"');
-		$this->registry->expect(8, 'one.ics', '"abc"');
+		$this->registry->expect(7, 'one.ics');
+		$this->registry->expect(8, 'one.ics');
 
-		self::assertFalse($this->registry->claim(7, 'two.ics', '"abc"'));
-		self::assertTrue($this->registry->claim(8, 'one.ics', '"abc"'));
-		self::assertTrue($this->registry->claim(7, 'one.ics', '"abc"'));
+		self::assertFalse($this->registry->claim(7, 'two.ics'));
+		self::assertTrue($this->registry->claim(8, 'one.ics'));
+		self::assertTrue($this->registry->claim(7, 'one.ics'));
 	}
 }

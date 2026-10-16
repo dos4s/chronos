@@ -30,14 +30,25 @@ class TaskMapper extends QBMapper {
 	 * are not the indexer's: attaching a workflow to a project would otherwise
 	 * leave every existing task without a status until the hourly reconcile
 	 * noticed. Nothing that already has a status is touched.
+	 *
+	 * @param string|null $vtodoStatus null for the tasks that carry no
+	 *                                 `STATUS` at all, which most clients
+	 *                                 write only once a task is started or
+	 *                                 finished — 40 of 229 on the first real
+	 *                                 instance, and all of them missed before
+	 *                                 (D31)
 	 */
-	public function fillStatusWhereUnset(int $calendarId, string $vtodoStatus, int $statusId): void {
+	public function fillStatusWhereUnset(int $calendarId, ?string $vtodoStatus, int $statusId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->update($this->getTableName())
 			->set('status_id', $qb->createNamedParameter($statusId, IQueryBuilder::PARAM_INT))
 			->where($qb->expr()->eq('calendar_id', $qb->createNamedParameter($calendarId, IQueryBuilder::PARAM_INT)))
-			->andWhere($qb->expr()->eq('vtodo_status', $qb->createNamedParameter($vtodoStatus)))
 			->andWhere($qb->expr()->isNull('status_id'));
+
+		$qb->andWhere($vtodoStatus === null
+			? $qb->expr()->isNull('vtodo_status')
+			: $qb->expr()->eq('vtodo_status', $qb->createNamedParameter($vtodoStatus)));
+
 		$qb->executeStatement();
 	}
 

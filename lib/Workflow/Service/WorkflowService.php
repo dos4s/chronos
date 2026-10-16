@@ -347,6 +347,14 @@ class WorkflowService {
 			}
 		}
 
+		// A task with no `STATUS` at all — which is how most clients leave one
+		// until it is started or finished — belongs in the initial status, the
+		// same answer the index gives when it reads such a task (D31).
+		$initial = $view->initialStatus();
+		if ($initial !== null) {
+			$this->tasks->fillStatusWhereUnset($calendar->id, null, $initial->getId());
+		}
+
 		return $view;
 	}
 
