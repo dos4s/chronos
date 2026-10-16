@@ -98,6 +98,17 @@ Then open Chronos once as a normal user: that queues the one-off import of your 
 hourly reconcile job keeps the index level with CalDAV afterwards; `occ background-job:list` shows both,
 and `occ background-job:execute <id>` runs one immediately.
 
+### Two things worth knowing before you run `occ upgrade`
+
+**It processes every app, not just this one.** If any other app is broken — a directory with a dot in its
+name, or one whose files have gone missing — the upgrade stops at that app and **leaves the instance in
+maintenance mode**, however well this app's own migration went. Check `ls` over your `apps` and
+`custom_apps` directories for leftovers first. If it does happen: move the offending directory out of the
+apps path, then `occ maintenance:mode --off`.
+
+**It turns the log level up to debug and puts it back at the end** — but only if it finishes. After a failed
+run, check `occ log:manage` and set it back (`occ log:manage --level 2`), or the log will grow quickly.
+
 ## Architecture
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the design document: goals, the data model, how Chronos

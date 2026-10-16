@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-16
+
+Found by upgrading a real instance, which is the only place some of these could have been found.
+
+### ⚠ If you already upgraded to 0.2.0
+
+Check whether any session lost its pause time. 0.2.0 recomputed each session's paused total from its pause
+rows, so a session whose pause time was recorded only as a total — a quick check-out, or a session older
+than the `pauses_blob` column — had that total set to zero, and the time became *worked* time instead.
+
+Restore it from the backup taken before the upgrade: for every session whose old `paused_duration` was
+greater than zero while its `pauses_blob` was empty or missing, insert one pause row of that length inside
+the session and set `paused_seconds` to match. On the instance this was found on, two sessions had lost
+2 h 31 m between them.
+
+### Fixed
+
+- **The seconds migration no longer drops pause time that no pause described.** It compares the legacy
+  total with what the pause rows account for and adds the difference back as a pause, placed as late in the
+  session as there is room for, since only the duration was ever recorded and never when it happened
+  (`docs/ARCHITECTURE.md` §8.7, D25).
+- The integration suite can run on a real instance. It required the server's own test bootstrap, which a
+  release tarball does not ship; it now boots `lib/base.php` instead (D26).
+- Two integration tests assumed a pause could be measured inside the same second, and one defined a method
+  PHPUnit declares final (D27).
+
+### Changed
+
+- The README's verification section now covers what an upgrade on a real instance actually involves,
+  including that `occ upgrade` processes every app, so an unrelated broken one can leave the instance in
+  maintenance mode.
+
 ### Added
 
 - **Chronos reads and writes tasks.** Every task list that takes VTODOs is a project, and the tasks in it
