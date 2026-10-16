@@ -534,8 +534,9 @@ setting); dragging between quadrants updates those fields.
 - **State after M1:** `Core/Settings/FeatureToggles` holds the rules and the API exposes them
   (`GET /settings/modules`, `PUT /settings/modules/{module}`, plus the admin pair), and the page hands the
   user's state to the frontend as initial state. Each module's flag is false until its milestone ships, so
-  nothing half-built can be switched on. The admin and personal **settings pages** land with M2, the first
-  milestone that has a module to toggle; until then there is nothing for them to show.
+  nothing half-built can be switched on. The admin and personal **settings pages**, and the frontend code
+  that reads the toggles, land with M2 — the first milestone with a module to toggle. Until then there is
+  nothing for them to show, and a store nothing reads is just code to maintain.
 - Dependencies are explicit: `sla` requires `workflow`; `sprints` and `roadmap` require `gantt`. Enabling a
   module enables its requirements; disabling a required module asks first.
 
