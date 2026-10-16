@@ -1,32 +1,29 @@
 <script setup lang="ts">
+import type { Session } from '../types/index.ts'
+
+import { getDialogBuilder } from '@nextcloud/dialogs'
+import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import { getDialogBuilder } from '@nextcloud/dialogs'
-import { n, t } from '@nextcloud/l10n'
-import { formatDate, formatDuration, formatTimeOfDay } from '../utils/format.ts'
-import { workedSeconds } from '../utils/sessions.ts'
 import { useNow } from '../composables/useNow.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTimeStore } from '../stores/time.ts'
-import type { Session } from '../types/index.ts'
+import { formatDate, formatDuration, formatTimeOfDay } from '../utils/format.ts'
+import { workedSeconds } from '../utils/sessions.ts'
 
 const { now } = useNow()
 const time = useTimeStore()
 const projects = useProjectsStore()
 
-const sessions = computed(() =>
-	time.sessions.filter((session) => projects.matches(session.projectUri)),
-)
+const sessions = computed(() => time.sessions.filter((session) => projects.matches(session.projectUri)))
 
 async function confirmDelete(session: Session) {
 	const confirmed = await new Promise<boolean>((resolve) => {
 		const dialog = getDialogBuilder(t('chronos', 'Delete session?'))
-			.setText(
-				session.note
-					? t('chronos', 'This will permanently delete "{note}". This cannot be undone.', { note: session.note })
-					: t('chronos', 'This will permanently delete this session. This cannot be undone.'),
-			)
+			.setText(session.note
+				? t('chronos', 'This will permanently delete "{note}". This cannot be undone.', { note: session.note })
+				: t('chronos', 'This will permanently delete this session. This cannot be undone.'))
 			.setButtons([
 				{ label: t('chronos', 'Cancel'), variant: 'secondary', callback: () => resolve(false) },
 				{ label: t('chronos', 'Delete'), variant: 'error', callback: () => resolve(true) },
@@ -96,7 +93,8 @@ async function confirmDelete(session: Session) {
 					:aria-label="t('chronos', 'Delete session')"
 					:title="t('chronos', 'Delete session')"
 					@click="confirmDelete(session)">
-					<svg viewBox="0 0 24 24"
+					<svg
+						viewBox="0 0 24 24"
 						width="18"
 						height="18"
 						aria-hidden="true">

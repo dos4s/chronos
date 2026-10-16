@@ -1,5 +1,6 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { UnixSeconds } from '../api/time.ts'
+
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { nowSeconds } from '../api/time.ts'
 
 /**

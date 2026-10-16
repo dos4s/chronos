@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { t } from '@nextcloud/l10n'
-import { formatDuration } from '../utils/format.ts'
+import { computed } from 'vue'
+import { useGoals } from '../composables/useGoals.ts'
 import { useAnalyticsStore } from '../stores/analytics.ts'
 import { useProjectsStore } from '../stores/projects.ts'
-import { useGoals } from '../composables/useGoals.ts'
+import { formatDuration } from '../utils/format.ts'
 
 const analytics = useAnalyticsStore()
 const projects = useProjectsStore()

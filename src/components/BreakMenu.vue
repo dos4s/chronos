@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
 import { t } from '@nextcloud/l10n'
+import { ref, watch } from 'vue'
 
 const props = defineProps<{ x: number, y: number, initialStart: string }>()
 const emit = defineEmits<{ close: [], add: [startTime: string, minutes: number] }>()
@@ -23,16 +23,17 @@ watch(() => props.initialStart, (value) => {
 					{{ t('chronos', 'Add break') }}
 				</div>
 				<div :class="$style.row">
-					<label :for="'chronos-break-start'" :class="$style.label">
+					<label for="chronos-break-start" :class="$style.label">
 						{{ t('chronos', 'Start time') }}
 					</label>
-					<input id="chronos-break-start"
+					<input
+						id="chronos-break-start"
 						v-model="startTime"
 						type="time"
 						:class="$style.input">
 				</div>
 				<div :class="$style.row">
-					<label :for="'chronos-break-length'" :class="$style.label">
+					<label for="chronos-break-length" :class="$style.label">
 						{{ t('chronos', 'Duration') }}
 					</label>
 					<select id="chronos-break-length" v-model.number="minutes" :class="$style.input">

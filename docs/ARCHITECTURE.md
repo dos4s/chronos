@@ -581,7 +581,9 @@ src/
 - One branch and pull request per milestone (or per sub-step for large milestones).
 - Semantic versioning: each milestone is a minor release (§20).
 - `CHANGELOG.md` updated in every release; migrations and breaking changes called out.
-- Dependabot majors (e.g. TypeScript 7, Vite 8) merged one at a time with a build check.
+- Dependabot majors (e.g. TypeScript 7, Vite 8) merged one at a time with a build check. A major that does
+  not pass gets its verdict and its reason written down in §17 (D14) rather than being left as an open pull
+  request, so nobody has to re-derive it.
 
 ## 15. Interaction design: drag and drop
 
@@ -688,7 +690,7 @@ requests never fires.
 | D15 | **Milliseconds** stored and exchanged; column names `start_time`/`end_time` don't state the unit | `chronos_entries`, API, frontend | Diverges from Nextcloud/CalDAV seconds; unit bugs when the task index is added | Migration and conventions in §8 | M1 | done |
 | D16 | Duration formatting duplicated in app and widget | `App.vue`, `DashboardWidget.vue` | Divergent display | `formatDuration(seconds)` | M1 | done |
 | D17 | **Tool configuration was gitignored:** `psalm.xml`, `.php-cs-fixer.dist.php`, `rector.php` and `openapi.json` were untracked | `.gitignore` | Every CI lint and analysis job ran without its configuration | Track the files and drop those ignore rules | M1 | done |
-| D18 | **eslint could not parse any `.vue` file:** the config extended `@nextcloud` instead of `@nextcloud/eslint-config/typescript`, so the TypeScript parser was never used for `<script setup lang="ts">` | `.eslintrc.cjs` | Parse errors only; no rule ever ran on a component | Extend the TypeScript variant | M1 | done |
+| D18 | **eslint could not parse any `.vue` file:** the config extended `@nextcloud` instead of `@nextcloud/eslint-config/typescript`, so the TypeScript parser was never used for `<script setup lang="ts">` | `.eslintrc.cjs` | Parse errors only; no rule ever ran on a component | Extend the TypeScript variant; since superseded by the flat `eslint.config.js` of config 9 | M1 | done |
 | D19 | **stylelint could not run:** the config extended `stylelint-config-recommended-vue`, which is not a dependency | `stylelint.config.cjs` | `No rules found within configuration` | Extend `@nextcloud/stylelint-config` | M1 | done |
 | D20 | **Buttons used the wrong prop:** `@nextcloud/vue` 9 takes `variant` for a button's appearance, `type` being the HTML button type | every `NcButton`, delete dialog | Primary, secondary and error buttons rendered unstyled | `variant`, with a typecheck in CI to catch the next one | M1 | done |
 | D21 | Timer navigation compared against an undefined `projectFilter`, left from the move to multi-select filters | `App.vue` | The Timer entry never showed as active | Removed with the rewrite | M1 | done |
@@ -703,7 +705,8 @@ requests never fires.
 | `@nextcloud/vue` 9.6 → 9.13, `@nextcloud/dialogs` 7.3 → 7.5, `@nextcloud/vite-config` 2.5.2 → 2.5.4, `@nextcloud/stylelint-config` 3.2.1 → 3.2.2, `vite` 7.3.2 → 7.3.7, `vue` → 3.5.44, `@vue/tsconfig` 0.8.1 → 0.9.1 | in v0.2.0 |
 | `rector/rector` 2.4 → 2.7, `nextcloud/coding-standard` 1.4 → 1.5 | in v0.2.0; `cs:check` still passes with no reformatting |
 | **Vite 8** | **declined.** `@nextcloud/vite-config` 2.5.4 — the current release, and the package that encodes how a Nextcloud app bundle is built — requires `vite ^7.3.6`. npm only overrides that peer with a warning, which would leave the build running outside what the config supports. Revisit when that package takes Vite 8 |
-| **TypeScript 7** and **`@nextcloud/eslint-config` 9** | **their own change.** `@vue/tsconfig` 0.9.1 accepts TypeScript 7, but the eslint config still pins `typescript ^5.0.2`, so the two have to move together. Config 9 needs eslint 10 and a flat `eslint.config.js`, and its rule set (import sorting, attribute hyphenation, multi-word component names) reports ~140 findings across the frontend. That is a worthwhile migration and a poor fit inside a milestone's diff |
+| **`@nextcloud/eslint-config` 9** with **eslint 10** | done after v0.2.0, in a change of its own. Flat `eslint.config.js` replaces `.eslintrc.cjs`, which also retires the D18 workaround: `recommended` handles TypeScript inside `.vue` files itself. Its rule set reported ~140 findings; all are fixed. Two notes for next time: the config names `@typescript-eslint/parser` as a string, so that package has to be a direct dev dependency or every `.vue` file fails to parse; and `vue/multi-word-component-names` is switched off for `src/views/` only, because a route view is resolved by the router and never written as a tag |
+| **TypeScript 7** | **declined.** `vue-tsc` 3.3.13 — the latest release — loads `typescript/lib/tsc`, which TypeScript 7 no longer exports, so `vue-tsc` cannot start at all and `.vue` files would lose type checking completely. `@vue/tsconfig` 0.9.1 does accept TypeScript 7, so the only thing left to wait for is a `vue-tsc` that supports it |
 
 ## 18. Testing strategy
 

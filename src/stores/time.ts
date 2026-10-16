@@ -1,10 +1,11 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import type { CheckInPayload, Session, SessionUpdatePayload } from '../types/index.ts'
+
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
-import * as api from '../api/sessions.ts'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 import { messageFor } from '../api/client.ts'
-import type { CheckInPayload, Session, SessionUpdatePayload } from '../types/index.ts'
+import * as api from '../api/sessions.ts'
 
 /**
  * Sessions as the app sees them. Every change goes through the API and the
@@ -16,7 +17,7 @@ export const useTimeStore = defineStore('time', () => {
 	const loading = ref(false)
 	const initialLoading = ref(true)
 
-	const isPaused = computed(() => active.value?.pausedSinceAt != null)
+	const isPaused = computed(() => active.value !== null && active.value.pausedSinceAt !== null)
 
 	async function refresh(): Promise<void> {
 		try {
@@ -52,8 +53,7 @@ export const useTimeStore = defineStore('time', () => {
 		}
 	}
 
-	const checkIn = (payload: CheckInPayload) =>
-		run(() => api.checkIn(payload), t('chronos', 'Checked in'))
+	const checkIn = (payload: CheckInPayload) => run(() => api.checkIn(payload), t('chronos', 'Checked in'))
 
 	const pause = () => run(api.pauseSession, t('chronos', 'Paused'))
 
@@ -61,11 +61,9 @@ export const useTimeStore = defineStore('time', () => {
 
 	const checkOut = () => run(api.checkOut, t('chronos', 'Checked out'))
 
-	const update = (id: number, payload: SessionUpdatePayload) =>
-		run(() => api.updateSession(id, payload), t('chronos', 'Session updated'))
+	const update = (id: number, payload: SessionUpdatePayload) => run(() => api.updateSession(id, payload), t('chronos', 'Session updated'))
 
-	const remove = (id: number) =>
-		run(() => api.deleteSession(id), t('chronos', 'Session deleted'))
+	const remove = (id: number) => run(() => api.deleteSession(id), t('chronos', 'Session deleted'))
 
 	return {
 		sessions,

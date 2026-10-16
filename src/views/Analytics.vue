@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { n, t } from '@nextcloud/l10n'
+import { onBeforeUnmount, onMounted, watch } from 'vue'
 import DailyChart from '../components/DailyChart.vue'
 import ProjectBreakdown from '../components/ProjectBreakdown.vue'
-import { formatDuration } from '../utils/format.ts'
 import { useAnalyticsStore } from '../stores/analytics.ts'
 import { useTimeStore } from '../stores/time.ts'
+import { formatDuration } from '../utils/format.ts'
 
 /**
  * Totals come from the server, so a running session's minutes appear at the

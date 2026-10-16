@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import type { Session } from '../types/index.ts'
+
+import { t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import { t } from '@nextcloud/l10n'
-import { formatClock, formatTimeOfDay } from '../utils/format.ts'
-import { workedSeconds } from '../utils/sessions.ts'
 import { useNow } from '../composables/useNow.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTimeStore } from '../stores/time.ts'
-import type { Session } from '../types/index.ts'
+import { formatClock, formatTimeOfDay } from '../utils/format.ts'
+import { workedSeconds } from '../utils/sessions.ts'
 
 const props = defineProps<{ session: Session }>()
 
@@ -18,13 +19,11 @@ const projects = useProjectsStore()
 
 const isPaused = computed(() => props.session.pausedSinceAt !== null)
 const elapsed = computed(() => formatClock(workedSeconds(props.session, now.value)))
-const projectColor = computed(
-	() => projects.colorFor(props.session.projectUri) ?? 'var(--color-primary-element)',
-)
+const projectColor = computed(() => projects.colorFor(props.session.projectUri) ?? 'var(--color-primary-element)')
 </script>
 
 <template>
-	<section :class="['chronos-panel', $style.panel, isPaused ? $style.paused : $style.running]">
+	<section class="chronos-panel" :class="[$style.panel, isPaused ? $style.paused : $style.running]">
 		<div :class="[$style.pulse, { [$style.pulsePaused]: isPaused }]" />
 		<div :class="$style.state">
 			{{ isPaused ? t('chronos', 'Paused') : t('chronos', 'Running') }}

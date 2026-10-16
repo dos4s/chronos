@@ -1,5 +1,5 @@
-import type { Session } from '../types/index.ts'
 import type { Seconds, UnixSeconds } from '../api/time.ts'
+import type { Session } from '../types/index.ts'
 
 /**
  * Worked time in a session: its span, less the pauses.

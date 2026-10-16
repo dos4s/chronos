@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The lint stack moves to eslint 10 with `@nextcloud/eslint-config` 9 and a flat `eslint.config.js`. The
+  new rule set's findings are fixed throughout: sorted imports, static classes separated from dynamic ones,
+  and camelCase component props. `@typescript-eslint/parser` becomes a direct dev dependency, which the
+  config requires by name.
+- The dashboard widget reports a failure the way the app does, with a message, instead of writing to the
+  browser console where nobody would see it.
+- TypeScript 7 stays declined: `vue-tsc` cannot load it, so `.vue` files would lose type checking
+  (`docs/ARCHITECTURE.md` §17, D14).
+
 ## [0.2.0] - 2026-10-16
 
 The foundation for everything in the roadmap: correct data, one place for each rule, and a frontend that
