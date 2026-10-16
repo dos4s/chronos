@@ -225,6 +225,13 @@ don't know, when they rewrite a task. Every such value is also stored in Chronos
 client strips it, Chronos restores it on its next write and never loses data. This is verified in the M2
 spike with DAVx5 + Tasks.org and the NC Tasks app.
 
+**What Chronos itself preserves.** The same courtesy in the other direction: an edit reads the task as it
+is, replaces only the properties Chronos manages, and writes it back (`Core/Dav/VTodoWriter`). A
+description, a category, a location, an alarm, a recurrence rule, another client's own `X-` property and
+every non-parent `RELATED-TO` all survive being edited in Chronos, which is covered by tests. One caveat
+seen in practice: re-serialising re-spells a property's default value type, so `URL:…` comes back as
+`URL;VALUE=URI:…`. That is the same property under RFC 5545, and no client should read it differently.
+
 ## 8. Time, dates and units
 
 ### 8.1 Rule
@@ -378,9 +385,25 @@ Indexes: unique `(calendar_id, uid)`; `(user_id, calendar_uri)`; `(user_id, stat
 
 | Column | Notes |
 |---|---|
+| `user_id`, `calendar_id` | scope, and what a project's rows are removed by |
+| `source_uid` | the task whose VTODO carried the property |
 | `predecessor_uid`, `successor_uid` | direction per RFC 9253 |
 | `reltype` | `FINISHTOSTART`, `STARTTOSTART`, `FINISHTOFINISH`, `STARTTOFINISH`, `DEPENDS-ON` |
 | `gap_seconds` | from `GAP`; negative = lead |
+
+`source_uid` is what makes re-indexing correct. A temporal link is written on the predecessor and
+`DEPENDS-ON` on the dependent task, so the same row can be produced by either end; keying rows by the task
+that declared them means re-indexing that task replaces exactly its own rows, and a `RELATED-TO` the user
+deleted really disappears.
+
+**Index keys.** `(calendar_id, object_uri)` is unique, because CalDAV guarantees one object per URI in a
+calendar, and it is the key an event gives the listener. `(calendar_id, uid)` is indexed but **not** unique:
+a client could write a duplicate UID, and that should leave the index recording both rather than refusing
+to index at all.
+
+**Reads are scoped by calendar, not by `user_id`.** A shared list has one index row per task, owned by the
+list's owner, and a colleague has to see those too (AD11). `user_id` stays for attribution and cleanup; a
+query serves a user by first asking CalDAV which calendars they can see.
 
 ### 10.2 Projects
 - **`chronos_areas`** (`id`, `user_id`, `name`, `color`, `sort`)
@@ -456,6 +479,21 @@ used to describe has been dropped from the plan.
 Only: parse → update index → append history → dispatch domain events. Slower work (SLA, notifications,
 rollups) is queued as background jobs. A periodic **reconcile job** compares stored etags against CalDAV to
 catch missed events and reports drift.
+
+**The listener reads nothing.** Nextcloud dispatches these events with the full object row — `uri`, `etag`,
+`component` and `calendardata` — so the listener parses what it was handed and makes no CalDAV call of its
+own, which is how N5 is met by construction rather than by being careful.
+
+**Telling its own echo from someone else's change.** The gateway records each write it makes as
+`(calendar id, object uri, etag)` in `Core/Dav/WriteRegistry`; the listener claims that entry and records
+the source as `chronos`, consuming it so a later change to the same task is not mistaken for it. Nextcloud
+dispatches the event inside the request that wrote the object, so holding this in memory for the request is
+enough — and a write from another client is never in there.
+
+**Which users get indexed.** The index is part of the core, not the projects module, so it is not behind a
+toggle. The reconcile job only touches users Chronos already knows, which keeps an instance from indexing
+task lists for people who have never opened it; a user's first visit queues `ImportTasksJob` instead, which
+reads their existing lists in the background.
 
 ## 12. Modules in detail
 
@@ -684,7 +722,7 @@ requests never fires.
 | D9 | `getUserId()` and `nowMs()` copied in three controllers | controllers | Duplication; "now" not mockable | `CurrentUser`, `ITimeFactory` | M1 | done |
 | D10 | Template leftovers: hello-world `ApiController` and its only test; template README; logs prefixed `TimeTracker:` | `ApiController`, `ApiTest`, `README.md`, `TaskListController` | Misleading; no real test coverage | Remove/replace; real README; service tests | M1 | done |
 | D11 | Hard-coded English UI strings | Vue files | Not translatable | `@nextcloud/l10n` | M1, then ongoing | ongoing: the app and the widget are translated; new views keep it up |
-| D12 | `supportsVTODO()` returns true when the component set is unknown | `TaskListController` | Event-only calendars may appear as projects | Treat unknown as not VTODO | M2 | planned |
+| D12 | `supportsVTODO()` returns true when the component set is unknown | `TaskListController` | Event-only calendars may appear as projects | Treat unknown as not VTODO | M2 | done |
 | D13 | `stringParam()` fallback for JSON body parsing | `EntryController` | Masks request-format bugs | Typed request parsing | M1 | done |
 | D14 | Pending Dependabot majors (TypeScript 7, Vite 8) | open PRs | Build breakage if merged blindly | Merge one at a time with a build check | M1 | part done: see below |
 | D15 | **Milliseconds** stored and exchanged; column names `start_time`/`end_time` don't state the unit | `chronos_entries`, API, frontend | Diverges from Nextcloud/CalDAV seconds; unit bugs when the task index is added | Migration and conventions in §8 | M1 | done |
@@ -796,6 +834,23 @@ and a re-check alone do not make concurrent check-ins impossible.
 appears on the phone; no echo loops; listener < 50 ms; reconcile reports zero drift on a clean instance;
 every status change has a history row.
 **Depends on:** M1
+
+**Status: part 1 implemented** — the task layer itself:
+
+- `Core/Dav/CalDavGateway`, the only class touching `CalDavBackend`, with etag preconditions on every write
+- `Core/Dav/VTodoParser` and `VTodoWriter`: the §7 mapping, both ways, preserving what Chronos does not own
+- `chronos_tasks` and `chronos_task_links`, the listener, `IndexSynchroniser`, `ImportTasksJob` and
+  `ReconcileJob`
+- domain events: `TaskIndexed`, `TaskStatusChanged`, `TaskDatesChanged`, `TaskAssigned`, `TaskDeleted`
+- a task API: `GET /tasks?project=`, `POST /tasks`, `PUT /tasks/{uid}`, `DELETE /tasks/{uid}`, with `412`
+  and the current task when the etag no longer matches
+- D12 fixed, and `pauses_blob` dropped (§8.7, step 4)
+
+Still to come in M2: areas, `chronos_projects` and subprojects; workflows, statuses and status history;
+the task list view; and the **spike**, which needs a live server and a phone and so could not be run from
+the development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
+`RELTYPE`s; the design already assumes the worst and keeps Chronos's tables authoritative, so building
+ahead of it was safe — but it must be run before M2 ships.
 
 ### M3 — Kanban · v0.4.0
 - Shared drag engine (`useDrag`): pointer events, threshold, autoscroll, keyboard, live region.

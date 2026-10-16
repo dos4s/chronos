@@ -5,37 +5,30 @@ declare(strict_types=1);
 namespace OCA\Chronos\Controller;
 
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Dav\CalDavGateway;
+use OCA\Chronos\Core\Dav\CalendarRef;
 use OCA\Chronos\Core\Support\CurrentUser;
-use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\OpenAPI;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
-use Psr\Log\LoggerInterface;
-use Throwable;
 
 /**
- * Lists the user's VTODO calendars as projects.
+ * The task lists a user has, which Chronos shows as projects (§6).
  *
- * Reads OCA\DAV\CalDAV\CalDavBackend, which is internal to the DAV app and so
- * unknown to static analysis; M2 moves this behind Core/Dav/CalDavGateway (AD9).
- *
- * @psalm-suppress UndefinedClass
- * @psalm-suppress MixedAssignment
- * @psalm-suppress MixedArgument
- * @psalm-suppress MixedArrayAccess
- * @psalm-suppress MixedMethodCall
+ * Reading CalDAV now goes through Core/Dav/CalDavGateway, so this controller
+ * no longer touches the DAV app's internals, and a calendar whose component
+ * set is unknown is no longer offered as a project (D12).
  */
 #[OpenAPI(OpenAPI::SCOPE_IGNORE)]
 class TaskListController extends Controller {
 
 	public function __construct(
 		IRequest $request,
+		private CalDavGateway $gateway,
 		private CurrentUser $currentUser,
-		private LoggerInterface $logger,
-		private ?CalDavBackend $calDavBackend = null,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -43,59 +36,17 @@ class TaskListController extends Controller {
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/tasklists')]
 	public function index(): JSONResponse {
-		if ($this->calDavBackend === null) {
-			return new JSONResponse([]);
-		}
+		$lists = array_map(
+			static fn (CalendarRef $calendar): array => [
+				'uri' => $calendar->ref,
+				'name' => $calendar->name(),
+				'color' => $calendar->color,
+				'shared' => $calendar->isShared,
+				'writable' => $calendar->isWritable,
+			],
+			$this->gateway->getTaskCalendars($this->currentUser->getUid()),
+		);
 
-		$userId = $this->currentUser->getUid();
-		$principalUri = 'principals/users/' . $userId;
-
-		try {
-			$calendars = $this->calDavBackend->getCalendarsForUser($principalUri);
-		} catch (Throwable $e) {
-			$this->logger->warning('Chronos: could not list task lists: ' . $e->getMessage(), [
-				'app' => Application::APP_ID,
-				'exception' => $e,
-			]);
-			return new JSONResponse([]);
-		}
-
-		$result = [];
-		foreach ($calendars as $cal) {
-			if (!$this->supportsVTODO($cal)) {
-				continue;
-			}
-			$uri = $this->buildCalendarRef($cal, $principalUri);
-			$result[] = [
-				'uri' => $uri,
-				'name' => $cal['{DAV:}displayname'] ?? ($cal['uri'] ?? 'Untitled'),
-				'color' => $cal['{http://apple.com/ns/ical/}calendar-color'] ?? null,
-			];
-		}
-
-		usort($result, fn ($a, $b) => strcasecmp((string)$a['name'], (string)$b['name']));
-		return new JSONResponse($result);
-	}
-
-	private function supportsVTODO(array $cal): bool {
-		$key = '{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set';
-		$components = $cal[$key] ?? null;
-		if ($components === null) {
-			return true; // unknown → be permissive
-		}
-		if (is_object($components) && method_exists($components, 'getValue')) {
-			$values = $components->getValue();
-			return is_array($values) && in_array('VTODO', $values, true);
-		}
-		if (is_array($components)) {
-			return in_array('VTODO', $components, true);
-		}
-		return false;
-	}
-
-	private function buildCalendarRef(array $cal, string $principalUri): string {
-		// Stable reference format: "<principalUri>/<calendar-uri>"
-		$calendarUri = (string)($cal['uri'] ?? $cal['id'] ?? '');
-		return $principalUri . '/' . $calendarUri;
+		return new JSONResponse($lists);
 	}
 }

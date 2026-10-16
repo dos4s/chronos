@@ -38,11 +38,13 @@
 		<!-- QBMapper hydrates entity properties and sets the id after insert. -->
 		<PossiblyUnusedProperty>
 			<errorLevel type="suppress">
+				<directory name="lib/Core/Index" />
 				<directory name="lib/Time/Db" />
 			</errorLevel>
 		</PossiblyUnusedProperty>
 		<PropertyNotSetInConstructor>
 			<errorLevel type="suppress">
+				<directory name="lib/Core/Index" />
 				<directory name="lib/Time/Db" />
 			</errorLevel>
 		</PropertyNotSetInConstructor>

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Chronos reads and writes tasks.** Every task list that takes VTODOs is a project, and the tasks in it
+  are indexed in `chronos_tasks`, kept level with CalDAV by a listener on Nextcloud's calendar events — so
+  a task edited on a phone shows up here, and one edited here shows up there.
+- Dependencies between tasks are read from `RELATED-TO` as RFC 9253 describes them, including `GAP` lead
+  and lag, and stored with their direction normalised.
+- A task API: list, create, edit and delete, each write carrying the etag it is based on, so two people
+  editing the same task cannot silently overwrite one another.
+- An editor's courtesy: changing a task in Chronos leaves every property it does not manage — descriptions,
+  categories, alarms, recurrence rules, other clients' own extensions — exactly as it found them.
+- Background jobs that read a user's existing lists the first time they open Chronos, and that check the
+  index against CalDAV hourly and repair whatever drifted.
+
 ### Changed
 
 - The lint stack moves to eslint 10 with `@nextcloud/eslint-config` 9 and a flat `eslint.config.js`. The
@@ -17,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   browser console where nobody would see it.
 - TypeScript 7 stays declined: `vue-tsc` cannot load it, so `.vue` files would lose type checking
   (`docs/ARCHITECTURE.md` §17, D14).
+
+### Fixed
+
+- A calendar whose component set cannot be read is no longer offered as a project (D12): an event-only
+  calendar appearing as a project is worse than a list the user can fix in the Tasks app.
+
+### Removed
+
+- `pauses_blob`, the safety copy kept for one release after the seconds migration.
 
 ## [0.2.0] - 2026-10-16
 
