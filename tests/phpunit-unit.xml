@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	bootstrap="bootstrap-unit.php"
+	colors="true"
+	failOnWarning="true"
+	failOnRisky="true"
+	cacheDirectory=".phpunit.cache"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.4/phpunit.xsd">
+	<testsuite name="Chronos unit tests">
+		<directory suffix="Test.php">unit</directory>
+	</testsuite>
+	<source>
+		<include>
+			<directory suffix=".php">../lib</directory>
+		</include>
+	</source>
+</phpunit>

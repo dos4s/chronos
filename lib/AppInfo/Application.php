@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\AppInfo;
 
+use OCA\Chronos\Core\Middleware\ApiErrorMiddleware;
 use OCA\Chronos\Dashboard\ChronosWidget;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -20,6 +21,8 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(ChronosWidget::class);
+		// Turns typed Chronos exceptions into HTTP responses in one place (§14.1).
+		$context->registerMiddleware(ApiErrorMiddleware::class);
 	}
 
 	public function boot(IBootContext $context): void {
