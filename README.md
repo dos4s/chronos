@@ -109,6 +109,20 @@ Then open Chronos once as a normal user: that queues the one-off import of your 
 hourly reconcile job keeps the index level with CalDAV afterwards; `occ background-job:list` shows both,
 and `occ background-job:execute <id>` runs one immediately.
 
+### Checking the parts that need a real calendar
+
+The suite above never writes a VTODO: it works on a calendar id that cannot exist. For the rest —
+workflows, statuses, history, CalDAV writes — there is a second script, which creates a workflow, attaches
+it to a list you name, walks one throwaway task through its statuses, reads the history back and then
+undoes all of it:
+
+```bash
+sudo -u www-data php /var/www/nextcloud/custom_apps/chronos/scripts/live-check.php admin personal
+```
+
+It prints a line per check and ends with a pass or fail count. It writes one task into the list given and
+deletes it again, and puts the project's settings back as it found them.
+
 ### Two things worth knowing before you run `occ upgrade`
 
 **It processes every app, not just this one.** If any other app is broken — a directory with a dot in its

@@ -174,12 +174,17 @@ class WorkflowTest extends TestCase {
 		$open = $this->task('open-task', 'NEEDS-ACTION');
 		$finished = $this->task('finished-task', 'COMPLETED');
 		$already = $this->task('already-task', 'NEEDS-ACTION', $done);
+		// Most clients write no STATUS at all until a task is started or
+		// finished, which is most of a real list (D31).
+		$silent = $this->task('no-status-task', null);
 
 		$this->tasks->fillStatusWhereUnset(self::CALENDAR_ID, 'NEEDS-ACTION', $todo);
 		$this->tasks->fillStatusWhereUnset(self::CALENDAR_ID, 'COMPLETED', $done);
+		$this->tasks->fillStatusWhereUnset(self::CALENDAR_ID, null, $todo);
 
 		self::assertSame($todo, $this->reload($open)?->getStatusId());
 		self::assertSame($done, $this->reload($finished)?->getStatusId());
+		self::assertSame($todo, $this->reload($silent)?->getStatusId());
 		// A task that already had a status keeps it, whatever its standard
 		// status says.
 		self::assertSame($done, $this->reload($already)?->getStatusId());
@@ -187,6 +192,7 @@ class WorkflowTest extends TestCase {
 		$this->tasks->clearStatuses(self::CALENDAR_ID);
 
 		self::assertNull($this->reload($open)?->getStatusId());
+		self::assertNull($this->reload($silent)?->getStatusId());
 		self::assertNull($this->reload($already)?->getStatusId());
 	}
 
@@ -213,7 +219,7 @@ class WorkflowTest extends TestCase {
 		self::assertSame([1_760_000_100, 1_760_000_200, 1_760_000_300], $timeline);
 	}
 
-	private function task(string $uid, string $vtodoStatus, ?int $statusId = null): Task {
+	private function task(string $uid, ?string $vtodoStatus, ?int $statusId = null): Task {
 		$task = new Task();
 		$task->setUserId(self::USER);
 		$task->setCalendarId(self::CALENDAR_ID);

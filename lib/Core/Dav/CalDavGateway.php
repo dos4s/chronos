@@ -182,10 +182,8 @@ class CalDavGateway {
 			throw new NotFoundException('calendar_backend_unavailable');
 		}
 
-		$etag = (string)$this->backend->createCalendarObject($calendarId, $objectUri, $calendarData);
-		$this->remember($calendarId, $objectUri, $etag);
-
-		return $etag;
+		return $this->write($calendarId, $objectUri, fn (): string
+			=> (string)$this->backend?->createCalendarObject($calendarId, $objectUri, $calendarData));
 	}
 
 	/**
@@ -207,10 +205,8 @@ class CalDavGateway {
 
 		$this->assertUnchanged($calendarId, $objectUri, $ifMatch);
 
-		$etag = (string)$this->backend->updateCalendarObject($calendarId, $objectUri, $calendarData);
-		$this->remember($calendarId, $objectUri, $etag);
-
-		return $etag;
+		return $this->write($calendarId, $objectUri, fn (): string
+			=> (string)$this->backend?->updateCalendarObject($calendarId, $objectUri, $calendarData));
 	}
 
 	/**
@@ -222,7 +218,14 @@ class CalDavGateway {
 		}
 
 		$this->assertUnchanged($calendarId, $objectUri, $ifMatch);
-		$this->backend->deleteCalendarObject($calendarId, $objectUri);
+
+		// A delete is a write too: without this, Chronos deleting a task would
+		// be recorded as someone else having deleted it (D32).
+		$this->write($calendarId, $objectUri, function () use ($calendarId, $objectUri): string {
+			$this->backend?->deleteCalendarObject($calendarId, $objectUri);
+
+			return '';
+		});
 	}
 
 	/**
@@ -242,11 +245,25 @@ class CalDavGateway {
 		}
 	}
 
-	private function remember(int $calendarId, string $objectUri, string $etag): void {
-		// The listener fires inside this same request; telling it which write
-		// was ours is what keeps Chronos from treating its own change as one
-		// made elsewhere (§11.1).
-		$this->writes->expect($calendarId, $objectUri, $etag);
+	/**
+	 * Runs a write with the listener told, beforehand, that it is Chronos's
+	 * own (§11.1).
+	 *
+	 * The backend dispatches the calendar-object event from inside the call,
+	 * so the registry has to know before it starts — and has to be cleared
+	 * again if the write throws, since no event then arrives to consume it.
+	 *
+	 * @param callable(): string $write
+	 */
+	private function write(int $calendarId, string $objectUri, callable $write): string {
+		$this->writes->expect($calendarId, $objectUri);
+
+		try {
+			return $write();
+		} catch (Throwable $e) {
+			$this->writes->forget($calendarId, $objectUri);
+			throw $e;
+		}
 	}
 
 	/**
