@@ -1,5 +1,10 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
+import router from './router.ts'
+import './styles/app.css'
 
-const app = createApp(App)
-app.mount('#chronos')
+createApp(App)
+	.use(createPinia())
+	.use(router)
+	.mount('#chronos')
