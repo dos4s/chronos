@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   categories, alarms, recurrence rules, other clients' own extensions — exactly as it found them.
 - Background jobs that read a user's existing lists the first time they open Chronos, and that check the
   index against CalDAV hourly and repair whatever drifted.
+- **A Tasks view.** Pick a project and see its tasks, nested under their parents, open work before
+  finished. Add a task, rename one in place, tick it off, add subtasks, set dates, priority, progress and
+  kind, or delete it. A date can be all-day or at a time, and stays the kind you chose. A list shared with
+  you read-only says so instead of pretending to be editable, and an edit someone else got to first
+  reloads the task and tells you, rather than quietly losing one of the two changes.
 
 ### Changed
 

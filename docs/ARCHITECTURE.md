@@ -504,6 +504,8 @@ reads their existing lists in the background.
   transition rules.
 - **Kanban columns are the statuses.** No separate column model.
 
+**Support**, the GLPI-shaped one:
+
 | Status | VTODO `STATUS` | Flags |
 |---|---|---|
 | New | NEEDS-ACTION | initial |
@@ -514,6 +516,28 @@ reads their existing lists in the background.
 | Solved | COMPLETED | final |
 | Closed | COMPLETED | final |
 | Rejected | CANCELLED | final |
+
+**Development:**
+
+| Status | VTODO `STATUS` | Flags |
+|---|---|---|
+| Backlog | NEEDS-ACTION | initial |
+| Ready | NEEDS-ACTION | |
+| In progress | IN-PROCESS | auto timer |
+| Review | IN-PROCESS | |
+| Done | COMPLETED | final |
+| Dropped | CANCELLED | final |
+
+**Personal:**
+
+| Status | VTODO `STATUS` | Flags |
+|---|---|---|
+| To do | NEEDS-ACTION | initial |
+| Doing | IN-PROCESS | auto timer |
+| Done | COMPLETED | final |
+
+Each status maps to exactly one standard `STATUS`, so a task in "Waiting for customer" is still
+`IN-PROCESS` to every other CalDAV client, and one in "Dropped" is still `CANCELLED` (Q4).
 
 Without the workflow module, the kanban uses the four standard statuses.
 
@@ -604,7 +628,7 @@ src/
   api/          client.ts (one typed client on @nextcloud/axios + @nextcloud/router), time.ts, per-domain modules
   stores/       Pinia: tasks, projects, workflow, time, settings
   composables/  useDrag, useTimeline, useUndo, useSelection…
-  views/        Timer, Analytics, SessionEditor, Projects, Kanban, Gantt, Roadmap, Sprints, Matrix, Sla
+  views/        Timer, Tasks, Analytics, SessionEditor, Projects, Kanban, Gantt, Roadmap, Sprints, Matrix, Sla
   components/   shared UI
   utils/        dates.ts, format.ts
   types/        shared TS types mirroring API responses
@@ -846,9 +870,14 @@ every status change has a history row.
   and the current task when the etag no longer matches
 - D12 fixed, and `pauses_blob` dropped (§8.7, step 4)
 
-Still to come in M2: areas, `chronos_projects` and subprojects; workflows, statuses and status history;
-the task list view; and the **spike**, which needs a live server and a phone and so could not be run from
-the development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
+**Part 2 implemented** — the task list view: a project picker, tasks nested under their parents, add,
+rename in place, complete, subtasks, a details dialog for dates, priority, progress and kind, and delete.
+A list shared read-only says so and cannot be edited. A write refused with `412` reloads the task and says
+why, rather than losing one of the two edits.
+
+Still to come in M2: areas, `chronos_projects` and subprojects; workflows, statuses and status history
+(the templates Q4 settles are in §12.1); and the **spike**, which needs a live server and a phone and so
+could not be run from the development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
 `RELTYPE`s; the design already assumes the worst and keeps Chronos's tables authoritative, so building
 ahead of it was safe — but it must be run before M2 ships.
 
@@ -914,7 +943,7 @@ Critical path and baselines, OCS API with OpenAPI spec, App Store release, docum
 | Q1 | Single user only, or shared lists with colleagues (assignment between people, permissions)? | M2 index design, M6 | M2 | **Shared lists from the start** (AD11): assignment between people is a requirement, permissions follow CalDAV sharing, and the index is per user |
 | Q2 | Keep Nextcloud 31 support (internal DAV events) or raise the minimum to 32 (public `OCP\Calendar\Events`)? | §11.3 | M2 | **Minimum 32** (AD10), so there is no event adapter. Still open: 32 and 33 are what the app declares, while the maintained releases are 33, 34 and 35; moving the window up means PHP ≥ 8.2 (34) or ≥ 8.3 (35) |
 | Q3 | Gantt: build the timeline in-house or wrap frappe-gantt? | M4 | M4 | open |
-| Q4 | Default workflow templates: which statuses for Support, Development, Personal? | M2 | M2 | open |
+| Q4 | Default workflow templates: which statuses for Support, Development, Personal? | M2 | M2 | **answered**: the three templates in §12.1 |
 | Q5 | Should custom fields mirror to `X-CHRONOS-FIELD-*` by default? | M6 | M6 | open |
 
 ## 22. Glossary
