@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-16
+
+Found by deploying 0.3.0 to a real instance and running the integration suite there, which is the only
+place it could have been found.
+
+### ⚠ If you installed 0.3.0
+
+Creating a workflow failed with *Field 'vtodo_status' doesn't have a default value*, so no workflow could
+be created at all. Nothing was lost — the insert was refused, not half-written. Upgrade to 0.3.1 and
+create it again.
+
+### Fixed
+
+- **A workflow template could not be created on MySQL.** `QBMapper` builds its insert from the fields an
+  entity reports as changed, and an entity reports no change when given the value the property already
+  holds — so a status whose standard status was `NEEDS-ACTION`, the entity's own default, left that column
+  out of the insert, and a NOT NULL column with no default refused the row (`docs/ARCHITECTURE.md` D30).
+  The property now defaults to a value no status has, the column gets a database default, and a unit test
+  asserts every NOT NULL field would actually be sent.
+
 ## [0.3.0] - 2026-10-16
 
 The task layer, finished: projects can now be grouped and configured, and tasks can move through statuses

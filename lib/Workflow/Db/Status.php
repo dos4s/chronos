@@ -45,7 +45,15 @@ class Status extends Entity implements JsonSerializable {
 	protected string $name = '';
 	protected ?string $color = null;
 	protected int $sort = 0;
-	protected string $vtodoStatus = 'NEEDS-ACTION';
+	/**
+	 * Empty on purpose, and never written empty.
+	 *
+	 * `Entity::setter()` ignores a value identical to the one the property
+	 * already holds, so a property whose default is also a real value is left
+	 * out of the insert `QBMapper` builds — and a NOT NULL column without a
+	 * database default then refuses the row (D30).
+	 */
+	protected string $vtodoStatus = '';
 	protected bool $isInitial = false;
 	protected bool $isFinal = false;
 	protected bool $slaPaused = false;

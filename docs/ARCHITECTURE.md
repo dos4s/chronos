@@ -650,6 +650,11 @@ Controller (thin)  →  Service (rules, transactions, events)  →  Mapper / Cal
 - **Controllers** only read input, call one service method and map the result to a response.
 - **Services** own the rules and run multi-row changes in a DB transaction.
 - **Mappers** are the only code writing SQL; **CalDavGateway** the only code writing VTODOs.
+- **An entity's default is never a real value, and a NOT NULL column gets a database default.**
+  `QBMapper` builds its insert from the fields an entity reports as changed, and `Entity::setter()` reports
+  no change when given the value the property already holds — so a property whose default is also a
+  legitimate value is left out of the insert, and the column refuses the row. It cost one release (D30);
+  `tests/unit/Workflow/Db/EntityInsertTest.php` is the check that keeps it from recurring.
 - **Shared helpers are injected, not copied:** `CurrentUser` (replaces three copies of `getUserId()`) and
   `ITimeFactory` (replaces three copies of `nowMs()`).
 - **Errors** are typed exceptions (`NotFound`, `Forbidden`, `Conflict`, `ValidationFailed`) mapped to HTTP
@@ -767,8 +772,10 @@ dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The sess
 Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means fixed and released;
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
-D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, and D28–D29 are
-what M2 knowingly left for the milestone that can do them properly. None of them were in the original list. Four of them are why none of
+D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, D28–D29 are what
+M2 knowingly left for the milestone that can do them properly, and D30 came from the second real upgrade.
+None of them were in the original list. Twice now the integration suite on a real instance has found
+something no amount of CI could: D25 and D30 both. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
@@ -803,6 +810,7 @@ requests never fires.
 | D26 | **The integration suite could not run on a real instance:** `tests/bootstrap.php` required the server's own test bootstrap, which a release tarball does not ship | `tests/bootstrap.php` | The suite written to verify an upgrade could not be run where it was needed | Fall back to booting `lib/base.php` | M2 | done |
 | D27 | An integration test defined `count()`, which PHPUnit declares final, and two others assumed a pause could be measured inside the same second | `tests/integration/` | The suite aborted, then failed two tests, on first real run | Renamed; assert the invariant instead of the row count | M2 | done |
 | D28 | **Transition rules have no UI:** `PUT /workflows/{id}/transitions` replaces them, but nothing in the app draws them | `WorkflowController`, `src/components/` | A workflow's rules can only be set through the API, so in practice every move stays allowed | Edit them where they are visible: the kanban dims a column a card may not go to (F5) | M3 | planned |
+| D30 | **A status whose standard status was `NEEDS-ACTION` could not be inserted:** the entity defaulted `vtodoStatus` to that value, `Entity::setter()` therefore recorded no change, `QBMapper` left the column out of the insert, and a NOT NULL column with no default refused the row — so creating any workflow failed on MySQL | `Workflow/Db/Status`, `Version5000…` | Every workflow template failed to create on a real database; unit tests with mocked mappers could not see it | Default the property to a value no status has, give the column a database default (`Version5001…`), and assert the insert would carry each NOT NULL field | M2 | done in 0.3.1 |
 | D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
@@ -842,6 +850,11 @@ unique index refusing a second running session while allowing any number of fini
 whole life with its pauses, and a VTODO reaching the index with its dates and dependencies. It works under
 its own `chronos-itest-*` user ids and an impossible calendar id, and cleans up after itself. The README
 gives the commands.
+
+It has earned itself twice: D25, where the seconds migration dropped pause time no pause described, and
+D30, where every workflow template failed to insert because a mapper omits a field whose value equals the
+entity's default — neither visible to a test with a mocked mapper. **A release is not deployed until this
+suite has run against the instance it is deployed to.**
 
 ## 19. Risks
 
