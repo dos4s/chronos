@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Chronos\Controller;
 
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Index\IndexBootstrap;
 use OCA\Chronos\Core\Settings\FeatureToggles;
 use OCA\Chronos\Core\Support\CurrentUser;
 use OCP\AppFramework\Controller;
@@ -28,6 +29,7 @@ class PageController extends Controller {
 		private FeatureToggles $toggles,
 		private CurrentUser $currentUser,
 		private IDateTimeZone $dateTimeZone,
+		private IndexBootstrap $indexBootstrap,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -37,10 +39,16 @@ class PageController extends Controller {
 	#[OpenAPI(OpenAPI::SCOPE_IGNORE)]
 	#[FrontpageRoute(verb: 'GET', url: '/')]
 	public function index(): TemplateResponse {
+		$userId = $this->currentUser->getUid();
+
+		// First visit: read whatever task lists the user already has into the
+		// index, in the background (§16).
+		$this->indexBootstrap->ensureImported($userId);
+
 		// Saves the app a round trip before it can draw its navigation.
 		$this->initialState->provideInitialState(
 			'modules',
-			$this->toggles->getUserState($this->currentUser->getUid()),
+			$this->toggles->getUserState($userId),
 		);
 		$this->initialState->provideInitialState(
 			'timezone',

@@ -28,6 +28,9 @@ Built natively on Nextcloud Tasks — no separate project data, no duplicate lis
 	<dependencies>
 		<nextcloud min-version="32" max-version="33"/>
 	</dependencies>
+	<background-jobs>
+		<job>OCA\Chronos\Core\Index\ReconcileJob</job>
+	</background-jobs>
 	<navigations>
 		<navigation>
 			<id>chronos</id>
