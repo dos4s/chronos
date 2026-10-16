@@ -895,9 +895,18 @@ rename in place, complete, subtasks, a details dialog for dates, priority, progr
 A list shared read-only says so and cannot be edited. A write refused with `412` reloads the task and says
 why, rather than losing one of the two edits.
 
-Still to come in M2: areas, `chronos_projects` and subprojects; workflows, statuses and status history
-(the templates Q4 settles are in §12.1); and the **spike**, which needs a live server and a phone and so
-could not be run from the development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
+**Part 3 implemented** — areas and project settings: `chronos_areas`, `chronos_projects`, an area a
+project belongs to, a parent project, an archived flag, and the API and UI for all three. The settings row
+is created when a project is first configured and removed again when its settings go back to the defaults,
+unless another project still points at it as its parent. A row whose task list is gone is left out of the
+listing rather than shown as a project that cannot be opened. `GET /tasklists` became `GET /projects` and
+now carries those settings. Subprojects already work, as a container VTODO (`X-CHRONOS-TYPE:SUBPROJECT`,
+§6) from part 1.
+
+Still to come in M2: workflows, statuses and status history (the templates Q4 settles are in §12.1);
+**promote to list**, which needs a multi-object CalDAV move and has `chronos_projects.parent_project_id`
+waiting for it; and the **spike**, which needs a live server and a phone and so could not be run from the
+development machine. The spike only confirms how other clients treat `X-CHRONOS-*` and unknown
 `RELTYPE`s; the design already assumes the worst and keeps Chronos's tables authoritative, so building
 ahead of it was safe — but it must be run before M2 ships.
 

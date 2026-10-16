@@ -27,7 +27,14 @@ class SchemaTest extends TestCase {
 	}
 
 	public function testEveryTableExists(): void {
-		foreach (['chronos_entries', 'chronos_pauses', 'chronos_tasks', 'chronos_task_links'] as $table) {
+		foreach ([
+			'chronos_entries',
+			'chronos_pauses',
+			'chronos_tasks',
+			'chronos_task_links',
+			'chronos_areas',
+			'chronos_projects',
+		] as $table) {
 			self::assertTrue($this->db->tableExists($table), $table . ' is missing');
 		}
 	}
@@ -58,6 +65,12 @@ class SchemaTest extends TestCase {
 			['chronos_tasks', 'due_is_date'],
 			['chronos_task_links', 'source_uid'],
 			['chronos_task_links', 'gap_seconds'],
+			['chronos_areas', 'sort'],
+			['chronos_projects', 'project_uri'],
+			['chronos_projects', 'area_id'],
+			['chronos_projects', 'parent_project_id'],
+			['chronos_projects', 'workflow_id'],
+			['chronos_projects', 'archived'],
 		];
 	}
 

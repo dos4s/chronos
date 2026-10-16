@@ -39,12 +39,14 @@
 		<PossiblyUnusedProperty>
 			<errorLevel type="suppress">
 				<directory name="lib/Core/Index" />
+				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />
 			</errorLevel>
 		</PossiblyUnusedProperty>
 		<PropertyNotSetInConstructor>
 			<errorLevel type="suppress">
 				<directory name="lib/Core/Index" />
+				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />
 			</errorLevel>
 		</PropertyNotSetInConstructor>

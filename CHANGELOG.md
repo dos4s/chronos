@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Areas and project settings.** Projects can be grouped into areas — Work, Personal, Homelab — which
+  exist only in Chronos, since CalDAV has nothing above a calendar. A project can also be marked archived,
+  which keeps it out of the pickers without deleting anything, and recorded as part of another project, for
+  one split out of a larger one. Deleting an area never deletes a project: the projects in it simply stop
+  being in an area.
+- A project only gets a settings row once it is configured, and loses it again when its settings go back to
+  the defaults, so an untouched task list still needs no row anywhere (`docs/ARCHITECTURE.md` §6, §10.2).
+
+### Changed
+
+- `GET /tasklists` is now `GET /projects`, and reports what Chronos knows about each list — its area, its
+  parent, whether it is archived — beside the list itself. The old route is gone; nothing outside this app
+  used it.
+
 ## [0.2.1] - 2026-10-16
 
 Found by upgrading a real instance, which is the only place some of these could have been found.

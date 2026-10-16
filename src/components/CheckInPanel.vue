@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { CheckInPayload, TaskList } from '../types/index.ts'
+import type { CheckInPayload } from '../types/index.ts'
+import type { LabelledProject } from '../utils/projects.ts'
 
 import { t } from '@nextcloud/l10n'
 import { ref } from 'vue'
@@ -13,7 +14,7 @@ const time = useTimeStore()
 const projects = useProjectsStore()
 
 const note = ref('')
-const selected = ref<TaskList | null>(null)
+const selected = ref<LabelledProject | null>(null)
 
 async function checkIn() {
 	const payload: CheckInPayload = {}
@@ -42,9 +43,9 @@ async function checkIn() {
 		<div :class="$style.field">
 			<NcSelect
 				v-model="selected"
-				:options="projects.taskLists"
-				label="name"
-				:reduce="(list: TaskList) => list"
+				:options="projects.active"
+				label="label"
+				:reduce="(option: LabelledProject) => option"
 				:clearable="true"
 				:inputLabel="t('chronos', 'Project (optional)')"
 				:placeholder="t('chronos', 'No project')"

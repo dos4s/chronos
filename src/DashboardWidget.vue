@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CheckInPayload, Session, TaskList } from './types/index.ts'
+import type { CheckInPayload, Project, Session } from './types/index.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -8,8 +8,8 @@ import { computed, ref } from 'vue'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import { fetchSummary } from './api/analytics.ts'
 import { messageFor } from './api/client.ts'
+import { fetchProjects } from './api/projects.ts'
 import * as sessionsApi from './api/sessions.ts'
-import { fetchTaskLists } from './api/taskLists.ts'
 import { addDays, nowSeconds, startOfDay } from './api/time.ts'
 import { useNow } from './composables/useNow.ts'
 import { formatClock, formatDuration } from './utils/format.ts'
@@ -25,25 +25,25 @@ const { now } = useNow()
 
 const active = ref<Session | null>(null)
 const recent = ref<Session[]>([])
-const taskLists = ref<TaskList[]>([])
+const projects = ref<Project[]>([])
 const todaySeconds = ref(0)
 const note = ref('')
-const selectedProject = ref<TaskList | null>(null)
+const selectedProject = ref<Project | null>(null)
 const loading = ref(false)
 const initialLoading = ref(true)
 
 async function refresh() {
 	const today = startOfDay(nowSeconds())
 	try {
-		const [activeSession, sessions, lists, summary] = await Promise.all([
+		const [activeSession, sessions, allProjects, summary] = await Promise.all([
 			sessionsApi.fetchActive(),
 			sessionsApi.fetchSessions(10),
-			fetchTaskLists(),
+			fetchProjects(),
 			fetchSummary(today, addDays(today, 1)),
 		])
 		active.value = activeSession
 		recent.value = sessions.filter((session) => session.endAt !== null).slice(0, 3)
-		taskLists.value = lists
+		projects.value = allProjects
 		todaySeconds.value = summary.totalSeconds
 	} catch (error) {
 		showError(messageFor(error))
@@ -88,11 +88,14 @@ const elapsed = computed(() => active.value ? formatClock(workedSeconds(active.v
 
 const todayTotal = computed(() => formatDuration(todaySeconds.value))
 
+/** Archived projects are kept out of the picker, as in the app itself. */
+const pickable = computed(() => projects.value.filter((project) => !project.archived))
+
 function colorFor(uri: string | null): string | null {
 	if (uri === null) {
 		return null
 	}
-	return taskLists.value.find((list) => list.uri === uri)?.color ?? null
+	return projects.value.find((project) => project.uri === uri)?.color ?? null
 }
 
 function openApp() {
@@ -157,9 +160,9 @@ refresh()
 			<div :class="$style.selectWrap">
 				<NcSelect
 					v-model="selectedProject"
-					:options="taskLists"
+					:options="pickable"
 					label="name"
-					:reduce="(list: TaskList) => list"
+					:reduce="(project: Project) => project"
 					:clearable="true"
 					:placeholder="t('chronos', 'No project')"
 					:disabled="loading" />
