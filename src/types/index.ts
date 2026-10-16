@@ -27,6 +27,55 @@ export interface TaskList {
 	uri: string
 	name: string
 	color: string | null
+	/** A list someone else owns and shared with this user. */
+	shared: boolean
+	/** False for a list shared read-only: a project to look at, not to edit. */
+	writable: boolean
+}
+
+export type TaskType = 'task' | 'subproject' | 'milestone'
+
+export type VTodoStatus = 'NEEDS-ACTION' | 'IN-PROCESS' | 'COMPLETED' | 'CANCELLED'
+
+/** A task as the index reports it. */
+export interface Task {
+	id: number
+	calendarUri: string
+	objectUri: string
+	etag: string
+	uid: string
+	type: TaskType
+	parentUid: string | null
+	summary: string | null
+	vtodoStatus: VTodoStatus | null
+	priority: number
+	percent: number | null
+	assignee: string | null
+	startAt: UnixSeconds | null
+	dueAt: UnixSeconds | null
+	startIsDate: boolean
+	dueIsDate: boolean
+	completedAt: UnixSeconds | null
+	statusId: number | null
+	sprintId: number | null
+	updatedAt: UnixSeconds
+}
+
+/**
+ * The fields Chronos manages on a task. A write replaces all of them, so the
+ * caller sends the task as it should end up, not only what changed.
+ */
+export interface TaskWritePayload {
+	summary: string
+	status: VTodoStatus | null
+	priority: number
+	startAt: UnixSeconds | null
+	startIsDate: boolean
+	dueAt: UnixSeconds | null
+	dueIsDate: boolean
+	percent: number | null
+	parentUid: string | null
+	type: TaskType
 }
 
 export interface CheckInPayload {

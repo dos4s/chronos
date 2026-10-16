@@ -16,6 +16,11 @@ export default createRouter({
 			component: () => import('./views/Timer.vue'),
 		},
 		{
+			path: '/tasks',
+			name: 'tasks',
+			component: () => import('./views/Tasks.vue'),
+		},
+		{
 			path: '/analytics',
 			name: 'analytics',
 			component: () => import('./views/Analytics.vue'),

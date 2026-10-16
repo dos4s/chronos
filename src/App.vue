@@ -44,6 +44,21 @@ onMounted(() => {
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
+						id="view-tasks"
+						:name="t('chronos', 'Tasks')"
+						:to="{ name: 'tasks' }">
+						<template #icon>
+							<svg
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								fill="currentColor"
+								width="16"
+								height="16">
+								<path d="M3 5h2v2H3V5m0 6h2v2H3v-2m0 6h2v2H3v-2M7 5h14v2H7V5m0 6h14v2H7v-2m0 6h14v2H7v-2" />
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
 						id="view-analytics"
 						:name="t('chronos', 'Analytics')"
 						:to="{ name: 'analytics' }">
