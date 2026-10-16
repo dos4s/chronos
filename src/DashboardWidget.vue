@@ -1,259 +1,197 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
+import { generateUrl } from '@nextcloud/router'
+import { t } from '@nextcloud/l10n'
+import * as sessionsApi from './api/sessions.ts'
+import { fetchSummary } from './api/analytics.ts'
+import { fetchTaskLists } from './api/taskLists.ts'
+import { addDays, nowSeconds, startOfDay } from './api/time.ts'
+import { formatClock, formatDuration } from './utils/format.ts'
+import { workedSeconds } from './utils/sessions.ts'
+import { useNow } from './composables/useNow.ts'
+import type { CheckInPayload, Session, TaskList } from './types/index.ts'
 
-interface Entry {
-	id: number
-	userId: string
-	startTime: number
-	endTime: number | null
-	note: string | null
-	pausedAt: number | null
-	pausedDuration: number
-	projectUri: string | null
-	projectName: string | null
-}
+/**
+ * The widget uses the same API client, types and formatters as the app (D8,
+ * D16), so the two can no longer drift apart. Today's total comes from the
+ * server's aggregation rather than from a page of recent sessions.
+ */
 
-interface TaskList {
-	uri: string
-	name: string
-	color: string | null
-}
+const { now } = useNow()
 
-const appBase = '/apps/chronos'
-const active = ref<Entry | null>(null)
-const entries = ref<Entry[]>([])
+const active = ref<Session | null>(null)
+const recent = ref<Session[]>([])
 const taskLists = ref<TaskList[]>([])
+const todaySeconds = ref(0)
 const note = ref('')
 const selectedProject = ref<TaskList | null>(null)
 const loading = ref(false)
 const initialLoading = ref(true)
-const now = ref(Date.now())
-
-let tickTimer: ReturnType<typeof setInterval> | null = null
-
-function generateUrl(path: string): string {
-	// @ts-expect-error OC is a Nextcloud global
-	return OC.generateUrl(path)
-}
-
-function csrfToken(): string {
-	// @ts-expect-error OC is a Nextcloud global
-	return OC.requestToken
-}
-
-async function api<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-	const res = await fetch(generateUrl(appBase + path), {
-		method,
-		credentials: 'include',
-		headers: {
-			'Content-Type': 'application/json',
-			Accept: 'application/json',
-			requesttoken: csrfToken(),
-		},
-		body: body ? JSON.stringify(body) : undefined,
-	})
-	if (!res.ok && res.status !== 409) {
-		throw new Error(`HTTP ${res.status}`)
-	}
-	return (await res.json()) as T
-}
 
 async function refresh() {
+	const today = startOfDay(nowSeconds())
 	try {
-		const [a, list, lists] = await Promise.all([
-			api<Entry | null>('GET', '/entries/active'),
-			api<Entry[]>('GET', '/entries'),
-			api<TaskList[]>('GET', '/tasklists'),
+		const [activeSession, sessions, lists, summary] = await Promise.all([
+			sessionsApi.fetchActive(),
+			sessionsApi.fetchSessions(10),
+			fetchTaskLists(),
+			fetchSummary(today, addDays(today, 1)),
 		])
-		active.value = a
-		entries.value = list
+		active.value = activeSession
+		recent.value = sessions.filter((session) => session.endAt !== null).slice(0, 3)
 		taskLists.value = lists
-	} catch (e) {
-		console.error('[chronos widget]', e)
+		todaySeconds.value = summary.totalSeconds
+	} catch (error) {
+		console.error('[chronos widget]', error)
 	} finally {
 		initialLoading.value = false
 	}
 }
 
-async function runAction(endpoint: string, body: unknown) {
+async function run(action: () => Promise<unknown>) {
 	loading.value = true
 	try {
-		await api<Entry>('POST', endpoint, body)
+		await action()
 		await refresh()
-	} catch (e) {
-		console.error('[chronos widget]', e)
+	} catch (error) {
+		console.error('[chronos widget]', error)
 	} finally {
 		loading.value = false
 	}
 }
 
-function checkIn() {
-	const body: Record<string, string> = {}
-	if (note.value.trim()) body.note = note.value.trim()
-	if (selectedProject.value) {
-		body.projectUri = selectedProject.value.uri
-		body.projectName = selectedProject.value.name
+async function checkIn() {
+	const payload: CheckInPayload = {}
+	if (note.value.trim() !== '') {
+		payload.note = note.value.trim()
 	}
-	runAction('/entries/check-in', body).then(() => {
-		note.value = ''
-	})
-}
-const pause = () => runAction('/entries/pause', {})
-const resume = () => runAction('/entries/resume', {})
-const checkOut = () => runAction('/entries/check-out', {})
-
-function effectiveDuration(e: Entry, nowMs: number): number {
-	const end = e.endTime ?? nowMs
-	let d = end - e.startTime - e.pausedDuration
-	if (e.pausedAt !== null && e.endTime === null) {
-		d -= nowMs - e.pausedAt
+	if (selectedProject.value !== null) {
+		payload.projectUri = selectedProject.value.uri
+		payload.projectName = selectedProject.value.name
 	}
-	return Math.max(0, d)
+
+	await run(() => sessionsApi.checkIn(payload))
+	note.value = ''
 }
 
-function formatLive(ms: number): string {
-	const s = Math.max(0, Math.floor(ms / 1000))
-	const h = Math.floor(s / 3600)
-	const m = Math.floor((s % 3600) / 60)
-	const sec = s % 60
-	const pad = (n: number) => String(n).padStart(2, '0')
-	return `${pad(h)}:${pad(m)}:${pad(sec)}`
-}
+const pause = () => run(sessionsApi.pauseSession)
+const resume = () => run(sessionsApi.resumeSession)
+const checkOut = () => run(sessionsApi.checkOut)
 
-function formatRel(ms: number): string {
-	const s = Math.max(0, Math.floor(ms / 1000))
-	if (s < 60) return `${s}s`
-	const h = Math.floor(s / 3600)
-	const m = Math.floor((s % 3600) / 60)
-	if (h === 0) return `${m}m`
-	if (m === 0) return `${h}h`
-	return `${h}h ${m}m`
-}
-
-const isPaused = computed(() => !!(active.value && active.value.pausedAt !== null))
+const isPaused = computed(() => active.value?.pausedSinceAt != null)
 
 const elapsed = computed(() =>
-	active.value ? formatLive(effectiveDuration(active.value, now.value)) : '00:00:00',
+	active.value ? formatClock(workedSeconds(active.value, now.value)) : '00:00:00',
 )
 
-const totalToday = computed(() => {
-	const startOfDay = new Date()
-	startOfDay.setHours(0, 0, 0, 0)
-	const startMs = startOfDay.getTime()
-	let total = 0
-	for (const e of entries.value) {
-		if (e.startTime < startMs) continue
-		total += effectiveDuration(e, now.value)
+const todayTotal = computed(() => formatDuration(todaySeconds.value))
+
+function colorFor(uri: string | null): string | null {
+	if (uri === null) {
+		return null
 	}
-	return formatRel(total)
-})
-
-const recent = computed(() =>
-	entries.value.filter((e) => e.endTime !== null).slice(0, 3),
-)
-
-function lookupColor(uri: string | null): string | null {
-	if (!uri) return null
-	return taskLists.value.find((l) => l.uri === uri)?.color ?? null
+	return taskLists.value.find((list) => list.uri === uri)?.color ?? null
 }
 
 function openApp() {
-	window.location.href = generateUrl(appBase + '/')
+	window.location.href = generateUrl('/apps/chronos/')
 }
 
-onMounted(() => {
-	refresh()
-	tickTimer = setInterval(() => {
-		now.value = Date.now()
-	}, 1000)
-})
-
-onBeforeUnmount(() => {
-	if (tickTimer) clearInterval(tickTimer)
-})
+refresh()
 </script>
 
 <template>
 	<div :class="$style.root">
-		<div v-if="initialLoading" :class="$style.loading">Loading…</div>
+		<div v-if="initialLoading" :class="$style.loading">
+			{{ t('chronos', 'Loading…') }}
+		</div>
 
 		<template v-else-if="active">
 			<div :class="$style.state">
 				<span :class="[$style.dot, { [$style.dotPaused]: isPaused }]" />
-				<span :class="$style.stateLabel">{{ isPaused ? 'Paused' : 'Running' }}</span>
+				<span :class="$style.stateLabel">{{ isPaused ? t('chronos', 'Paused') : t('chronos', 'Running') }}</span>
 			</div>
-			<div :class="$style.timer">{{ elapsed }}</div>
+			<div :class="$style.timer">
+				{{ elapsed }}
+			</div>
 			<div v-if="active.projectName" :class="$style.projectLine">
 				<span
 					:class="$style.projectDot"
-					:style="{ background: lookupColor(active.projectUri) || 'var(--color-primary-element)' }" />
+					:style="{ background: colorFor(active.projectUri) || 'var(--color-primary-element)' }" />
 				<span>{{ active.projectName }}</span>
 			</div>
-			<div v-if="active.note" :class="$style.noteLine">"{{ active.note }}"</div>
+			<div v-if="active.note" :class="$style.noteLine">
+				"{{ active.note }}"
+			</div>
 			<div :class="$style.btnRow">
 				<button
 					v-if="!isPaused"
 					:class="[$style.btn, $style.btnSecondary]"
 					:disabled="loading"
 					@click="pause">
-					Pause
+					{{ t('chronos', 'Pause') }}
 				</button>
 				<button
 					v-else
 					:class="[$style.btn, $style.btnPrimary]"
 					:disabled="loading"
 					@click="resume">
-					Resume
+					{{ t('chronos', 'Resume') }}
 				</button>
 				<button
 					:class="[$style.btn, $style.btnError]"
 					:disabled="loading"
 					@click="checkOut">
-					Check out
+					{{ t('chronos', 'Check out') }}
 				</button>
 			</div>
 		</template>
 
 		<template v-else>
 			<div :class="$style.todayLine">
-				<span :class="$style.todayLabel">Today</span>
-				<span :class="$style.todayValue">{{ totalToday }}</span>
+				<span :class="$style.todayLabel">{{ t('chronos', 'Today') }}</span>
+				<span :class="$style.todayValue">{{ todayTotal }}</span>
 			</div>
 			<div :class="$style.selectWrap">
 				<NcSelect
 					v-model="selectedProject"
 					:options="taskLists"
 					label="name"
-					:reduce="(l) => l"
+					:reduce="(list: TaskList) => list"
 					:clearable="true"
-					placeholder="No project"
+					:placeholder="t('chronos', 'No project')"
 					:disabled="loading" />
 			</div>
 			<input
 				v-model="note"
 				type="text"
 				:class="$style.input"
-				placeholder="What are you working on?"
+				:placeholder="t('chronos', 'What are you working on?')"
 				:disabled="loading"
-				@keydown.enter="checkIn" />
+				@keydown.enter="checkIn">
 			<button
 				:class="[$style.btn, $style.btnPrimary, $style.btnWide]"
 				:disabled="loading"
 				@click="checkIn">
-				Check in
+				{{ t('chronos', 'Check in') }}
 			</button>
 		</template>
 
 		<div v-if="recent.length" :class="$style.recent">
-			<div :class="$style.recentTitle">Recent</div>
+			<div :class="$style.recentTitle">
+				{{ t('chronos', 'Recent') }}
+			</div>
 			<ul :class="$style.recentList">
-				<li v-for="e in recent" :key="e.id" :class="$style.recentItem" @click="openApp">
+				<li v-for="session in recent"
+					:key="session.id"
+					:class="$style.recentItem"
+					@click="openApp">
 					<span
 						:class="$style.recentDot"
-						:style="{ background: lookupColor(e.projectUri) || 'var(--color-text-maxcontrast)' }" />
-					<span :class="$style.recentNote">{{ e.note || 'Untitled' }}</span>
-					<span :class="$style.recentDur">{{ formatRel(effectiveDuration(e, now)) }}</span>
+						:style="{ background: colorFor(session.projectUri) || 'var(--color-text-maxcontrast)' }" />
+					<span :class="$style.recentNote">{{ session.note || t('chronos', 'Untitled') }}</span>
+					<span :class="$style.recentDur">{{ formatDuration(workedSeconds(session, now)) }}</span>
 				</li>
 			</ul>
 		</div>

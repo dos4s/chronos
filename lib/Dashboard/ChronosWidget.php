@@ -24,7 +24,7 @@ class ChronosWidget implements IWidget, IIconWidget {
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('Time Tracker');
+		return $this->l10n->t('Chronos');
 	}
 
 	public function getOrder(): int {

@@ -25,7 +25,8 @@
 		"cs:check": "php-cs-fixer fix --dry-run --diff",
 		"cs:fix": "php-cs-fixer fix",
 		"psalm": "psalm --threads=1 --no-cache",
-		"test:unit": "phpunit tests -c tests/phpunit.xml --colors=always --fail-on-warning --fail-on-risky",
+		"test:unit": "phpunit -c tests/phpunit-unit.xml --colors=always --fail-on-warning --fail-on-risky",
+		"test:integration": "phpunit tests -c tests/phpunit.xml --colors=always --fail-on-warning --fail-on-risky",
 		"openapi": "generate-spec",
 		"rector": "rector && composer cs:fix"
 	},
@@ -34,7 +35,8 @@
 		"php": "^8.1"
 	},
 	"require-dev": {
-		"nextcloud/ocp": "dev-stable31",
+		"doctrine/dbal": "^4.0",
+		"nextcloud/ocp": "dev-stable32",
 		"roave/security-advisories": "dev-latest"
 	},
 	"config": {

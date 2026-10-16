@@ -4,25 +4,36 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\Controller;
 
-use OCA\DAV\CalDAV\CalDavBackend;
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Support\CurrentUser;
+use OCA\DAV\CalDAV\CalDavBackend;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\OpenAPI;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
-use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 use Throwable;
 
+/**
+ * Lists the user's VTODO calendars as projects.
+ *
+ * Reads OCA\DAV\CalDAV\CalDavBackend, which is internal to the DAV app and so
+ * unknown to static analysis; M2 moves this behind Core/Dav/CalDavGateway (AD9).
+ *
+ * @psalm-suppress UndefinedClass
+ * @psalm-suppress MixedAssignment
+ * @psalm-suppress MixedArgument
+ * @psalm-suppress MixedArrayAccess
+ * @psalm-suppress MixedMethodCall
+ */
 #[OpenAPI(OpenAPI::SCOPE_IGNORE)]
 class TaskListController extends Controller {
 
 	public function __construct(
 		IRequest $request,
-		private IUserSession $userSession,
+		private CurrentUser $currentUser,
 		private LoggerInterface $logger,
 		private ?CalDavBackend $calDavBackend = null,
 	) {
@@ -36,13 +47,13 @@ class TaskListController extends Controller {
 			return new JSONResponse([]);
 		}
 
-		$userId = $this->getUserId();
+		$userId = $this->currentUser->getUid();
 		$principalUri = 'principals/users/' . $userId;
 
 		try {
 			$calendars = $this->calDavBackend->getCalendarsForUser($principalUri);
 		} catch (Throwable $e) {
-			$this->logger->warning('TimeTracker: could not list task lists: ' . $e->getMessage(), [
+			$this->logger->warning('Chronos: could not list task lists: ' . $e->getMessage(), [
 				'app' => Application::APP_ID,
 				'exception' => $e,
 			]);
@@ -62,7 +73,7 @@ class TaskListController extends Controller {
 			];
 		}
 
-		usort($result, fn ($a, $b) => strcasecmp((string) $a['name'], (string) $b['name']));
+		usort($result, fn ($a, $b) => strcasecmp((string)$a['name'], (string)$b['name']));
 		return new JSONResponse($result);
 	}
 
@@ -84,15 +95,7 @@ class TaskListController extends Controller {
 
 	private function buildCalendarRef(array $cal, string $principalUri): string {
 		// Stable reference format: "<principalUri>/<calendar-uri>"
-		$calendarUri = (string) ($cal['uri'] ?? $cal['id'] ?? '');
+		$calendarUri = (string)($cal['uri'] ?? $cal['id'] ?? '');
 		return $principalUri . '/' . $calendarUri;
-	}
-
-	private function getUserId(): string {
-		$user = $this->userSession->getUser();
-		if ($user === null) {
-			throw new RuntimeException('No authenticated user');
-		}
-		return $user->getUID();
 	}
 }

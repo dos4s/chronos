@@ -1,6 +1,6 @@
 {
   "name": "chronos",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -8,25 +8,36 @@
     "dev": "vite --mode development build",
     "lint": "eslint src",
     "stylelint": "stylelint src/**/*.vue src/**/*.scss src/**/*.css",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "watch": "vite --mode development build --watch"
   },
   "browserslist": [
     "extends @nextcloud/browserslist-config"
   ],
   "dependencies": {
-    "@nextcloud/dialogs": "^7.3.0",
-    "@nextcloud/vue": "^9.3.1",
+    "@nextcloud/axios": "^2.6.0",
+    "@nextcloud/dialogs": "^7.5.0",
+    "@nextcloud/initial-state": "^2.2.0",
+    "@nextcloud/l10n": "^3.4.1",
+    "@nextcloud/router": "^3.2.0",
+    "@nextcloud/vue": "^9.13.1",
+    "pinia": "^3.0.4",
     "vue": "^3.5.25",
-    "vue-cal": "^4.10.2"
+    "vue-cal": "^4.10.2",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@nextcloud/browserslist-config": "^3.1.2",
     "@nextcloud/eslint-config": "^8.4.2",
-    "@nextcloud/stylelint-config": "^3.1.1",
-    "@nextcloud/vite-config": "^2.5.2",
-    "@vue/tsconfig": "^0.8.1",
+    "@nextcloud/stylelint-config": "^3.2.2",
+    "@nextcloud/vite-config": "^2.5.4",
+    "@vue/tsconfig": "^0.9.1",
     "typescript": "^5.9.3",
-    "vite": "^7.2.7"
+    "vite": "^7.2.7",
+    "vitest": "^3.2.7",
+    "vue-tsc": "^3.3.13"
   },
   "engines": {
     "node": "^24.0.0",

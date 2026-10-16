@@ -18,16 +18,15 @@ Chronos turns your Nextcloud Tasks lists into time-tracked projects.
 
 Built natively on Nextcloud Tasks — no separate project data, no duplicate lists. If you already organise your work in Tasks lists, Chronos simply adds the time layer on top.
 ]]></description>
-	<version>0.1.1</version>
+	<version>0.2.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author mail="dos4s@tutanota.com" homepage="https://dos4s.netrunners.sh">dos4s</author>
 	<namespace>Chronos</namespace>
 	<category>organization</category>
 	<category>office</category>
-	<keywords>time tracking,timesheet,tasks,checkin,pomodoro,productivity,analytics</keywords>
 	<bugs>https://dos4s.netrunners.sh</bugs>
 	<dependencies>
-		<nextcloud min-version="31" max-version="33"/>
+		<nextcloud min-version="32" max-version="33"/>
 	</dependencies>
 	<navigations>
 		<navigation>

@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<psalm
+    errorLevel="1"
+    resolveFromConfigFile="true"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+    findUnusedBaselineEntry="true"
+    findUnusedCode="true"
+	phpVersion="8.1"
+>
+    <projectFiles>
+        <directory name="lib" />
+        <ignoreFiles>
+            <directory name="vendor" />
+        </ignoreFiles>
+    </projectFiles>
+	<extraFiles>
+		<directory name="vendor"/>
+	</extraFiles>
+	<issueHandlers>
+		<!--
+			Nextcloud builds controllers, services, mappers, middleware, settings,
+			migrations and dashboard widgets through its DI container, so psalm
+			never sees a call site for them. Unused *private* code is still
+			reported, which is what this check is worth having for.
+		-->
+		<PossiblyUnusedMethod errorLevel="suppress" />
+		<UnusedClass>
+			<errorLevel type="suppress">
+				<directory name="lib/AppInfo" />
+				<directory name="lib/Controller" />
+				<directory name="lib/Core/Middleware" />
+				<directory name="lib/Dashboard" />
+				<directory name="lib/Migration" />
+			</errorLevel>
+		</UnusedClass>
+		<!-- QBMapper hydrates entity properties and sets the id after insert. -->
+		<PossiblyUnusedProperty>
+			<errorLevel type="suppress">
+				<directory name="lib/Time/Db" />
+			</errorLevel>
+		</PossiblyUnusedProperty>
+		<PropertyNotSetInConstructor>
+			<errorLevel type="suppress">
+				<directory name="lib/Time/Db" />
+			</errorLevel>
+		</PropertyNotSetInConstructor>
+		<!-- `/** @var ISchemaWrapper $schema */` is the documented migration idiom. -->
+		<UnnecessaryVarAnnotation errorLevel="suppress" />
+	</issueHandlers>
+</psalm>
