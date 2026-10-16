@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import { t } from '@nextcloud/l10n'
 import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcContent from '@nextcloud/vue/components/NcContent'
-import { t } from '@nextcloud/l10n'
-import { useRoute } from 'vue-router'
 import { useProjectsStore } from './stores/projects.ts'
 import { useTimeStore } from './stores/time.ts'
 
@@ -24,7 +24,7 @@ onMounted(() => {
 </script>
 
 <template>
-	<NcContent app-name="chronos">
+	<NcContent appName="chronos">
 		<NcAppNavigation>
 			<template #list>
 				<NcAppNavigationList>
@@ -33,7 +33,8 @@ onMounted(() => {
 						:name="t('chronos', 'Timer')"
 						:to="{ name: 'timer' }">
 						<template #icon>
-							<svg viewBox="0 0 24 24"
+							<svg
+								viewBox="0 0 24 24"
 								aria-hidden="true"
 								fill="currentColor"
 								width="16"
@@ -47,7 +48,8 @@ onMounted(() => {
 						:name="t('chronos', 'Analytics')"
 						:to="{ name: 'analytics' }">
 						<template #icon>
-							<svg viewBox="0 0 24 24"
+							<svg
+								viewBox="0 0 24 24"
 								aria-hidden="true"
 								fill="currentColor"
 								width="16"
@@ -61,7 +63,8 @@ onMounted(() => {
 						:name="t('chronos', 'Session editor')"
 						:to="{ name: 'editor' }">
 						<template #icon>
-							<svg viewBox="0 0 24 24"
+							<svg
+								viewBox="0 0 24 24"
 								aria-hidden="true"
 								fill="currentColor"
 								width="16"

@@ -1,9 +1,10 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
-import { showError } from '@nextcloud/dialogs'
-import { fetchTaskLists } from '../api/taskLists.ts'
-import { messageFor } from '../api/client.ts'
 import type { TaskList } from '../types/index.ts'
+
+import { showError } from '@nextcloud/dialogs'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
+import { messageFor } from '../api/client.ts'
+import { fetchTaskLists } from '../api/taskLists.ts'
 import { useTimeStore } from './time.ts'
 
 /**
@@ -59,11 +60,9 @@ export const useProjectsStore = defineStore('projects', () => {
 	/** Only the lists the user has actually tracked time on. */
 	const tracked = computed(() => {
 		const time = useTimeStore()
-		const used = new Set(
-			time.sessions
-				.map((session) => session.projectUri)
-				.filter((uri): uri is string => uri !== null),
-		)
+		const used = new Set(time.sessions
+			.map((session) => session.projectUri)
+			.filter((uri): uri is string => uri !== null))
 		return taskLists.value.filter((list) => used.has(list.uri))
 	})
 

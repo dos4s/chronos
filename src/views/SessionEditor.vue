@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { UnixSeconds } from '../api/time.ts'
+import type { Session, SessionUpdatePayload } from '../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import VueCal from 'vue-cal'
-import 'vue-cal/dist/vuecal.css'
 import BreakMenu from '../components/BreakMenu.vue'
 import SessionEditorModal from '../components/SessionEditorModal.vue'
+import { asSeconds, toDate } from '../api/time.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTimeStore } from '../stores/time.ts'
 import { sessionChunks } from '../utils/sessions.ts'
 import { fromTimeInput, toTimeInput } from '../utils/timeInput.ts'
-import { asSeconds, toDate } from '../api/time.ts'
-import type { UnixSeconds } from '../api/time.ts'
-import type { Session, SessionUpdatePayload } from '../types/index.ts'
+
+import 'vue-cal/dist/vuecal.css'
 
 interface CalendarEvent {
 	id: string
@@ -33,7 +35,7 @@ const editing = ref<Session | null>(null)
 const menu = ref<{ x: number, y: number, session: Session, from: UnixSeconds, to: UnixSeconds, initialStart: string } | null>(null)
 
 const windowHeight = ref(window.innerHeight)
-const onResize = () => {
+function onResize() {
 	windowHeight.value = window.innerHeight
 }
 onMounted(() => window.addEventListener('resize', onResize))
@@ -168,20 +170,21 @@ async function save(payload: SessionUpdatePayload) {
 			</h2>
 		</div>
 
-		<div :class="['chronos-panel', $style.panel]">
+		<div class="chronos-panel" :class="[$style.panel]">
 			<p :class="$style.subtitle">
 				{{ t('chronos', 'Double-click a block to edit its times, or right-click it to add a break.') }}
 			</p>
 
 			<VueCal
-				:class="['vuecal--blue-theme', $style.calendar]"
-				hide-view-selector
-				:time-from="6 * 60"
-				:time-to="24 * 60"
-				:time-step="30"
-				scroll-to="08:00"
+				class="vuecal--blue-theme"
+				:class="[$style.calendar]"
+				hideViewSelector
+				:timeFrom="6 * 60"
+				:timeTo="24 * 60"
+				:timeStep="30"
+				scrollTo="08:00"
 				:events="events"
-				:editable-events="{ title: false, drag: false, resize: false, delete: false, create: false }"
+				:editableEvents="{ title: false, drag: false, resize: false, delete: false, create: false }"
 				:style="{ height: calendarHeight + 'px', width: '100%', borderRadius: '8px' }">
 				<template #event="{ event }">
 					<div
@@ -199,7 +202,7 @@ async function save(payload: SessionUpdatePayload) {
 				v-if="menu"
 				:x="menu.x"
 				:y="menu.y"
-				:initial-start="menu.initialStart"
+				:initialStart="menu.initialStart"
 				@close="menu = null"
 				@add="addBreak" />
 

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { sessionChunks, workedSeconds } from './sessions.ts'
-import { asSeconds } from '../api/time.ts'
 import type { Session } from '../types/index.ts'
+
+import { describe, expect, it } from 'vitest'
+import { asSeconds } from '../api/time.ts'
+import { sessionChunks, workedSeconds } from './sessions.ts'
 
 const NOW = asSeconds(1_760_000_000)
 

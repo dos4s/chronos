@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { fromTimeInput, toTimeInput } from './timeInput.ts'
 import { fromDate, toDate } from '../api/time.ts'
+import { fromTimeInput, toTimeInput } from './timeInput.ts'
 
 const DAY = fromDate(new Date(2026, 9, 16, 9, 30))
 

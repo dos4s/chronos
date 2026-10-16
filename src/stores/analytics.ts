@@ -1,10 +1,11 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import type { Seconds, UnixSeconds } from '../api/time.ts'
+import type { AnalyticsSummary, DayTotal } from '../types/index.ts'
+
 import { showError } from '@nextcloud/dialogs'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 import { fetchSummary } from '../api/analytics.ts'
 import { messageFor } from '../api/client.ts'
-import type { AnalyticsSummary, DayTotal } from '../types/index.ts'
-import type { Seconds, UnixSeconds } from '../api/time.ts'
 import { addDays, nowSeconds, startOfDay, toDateKey } from '../api/time.ts'
 import { useProjectsStore } from './projects.ts'
 
@@ -66,22 +67,16 @@ export const useAnalyticsStore = defineStore('analytics', () => {
 
 	const todaySeconds = computed(() => days.value[days.value.length - 1]?.seconds ?? 0)
 
-	const windowSeconds = computed(() =>
-		days.value.reduce((total, day) => total + day.seconds, 0),
-	)
+	const windowSeconds = computed(() => days.value.reduce((total, day) => total + day.seconds, 0))
 
-	const dayMaxSeconds = computed(() =>
-		Math.max(1, ...days.value.map((day) => day.seconds)),
-	)
+	const dayMaxSeconds = computed(() => Math.max(1, ...days.value.map((day) => day.seconds)))
 
 	const projects = computed(() => {
 		const filter = useProjectsStore()
 		return (summary.value?.projects ?? []).filter((project) => filter.matches(project.projectUri))
 	})
 
-	const sessionCount = computed(() =>
-		projects.value.reduce((total, project) => total + project.sessionCount, 0),
-	)
+	const sessionCount = computed(() => projects.value.reduce((total, project) => total + project.sessionCount, 0))
 
 	return {
 		summary,

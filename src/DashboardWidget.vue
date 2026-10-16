@@ -1,16 +1,19 @@
 <script setup lang="ts">
+import type { CheckInPayload, Session, TaskList } from './types/index.ts'
+
+import { showError } from '@nextcloud/dialogs'
+import { t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 import { computed, ref } from 'vue'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
-import { generateUrl } from '@nextcloud/router'
-import { t } from '@nextcloud/l10n'
-import * as sessionsApi from './api/sessions.ts'
 import { fetchSummary } from './api/analytics.ts'
+import { messageFor } from './api/client.ts'
+import * as sessionsApi from './api/sessions.ts'
 import { fetchTaskLists } from './api/taskLists.ts'
 import { addDays, nowSeconds, startOfDay } from './api/time.ts'
+import { useNow } from './composables/useNow.ts'
 import { formatClock, formatDuration } from './utils/format.ts'
 import { workedSeconds } from './utils/sessions.ts'
-import { useNow } from './composables/useNow.ts'
-import type { CheckInPayload, Session, TaskList } from './types/index.ts'
 
 /**
  * The widget uses the same API client, types and formatters as the app (D8,
@@ -43,7 +46,7 @@ async function refresh() {
 		taskLists.value = lists
 		todaySeconds.value = summary.totalSeconds
 	} catch (error) {
-		console.error('[chronos widget]', error)
+		showError(messageFor(error))
 	} finally {
 		initialLoading.value = false
 	}
@@ -55,7 +58,7 @@ async function run(action: () => Promise<unknown>) {
 		await action()
 		await refresh()
 	} catch (error) {
-		console.error('[chronos widget]', error)
+		showError(messageFor(error))
 	} finally {
 		loading.value = false
 	}
@@ -79,11 +82,9 @@ const pause = () => run(sessionsApi.pauseSession)
 const resume = () => run(sessionsApi.resumeSession)
 const checkOut = () => run(sessionsApi.checkOut)
 
-const isPaused = computed(() => active.value?.pausedSinceAt != null)
+const isPaused = computed(() => active.value !== null && active.value.pausedSinceAt !== null)
 
-const elapsed = computed(() =>
-	active.value ? formatClock(workedSeconds(active.value, now.value)) : '00:00:00',
-)
+const elapsed = computed(() => active.value ? formatClock(workedSeconds(active.value, now.value)) : '00:00:00')
 
 const todayTotal = computed(() => formatDuration(todaySeconds.value))
 
@@ -183,7 +184,8 @@ refresh()
 				{{ t('chronos', 'Recent') }}
 			</div>
 			<ul :class="$style.recentList">
-				<li v-for="session in recent"
+				<li
+					v-for="session in recent"
 					:key="session.id"
 					:class="$style.recentItem"
 					@click="openApp">

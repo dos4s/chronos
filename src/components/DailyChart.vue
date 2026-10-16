@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
-import { formatDuration, formatWeekday } from '../utils/format.ts'
 import { useAnalyticsStore } from '../stores/analytics.ts'
 import { useProjectsStore } from '../stores/projects.ts'
+import { formatDuration, formatWeekday } from '../utils/format.ts'
 
 const analytics = useAnalyticsStore()
 const projects = useProjectsStore()

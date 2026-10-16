@@ -1,5 +1,6 @@
-import { t } from '@nextcloud/l10n'
 import type { Seconds, UnixSeconds } from '../api/time.ts'
+
+import { t } from '@nextcloud/l10n'
 import { toDate } from '../api/time.ts'
 
 /**

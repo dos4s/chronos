@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import type { CheckInPayload, TaskList } from '../types/index.ts'
+
+import { t } from '@nextcloud/l10n'
 import { ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
-import { t } from '@nextcloud/l10n'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTimeStore } from '../stores/time.ts'
-import type { CheckInPayload, TaskList } from '../types/index.ts'
 
 const time = useTimeStore()
 const projects = useProjectsStore()
@@ -31,7 +32,7 @@ async function checkIn() {
 </script>
 
 <template>
-	<section :class="['chronos-panel', $style.panel]">
+	<section class="chronos-panel" :class="[$style.panel]">
 		<div :class="$style.headline">
 			{{ t('chronos', 'Ready when you are') }}
 		</div>
@@ -45,7 +46,7 @@ async function checkIn() {
 				label="name"
 				:reduce="(list: TaskList) => list"
 				:clearable="true"
-				:input-label="t('chronos', 'Project (optional)')"
+				:inputLabel="t('chronos', 'Project (optional)')"
 				:placeholder="t('chronos', 'No project')"
 				:disabled="time.loading" />
 		</div>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import type { Session, SessionUpdatePayload } from '../types/index.ts'
+
+import { showError } from '@nextcloud/dialogs'
+import { t } from '@nextcloud/l10n'
 import { reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
-import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
 import { fromTimeInput, toTimeInput } from '../utils/timeInput.ts'
-import type { Session, SessionUpdatePayload } from '../types/index.ts'
 
 const props = defineProps<{ session: Session }>()
 const emit = defineEmits<{ close: [], save: [payload: SessionUpdatePayload] }>()
@@ -67,8 +68,7 @@ function save() {
 			startAt: fromTimeInput(pause.start, day),
 			endAt: fromTimeInput(pause.end, day),
 		}))
-		.filter((pause): pause is SessionUpdatePayload['pauses'][number] =>
-			pause.startAt !== null && pause.endAt !== null)
+		.filter((pause): pause is SessionUpdatePayload['pauses'][number] => pause.startAt !== null && pause.endAt !== null)
 
 	// The server clips and merges these as well; doing it here too means the
 	// user sees the problem before saving instead of a surprise afterwards.
@@ -94,12 +94,12 @@ function save() {
 			</h3>
 
 			<div :class="$style.field">
-				<label :for="'chronos-start'">{{ t('chronos', 'Start time') }}</label>
+				<label for="chronos-start">{{ t('chronos', 'Start time') }}</label>
 				<input id="chronos-start" v-model="form.start" type="time">
 			</div>
 
 			<div :class="$style.field">
-				<label :for="'chronos-end'">{{ t('chronos', 'End time') }}</label>
+				<label for="chronos-end">{{ t('chronos', 'End time') }}</label>
 				<input
 					id="chronos-end"
 					v-model="form.end"
@@ -115,7 +115,8 @@ function save() {
 					</h4>
 					<NcButton variant="tertiary" size="small" @click="addPause">
 						<template #icon>
-							<svg viewBox="0 0 24 24"
+							<svg
+								viewBox="0 0 24 24"
 								width="18"
 								height="18"
 								aria-hidden="true">
@@ -136,7 +137,8 @@ function save() {
 						:aria-label="t('chronos', 'Remove break')"
 						@click="removePause(pause.key)">
 						<template #icon>
-							<svg viewBox="0 0 24 24"
+							<svg
+								viewBox="0 0 24 24"
 								width="18"
 								height="18"
 								aria-hidden="true">
