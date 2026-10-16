@@ -13,4 +13,14 @@ module.exports = {
 		'jsdoc/require-returns': 'off',
 		'vue/first-attribute-linebreak': 'off',
 	},
+	overrides: [
+		{
+			// Tests live next to the code they cover and may import dev-only
+			// tools; they are not part of what ships.
+			files: ['**/*.spec.ts'],
+			rules: {
+				'n/no-unpublished-import': 'off',
+			},
+		},
+	],
 }
