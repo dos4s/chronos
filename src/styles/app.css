@@ -1,6 +1,6 @@
 /*
  * The app's shared visual language: surfaces, labels and the few global
- * overrides Nextcloud and vue-cal need. Component-specific layout stays in
+ * overrides Nextcloud needs. Component-specific layout stays in
  * each component's own CSS module.
  */
 
@@ -85,36 +85,3 @@ body.app-chronos .app-navigation {
 	transform: translateY(6px);
 }
 
-/* vue-cal, themed for light and dark Nextcloud */
-
-.vuecal__title-bar {
-	background: var(--color-background-hover) !important;
-	color: var(--color-main-text) !important;
-}
-
-.vuecal__cell {
-	background: transparent !important;
-	color: var(--color-main-text) !important;
-}
-
-.vuecal__event {
-	background-color: transparent !important;
-	box-shadow: none !important;
-}
-
-.vuecal__event-resize-handle {
-	display: none !important;
-}
-
-.chronos-pause-event {
-	background: repeating-linear-gradient(45deg,
-		var(--color-background-hover) 0,
-		var(--color-background-hover) 10px,
-		transparent 10px,
-		transparent 20px
-	) !important;
-	border: 1px dashed var(--color-border) !important;
-	color: var(--color-text-maxcontrast) !important;
-	opacity: 0.6;
-	cursor: default !important;
-}

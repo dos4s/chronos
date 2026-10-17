@@ -43,6 +43,16 @@ export interface TimeDragOptions {
 	onMove: (uid: string, kind: DragKind, bar: PlanBar) => unknown
 	onLink: (predecessorUid: string, successorUid: string) => unknown
 	describe?: (uid: string, kind: DragKind, bar: PlanBar) => string
+	/**
+	 * The rules of the thing being dragged, applied to every position before
+	 * it is shown or written (§15.4).
+	 *
+	 * The timeline has none: a bar may be anywhere. The session editor has
+	 * several — a break cannot be dragged outside its session or over another
+	 * break — and they belong to it rather than here, so they arrive as a
+	 * function and the preview obeys them too.
+	 */
+	clamp?: (uid: string, kind: DragKind, bar: PlanBar) => PlanBar
 }
 
 /** Movement before a drag starts, so a click stays a click (§15.1). */
@@ -206,20 +216,29 @@ export function useTimeDrag(options: TimeDragOptions) {
 			// (§15.4). An all-day bar always lands on a day: it has no time.
 			const delta = free && !allDay ? Math.round(raw) : Math.round(raw / unit) * unit
 
-			return shift(bar, delta)
+			return clamped(kind, shift(bar, delta))
 		}
 
 		if (kind === 'start') {
 			const at = scale.atOf(x, allDay, !free)
 			const latestStart = asSeconds(bar.endAt - unit)
 
-			return { ...bar, startAt: asSeconds(Math.min(at, latestStart)), inferred: false }
+			return clamped(kind, { ...bar, startAt: asSeconds(Math.min(at, latestStart)), inferred: false })
 		}
 
 		const at = allDay ? dayAfter(scale.atOf(x, true), true) : scale.atOf(x, false, !free)
 		const earliestEnd = asSeconds(bar.startAt + unit)
 
-		return { ...bar, endAt: asSeconds(Math.max(at, earliestEnd)), inferred: false }
+		return clamped(kind, { ...bar, endAt: asSeconds(Math.max(at, earliestEnd)), inferred: false })
+	}
+
+	/** The rules of whatever is being dragged, if it has any (§15.4). */
+	function clamped(kind: DragKind, bar: PlanBar): PlanBar {
+		const current = dragging.value
+
+		return current === null || options.clamp === undefined
+			? bar
+			: options.clamp(current.uid, kind, bar)
 	}
 
 	function onEscape(event: KeyboardEvent): void {
@@ -319,10 +338,11 @@ export function useTimeDrag(options: TimeDragOptions) {
 		}
 
 		const unit = options.scale().snapUnit(bar)
-		const next = event.shiftKey
+		const kind: DragKind = event.shiftKey ? 'end' : 'move'
+		const next = clamped(kind, event.shiftKey
 			// Shift stretches the end rather than moving the bar.
 			? { ...bar, endAt: asSeconds(Math.max(bar.startAt + unit, bar.endAt + step * unit)), inferred: false }
-			: shift(bar, step * unit)
+			: shift(bar, step * unit))
 
 		preview.value = next
 		announce(uid, dragging.value?.kind ?? 'move', next)
