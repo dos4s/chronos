@@ -21,6 +21,11 @@ export default createRouter({
 			component: () => import('./views/Tasks.vue'),
 		},
 		{
+			path: '/board',
+			name: 'board',
+			component: () => import('./views/Kanban.vue'),
+		},
+		{
 			path: '/analytics',
 			name: 'analytics',
 			component: () => import('./views/Analytics.vue'),

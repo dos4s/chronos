@@ -159,6 +159,69 @@ export interface StatusChange {
 	changedAt: UnixSeconds
 }
 
+/**
+ * One column of a board: a workflow status, or one of the four standard ones
+ * when the project has no workflow (§12.1). Kanban columns *are* the statuses
+ * — there is no column model (AD7).
+ */
+export interface BoardColumn {
+	/** Null for a standard status, which is not a row in any table. */
+	statusId: number | null
+	/** How a drop names this column: a workflow key, or a standard status. */
+	key: string
+	name: string
+	color: string | null
+	vtodoStatus: VTodoStatus
+	isInitial: boolean
+	isFinal: boolean
+	wipLimit: number | null
+	count: number
+	/** Advisory: the board says so, the server still accepts the drop. */
+	overWipLimit: boolean
+	cards: Task[]
+}
+
+/** A move the workflow allows, named by column keys; none means any move. */
+export interface BoardRule {
+	from: string
+	to: string
+	requiresComment: boolean
+}
+
+export interface Board {
+	project: {
+		uri: string
+		calendarUri: string
+		name: string
+		color: string | null
+		writable: boolean
+	}
+	workflowId: number | null
+	rules: BoardRule[]
+	columns: BoardColumn[]
+}
+
+/** One drop, as the server takes it (§15.6). */
+export interface BoardMovePayload {
+	project: string
+	column: string
+	cards: { uid: string, etag?: string | null }[]
+	/** The card the drop landed below; null is the top of the column. */
+	afterUid?: string | null
+	/** The card it landed above; null is the bottom. */
+	beforeUid?: string | null
+	comment?: string | null
+}
+
+/**
+ * What a drop changed: the cards as they now are — above all their new etags —
+ * and the size of every column, for the WIP warnings.
+ */
+export interface BoardMoveResult {
+	cards: (Task & { rank: string | null })[]
+	counts: Record<string, number>
+}
+
 /** Which modules this instance offers and this user wants (§13). */
 export type ModuleState = Record<string, boolean>
 

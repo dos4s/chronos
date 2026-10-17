@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-17
+
+M3: the kanban board. Columns are your workflow's statuses, so moving a card changes the real status —
+in the Tasks app and on your phone too. A project without a workflow gets a board of the four standard
+iCalendar statuses, which is a complete way to work.
+
 ### Added
 
+- **The board.** Drag a card between columns or up and down one; drag several at once by picking them with
+  ctrl or shift. The card goes where you dropped it straight away and the request follows; if the server
+  refuses the move, the board goes back to exactly what it was and says why.
+- **Every drag works from the keyboard.** Focus a card and press space: the arrow keys move it between
+  positions and columns, space drops it, escape puts it back. Each step is announced for a screen reader.
+- **Undo.** The *Undo move* button beside the project picker — and `Ctrl+Z` — sends the card back to the
+  column *and the position* it came from.
+- **Transition rules have a face at last.** A column's settings say how many cards belong in it and which
+  columns its cards may move to, and whether a move needs a note. While a card is being dragged, the
+  columns it may not go to are dimmed — and the server refuses those moves as well.
+- **WIP limits.** A column over its limit says so, in its header and above its cards. It is a warning, not
+  a barrier: a limit is there to be seen, not to stop you finishing something.
 - **The board behind the kanban board.** `GET /board` reads a project as columns of cards and
   `POST /board/move` is one drop: the cards dragged, the column they landed in and the two cards they
   landed between. A drop is a status change like any other — CalDAV is written, a move the workflow forbids
@@ -26,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/live-check.php` now drops cards too: that a drop writes the status and the place and changes the
   etag, that a reorder changes the place and not the etag, that an undo puts the card back, and that a drop
   the transition rules forbid is refused. It puts the card positions it found back afterwards.
+
+### Known limits
+
+- A column draws every card it holds; several thousand in one column will be slow (D33).
+- A card somebody else has edited since the page read it makes the drop fail and the board reload, rather
+  than merging the two changes field by field (D34).
 
 ## [0.3.2] - 2026-10-16
 
