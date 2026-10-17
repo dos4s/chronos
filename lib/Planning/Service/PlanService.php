@@ -229,11 +229,22 @@ class PlanService {
 	}
 
 	/**
-	 * Takes a dependency away again.
+	 * Takes a dependency away again, named by the two tasks it joins.
+	 *
+	 * **Not by its row id**, although it has one. A link row is rewritten
+	 * whenever the task that declares it is written — the index replaces that
+	 * task's rows rather than editing them — so an id read when the link was
+	 * made is stale the moment the bar is dragged. The two UIDs are what the
+	 * link *is*, and there is only ever one between a given pair (D42).
 	 *
 	 * @throws NotFoundException|ForbiddenException|ValidationFailedException
 	 */
-	public function unlink(string $userId, string $projectRef, int $id): PlanView {
+	public function unlink(
+		string $userId,
+		string $projectRef,
+		string $predecessorUid,
+		string $successorUid,
+	): PlanView {
 		$calendar = $this->requireCalendar($userId, $projectRef);
 		if (!$calendar->isWritable) {
 			throw new ForbiddenException('project_read_only');
@@ -241,7 +252,8 @@ class PlanService {
 
 		$row = null;
 		foreach ($this->links->findForCalendar($calendar->id) as $candidate) {
-			if ($candidate->getId() === $id) {
+			if ($candidate->getPredecessorUid() === $predecessorUid
+				&& $candidate->getSuccessorUid() === $successorUid) {
 				$row = $candidate;
 				break;
 			}

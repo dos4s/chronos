@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-17
+
+Found by deploying 0.5.0 and running the live check against the real instance — within a minute of it
+landing.
+
+### Fixed
+
+- **A dependency could not be removed once its task had been dragged.** A link was identified by its row
+  id, and those rows are rewritten every time the task that declares them is written — so the id a link
+  was created with went stale as soon as its bar moved, and clicking the line to delete it said the link
+  no longer existed. A link is now named by the two tasks it joins, which is what it is (D42).
+
 ## [0.5.0] - 2026-10-17
 
 M4: the timeline. Your tasks' dates become bars you can drag, the dependencies between them are real

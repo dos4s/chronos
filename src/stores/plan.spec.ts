@@ -14,7 +14,7 @@ vi.mock('../api/plan.ts', () => ({
 	fetchPlan: (project: string) => fetchPlan(project),
 	movePlanBar: (payload: unknown) => movePlanBar(payload),
 	createLink: (payload: unknown) => createLink(payload),
-	deleteLink: (project: string, id: number) => deleteLink(project, id),
+	deleteLink: (project: string, predecessorUid: string, successorUid: string) => deleteLink(project, predecessorUid, successorUid),
 	savePlanSettings: (payload: unknown) => savePlanSettings(payload),
 }))
 
@@ -347,9 +347,11 @@ describe('dependencies', () => {
 		after.links = []
 		deleteLink.mockResolvedValue(after)
 
-		await store.unlink(4)
+		await store.unlink('a', 'b')
 
-		expect(deleteLink).toHaveBeenCalledWith('principals/users/alice/work', 4)
+		// Named by the two tasks, not by the row id: the row is rewritten
+		// whenever the task that declares it is written (D42).
+		expect(deleteLink).toHaveBeenCalledWith('principals/users/alice/work', 'a', 'b')
 		expect(store.links).toEqual([])
 	})
 

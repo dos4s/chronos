@@ -249,7 +249,7 @@ function scrollToToday(): void {
 }
 
 function removeLink(link: PlanLink): void {
-	void plan.unlink(link.id)
+	void plan.unlink(link.predecessorUid, link.successorUid)
 }
 
 async function saveDetails(changes: Partial<TaskWritePayload>): Promise<void> {
