@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One place to learn the keyboard.** Press `?` anywhere, or the `?` button in the board, the timeline or
+  the session editor, for everything the app can be told to do — the view you are on listed first. The
+  paragraphs of instructions under each chart are one line again.
 - **It works on a narrow window.** The board, the timeline, the roadmap and the session editor had fixed
   widths that left a phone with a table and a sliver of chart; they now size themselves against the window,
   a board column fills most of a small screen with the next one peeking past it, the secondary line in each

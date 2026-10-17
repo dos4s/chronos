@@ -18,6 +18,7 @@ import GanttLinks from '../components/GanttLinks.vue'
 import GanttScale from '../components/GanttScale.vue'
 import PlanSettingsDialog from '../components/PlanSettingsDialog.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
+import ShortcutsDialog from '../components/ShortcutsDialog.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { useNow } from '../composables/useNow.ts'
 import { useTimeDrag } from '../composables/useTimeDrag.ts'
@@ -51,6 +52,7 @@ const { now } = useNow()
 const zoom = ref<Zoom>('month')
 const editing = ref<PlanRow | null>(null)
 const configuring = ref(false)
+const shortcuts = ref(false)
 
 const chart = ref<HTMLElement | null>(null)
 const scrollLeft = ref(0)
@@ -352,6 +354,13 @@ onBeforeUnmount(() => {
 				{{ t('chronos', 'Today') }}
 			</NcButton>
 			<NcButton
+				variant="tertiary"
+				:aria-label="t('chronos', 'Keyboard and gestures')"
+				:title="t('chronos', 'Keyboard and gestures')"
+				@click="shortcuts = true">
+				?
+			</NcButton>
+			<NcButton
 				v-if="plan.plan"
 				variant="secondary"
 				@click="configuring = true">
@@ -469,7 +478,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task to make that task wait for this one. Alt drags without snapping. Double-click a row with no bar to give it a day. Focus a bar and press space to move it with the arrow keys; shift and the arrows stretch its end.') }}
+			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task.') }}
 		</p>
 
 		<!-- What a screen reader hears while a bar is in the air (§15.7). -->
@@ -482,6 +491,8 @@ onBeforeUnmount(() => {
 			:task="editing"
 			@close="editing = null"
 			@save="saveDetails" />
+
+		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
 		<PlanSettingsDialog
 			v-if="configuring"

@@ -775,6 +775,14 @@ src/
 - Views are lazy-loaded (`() => import('./views/Gantt.vue')`); logic lives in composables and stores.
 - All strings via `t('chronos', …)`.
 
+**One place to learn the keyboard.** Each drag view used to explain itself in a paragraph of permanent body
+text — seven of them across the app — which is what a design does when its affordances are not
+self-evident, and it still left the keyboard documented nowhere a user could find it. There is now one
+list (`utils/shortcuts.ts`, `components/ShortcutsDialog`), opened with **`?`** from anywhere or from the
+button in a view that has gestures worth knowing, with the group for the view you are on first. It lives
+beside the code that implements it so the two cannot quietly drift, and each view keeps a single line of
+hint instead of a paragraph. `?` is ignored while typing, because there it is a question mark.
+
 **It works narrow.** There was one media query in the whole app, in the analytics charts, while the board's
 columns were a fixed 300 px, the timeline was `320px + 1fr` inside `calc(100vh - 340px)`, and the editor's
 day column was 140 px — so on a phone or a half-screen window the timeline was a table with a sliver of
