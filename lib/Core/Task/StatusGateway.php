@@ -36,6 +36,15 @@ interface StatusGateway {
 	): ?int;
 
 	/**
+	 * The columns a project's board has, and the moves it allows (§12.1).
+	 *
+	 * Asked once per board, so that nothing outside the workflow module has to
+	 * know whether the project has a workflow: with one, these are its
+	 * statuses; without, the four standard ones.
+	 */
+	public function columnsFor(string $userId, string $projectRef): StatusColumns;
+
+	/**
 	 * Decides what a write should set, and refuses a move the workflow does
 	 * not allow.
 	 *

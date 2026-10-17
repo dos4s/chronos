@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The board behind the kanban board.** `GET /board` reads a project as columns of cards and
+  `POST /board/move` is one drop: the cards dragged, the column they landed in and the two cards they
+  landed between. A drop is a status change like any other — CalDAV is written, a move the workflow forbids
+  is refused, and the history records who moved it — while reordering within a column writes nothing to
+  CalDAV at all, because nothing about the task has changed.
+- **Card order that survives everybody else.** `chronos_board_ranks` keeps each card's place as a
+  lexicographic rank, so a drop writes one row rather than renumbering a column, and a task moved from a
+  phone keeps its place. Ranks are never written into the VTODO: arranging a board is nobody else's
+  business. A column whose ranks have grown long is rewritten, there and then if a drop needs it and by a
+  daily job otherwise.
+- **A board for a project with no workflow**, made of the four standard iCalendar statuses — so the view
+  works before anybody has built a workflow, and on an instance with the workflow module switched off.
+- The `kanban` module can be switched on, by an administrator for the instance and by each user for
+  themselves. It requires nothing else.
+- `scripts/live-check.php` now drops cards too: that a drop writes the status and the place and changes the
+  etag, that a reorder changes the place and not the etag, that an undo puts the card back, and that a drop
+  the transition rules forbid is refused. It puts the card positions it found back afterwards.
+
 ## [0.3.2] - 2026-10-16
 
 Two more found on the live instance, this time by a script that writes a real task into a real list —

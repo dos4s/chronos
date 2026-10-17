@@ -10,7 +10,13 @@ declare(strict_types=1);
  * created, attached to a list whose tasks then get a status, that a task walks
  * through its statuses with the right standard status, that the history
  * records who changed what and from where, and that a status the workflow does
- * not have is refused. Then it undoes all of it.
+ * not have is refused.
+ *
+ * Since M3 it also checks the board: that its columns are the workflow's
+ * statuses, that a drop writes the status and the card's place, that
+ * reordering a column writes no status at all, that an undo puts the card
+ * back, and that a drop the transition rules forbid is refused. Then it undoes
+ * all of it.
  *
  * It found D31 and D32 the first time it ran. Run it after deploying, as
  * www-data, from anywhere:
@@ -26,7 +32,12 @@ define('OC_CONSOLE', 1);
 $root = getenv('NEXTCLOUD_ROOT') ?: '/var/www/nextcloud';
 require_once $root . '/lib/base.php';
 
+use OCA\Chronos\Board\Db\BoardRank;
+use OCA\Chronos\Board\Db\BoardRankMapper;
+use OCA\Chronos\Board\Service\BoardService;
+use OCA\Chronos\Core\Index\Task;
 use OCA\Chronos\Core\Index\TaskMapper;
+use OCA\Chronos\Core\Settings\FeatureToggles;
 use OCA\Chronos\Core\Task\TaskService;
 use OCA\Chronos\Core\Task\TaskWrite;
 use OCA\Chronos\Projects\Service\ProjectService;
@@ -55,6 +66,9 @@ $projects = Server::get(ProjectService::class);
 $tasks = Server::get(TaskService::class);
 $taskMapper = Server::get(TaskMapper::class);
 $history = Server::get(StatusChangeMapper::class);
+$board = Server::get(BoardService::class);
+$rankMapper = Server::get(BoardRankMapper::class);
+$toggles = Server::get(FeatureToggles::class);
 
 $project = null;
 foreach ($projects->listProjects($user) as $candidate) {
@@ -75,6 +89,18 @@ echo 'list: ' . $project->calendar->name() . ' (' . $ref . ')' . PHP_EOL;
 
 $workflow = null;
 $taskUid = null;
+
+// The drops below give the cards in the columns they touch a place, which is
+// the first drop's job (§15.5) but would rearrange a board somebody has
+// already arranged. Kept as it was found, and put back at the end.
+$ranksBefore = array_map(
+	static fn (BoardRank $rank): array => [
+		'uid' => $rank->getTaskUid(),
+		'column' => $rank->getColumnKey(),
+		'rank' => $rank->getCardRank(),
+	],
+	array_values($rankMapper->findForCalendar($calendarId)),
+);
 
 try {
 	// 1. A workflow from a template — the insert that 0.3.0 could not do.
@@ -197,6 +223,99 @@ try {
 	} catch (\OCA\Chronos\Core\Error\ValidationFailedException $e) {
 		check('a status from another workflow is refused', $e->getErrorCode() === 'unknown_status', $e->getErrorCode());
 	}
+
+	// 8. The board: its columns are the statuses, and every card is on it once.
+	$view = $board->board($user, $ref);
+	$keys = array_map(static fn ($column): string => $column->key, $view->statuses->columns);
+	check('the board\'s columns are the workflow\'s statuses', $keys === ['todo', 'doing', 'done'], implode(', ', $keys));
+
+	$onBoard = [];
+	foreach ($keys as $key) {
+		foreach ($view->column($key) as $card) {
+			$onBoard[] = $card->getUid();
+		}
+	}
+	$cards = array_values(array_filter(
+		$taskMapper->findForCalendars([$calendarId]),
+		static fn (Task $task): bool => $task->getType() !== 'subproject',
+	));
+	check(
+		'every task in the list is a card, exactly once',
+		count($onBoard) === count($cards) && count(array_unique($onBoard)) === count($onBoard),
+		count($onBoard) . ' cards for ' . count($cards) . ' tasks',
+	);
+	check(
+		'the throwaway task is in the column of the status it is in',
+		in_array($taskUid, array_map(static fn (Task $card): string => $card->getUid(), $view->column('done')), true),
+		'done',
+	);
+
+	// 9. A drop into another column: the status is written, and the card's
+	// place is recorded.
+	$dropped = $board->move($user, $ref, [['uid' => $taskUid, 'etag' => $done->getEtag()]], 'doing');
+	$card = $dropped->cards[0];
+	check('a drop writes the new status', $workflow->statusById($card->getStatusId())?->getStatusKey() === 'doing', (string)$workflow->statusById($card->getStatusId())?->getStatusKey());
+	check('a drop changes the card\'s etag, as any write does', $card->getEtag() !== $done->getEtag());
+	check('the card was given a place in the column', ($dropped->ranks[$taskUid] ?? '') !== '', $dropped->ranks[$taskUid] ?? '(none)');
+
+	// 10. Reordering within a column is the board's own business: no CalDAV
+	// write at all, so the etag stays exactly as it was.
+	$doingColumn = $board->board($user, $ref)->column('doing');
+	$neighbour = null;
+	foreach ($doingColumn as $other) {
+		if ($other->getUid() !== $taskUid) {
+			$neighbour = $other;
+			break;
+		}
+	}
+
+	if ($neighbour === null) {
+		check('reordering a column writes no status', true, 'nothing else in the column to reorder against');
+	} else {
+		$firstRank = $dropped->ranks[$taskUid] ?? '';
+		$reordered = $board->move(
+			$user,
+			$ref,
+			[['uid' => $taskUid, 'etag' => $card->getEtag()]],
+			'doing',
+			$neighbour->getUid(),
+			null,
+		);
+		check('reordering a column writes no status', $reordered->cards[0]->getEtag() === $card->getEtag(), 'etag unchanged');
+		check('reordering a column changes the card\'s place', ($reordered->ranks[$taskUid] ?? '') !== $firstRank, $firstRank . ' → ' . ($reordered->ranks[$taskUid] ?? '(none)'));
+	}
+
+	// 11. Undo: the inverse drop puts the card back where it came from.
+	$currentEtag = null;
+	foreach ($board->board($user, $ref)->column('doing') as $inDoing) {
+		if ($inDoing->getUid() === $taskUid) {
+			$currentEtag = $inDoing->getEtag();
+			break;
+		}
+	}
+	$back = $board->move($user, $ref, [['uid' => $taskUid, 'etag' => $currentEtag]], 'done');
+	check('an undo puts the card back in the column it came from', $workflow->statusById($back->cards[0]->getStatusId())?->getStatusKey() === 'done', (string)$workflow->statusById($back->cards[0]->getStatusId())?->getStatusKey());
+
+	// 12. A drop the transition rules forbid is refused by the server, not
+	// only dimmed in the board (F5).
+	$todo = $workflow->statusByKey('todo')?->getId() ?? 0;
+	$doingId = $workflow->statusByKey('doing')?->getId() ?? 0;
+	$workflows->setTransitions($user, $workflow->id(), [['from' => $todo, 'to' => $doingId]]);
+	try {
+		$board->move($user, $ref, [['uid' => $taskUid]], 'todo');
+		check('a drop the rules forbid is refused', false, 'it was accepted');
+	} catch (\OCA\Chronos\Core\Error\ValidationFailedException $e) {
+		check('a drop the rules forbid is refused', $e->getErrorCode() === 'transition_not_allowed', $e->getErrorCode());
+	}
+	$workflows->setTransitions($user, $workflow->id(), []);
+
+	// 13. Whether the board is switched on at all. A module ships off, so this
+	// is a reminder rather than a bug: the API refuses while it is.
+	check(
+		'the kanban module is switched on for this user',
+		$toggles->isEnabledForUser(FeatureToggles::MODULE_KANBAN, $user),
+		'occ config:app:set chronos module_kanban --value 1 --type boolean',
+	);
 } finally {
 	// Undo everything, in reverse.
 	if ($taskUid !== null) {
@@ -216,6 +335,15 @@ try {
 			->where($hard->expr()->eq('uid', $hard->createNamedParameter($taskUid)));
 		$hard->executeStatement();
 	}
+
+	// The card positions, back to exactly the rows that were there before:
+	// this check arranges a column in passing, and somebody else's board is
+	// not its to rearrange.
+	$rankMapper->deleteForCalendar($calendarId);
+	foreach ($ranksBefore as $row) {
+		$rankMapper->place($calendarId, $row['uid'], $row['column'], $row['rank']);
+	}
+	echo '  card positions back to the ' . count($ranksBefore) . ' there were before' . PHP_EOL;
 
 	if ($workflow !== null) {
 		$workflows->assignToProject($user, $ref, null);

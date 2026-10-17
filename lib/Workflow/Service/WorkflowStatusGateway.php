@@ -7,6 +7,9 @@ namespace OCA\Chronos\Workflow\Service;
 use OCA\Chronos\Core\Dav\CalDavGateway;
 use OCA\Chronos\Core\Error\ValidationFailedException;
 use OCA\Chronos\Core\Index\Task;
+use OCA\Chronos\Core\Task\StandardStatuses;
+use OCA\Chronos\Core\Task\StatusColumn;
+use OCA\Chronos\Core\Task\StatusColumns;
 use OCA\Chronos\Core\Task\StatusGateway;
 use OCA\Chronos\Core\Task\StatusWrite;
 use OCA\Chronos\Workflow\Db\Status;
@@ -73,6 +76,46 @@ class WorkflowStatusGateway implements StatusGateway {
 		}
 
 		return $view->initialStatus()?->getId();
+	}
+
+	public function columnsFor(string $userId, string $projectRef): StatusColumns {
+		$view = $this->workflows->forProject($userId, $projectRef);
+		if ($view === null) {
+			// The module is on, but this project has no workflow: its board is
+			// the four standard statuses, like every project before M2.
+			return new StatusColumns(StandardStatuses::columns());
+		}
+
+		$columns = array_map(
+			static fn (Status $status): StatusColumn => new StatusColumn(
+				$status->getId(),
+				$status->getStatusKey(),
+				$status->getName(),
+				$status->getColor(),
+				$status->getVtodoStatus(),
+				$status->getIsInitial(),
+				$status->getIsFinal(),
+				$status->getWipLimit(),
+			),
+			$view->statuses,
+		);
+
+		$rules = [];
+		foreach ($view->transitions as $transition) {
+			$from = $view->statusById($transition->getFromStatusId());
+			$to = $view->statusById($transition->getToStatusId());
+			if ($from === null || $to === null) {
+				continue;
+			}
+
+			$rules[] = [
+				'from' => $from->getStatusKey(),
+				'to' => $to->getStatusKey(),
+				'requiresComment' => $transition->getRequiresComment(),
+			];
+		}
+
+		return new StatusColumns($columns, $rules, $view->id());
 	}
 
 	public function prepareWrite(

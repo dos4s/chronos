@@ -21,8 +21,10 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
 - **Workflows**: statuses of your own, from a Support, Development or Personal template, with transition
   rules and a history of every status change. Every status maps to one of the four standard iCalendar
   statuses, so your other clients always see something sensible
+- **Kanban**: a board whose columns *are* those statuses — moving a card changes the real status, in your
+  other clients too. A project without a workflow gets a board of the four standard statuses
 
-Projects and workflows are modules: an administrator chooses what the instance offers under
+Projects, workflows and the kanban board are modules: an administrator chooses what the instance offers under
 *Administration settings → Additional settings*, and each user chooses what they see under *Personal
 settings → Additional settings*. Switching a module off keeps its data.
 
@@ -101,6 +103,8 @@ database this instance really uses:
 - a session runs, pauses, resumes and ends with its pause recorded, and an edit merges overlapping pauses
 - a VTODO lands in the task index with its dates and dependencies, and re-indexing replaces rather than
   duplicates
+- a card has one position and not two, a column comes back in rank order from the database's own collation,
+  and rewriting a column's ranks keeps the order they described
 
 It creates its own rows under `chronos-itest-*` user ids and a calendar id that cannot exist, and removes
 them afterwards, so it does not touch real data.
@@ -112,16 +116,18 @@ and `occ background-job:execute <id>` runs one immediately.
 ### Checking the parts that need a real calendar
 
 The suite above never writes a VTODO: it works on a calendar id that cannot exist. For the rest —
-workflows, statuses, history, CalDAV writes — there is a second script, which creates a workflow, attaches
-it to a list you name, walks one throwaway task through its statuses, reads the history back and then
-undoes all of it:
+workflows, statuses, history, the board, CalDAV writes — there is a second script, which creates a
+workflow, attaches it to a list you name, walks one throwaway task through its statuses, drops it around
+its board, reads the history back and then undoes all of it:
 
 ```bash
 sudo -u www-data php /var/www/nextcloud/custom_apps/chronos/scripts/live-check.php admin personal
 ```
 
 It prints a line per check and ends with a pass or fail count. It writes one task into the list given and
-deletes it again, and puts the project's settings back as it found them.
+deletes it again, and puts the project's settings and the board's card positions back as it found them. The
+last check is whether the `kanban` module is switched on for that user — a module ships off, so a fresh
+install is expected to say no, and the line tells you the `occ` command that changes it.
 
 ### Two things worth knowing before you run `occ upgrade`
 

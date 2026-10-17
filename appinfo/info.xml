@@ -19,6 +19,7 @@ Chronos turns your Nextcloud Tasks lists into time-tracked projects.
 - Tasks read and written as VTODOs in your own lists, with subtasks, dates, priority and progress
 - Projects grouped into areas, archiving, and one project recorded as part of another
 - Workflows with statuses of your own, transition rules and a history of every status change
+- Kanban board whose columns are those statuses, with drag and drop, WIP limits and undo
 
 Built natively on Nextcloud Tasks — no separate project data, no duplicate lists. If you already organise your work in Tasks lists, Chronos simply adds the time and project layers on top.
 ]]></description>
@@ -34,6 +35,7 @@ Built natively on Nextcloud Tasks — no separate project data, no duplicate lis
 	</dependencies>
 	<background-jobs>
 		<job>OCA\Chronos\Core\Index\ReconcileJob</job>
+		<job>OCA\Chronos\Board\RebalanceRanksJob</job>
 	</background-jobs>
 	<settings>
 		<admin>OCA\Chronos\Settings\AdminSettings</admin>
