@@ -43,6 +43,19 @@ export function addDays(seconds: UnixSeconds, days: number): UnixSeconds {
 	return fromDate(date)
 }
 
+/**
+ * The same, in UTC — which is the frame an all-day date is stored in (§8.4).
+ *
+ * An all-day date is midnight UTC of that day and is never shifted by a zone,
+ * so adding a day to one is a UTC day; adding a *local* day to it would move
+ * it by 23 or 25 hours twice a year and leave it on the wrong date.
+ */
+export function addDaysUtc(seconds: UnixSeconds, days: number): UnixSeconds {
+	const date = toDate(seconds)
+	date.setUTCDate(date.getUTCDate() + days)
+	return fromDate(date)
+}
+
 /** `YYYY-MM-DD` in the browser's zone, matching the server's day buckets. */
 export function toDateKey(seconds: UnixSeconds): string {
 	const date = toDate(seconds)

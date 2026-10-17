@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\Core\Task;
 
+use OCA\Chronos\Core\Dav\ParsedLink;
 use OCA\Chronos\Core\Dav\ParsedTask;
 use OCA\Chronos\Core\Error\ValidationFailedException;
 use OCA\Chronos\Core\Index\Task;
@@ -35,6 +36,15 @@ final class TaskWrite {
 		public readonly ?string $statusKey = null,
 		/** A note on the status change, which a transition may require. */
 		public readonly ?string $comment = null,
+		/**
+		 * The task's dependencies, as they should end up (§12.5). Null — which
+		 * is every write but a link edit — leaves the `RELATED-TO` properties
+		 * in the VTODO exactly as they are, including the ones Chronos has
+		 * never heard of.
+		 *
+		 * @var list<ParsedLink>|null
+		 */
+		public readonly ?array $links = null,
 	) {
 	}
 
@@ -58,6 +68,61 @@ final class TaskWrite {
 			type: $this->type,
 			statusKey: $status->statusKey,
 			comment: $this->comment,
+			links: $this->links,
+		);
+	}
+
+	/**
+	 * The task as the index has it, with different dates.
+	 *
+	 * What a timeline drag writes, and nothing else (§15.4): the summary, the
+	 * progress and the status come from the row, the dates from the drag, and
+	 * the `RELATED-TO` properties are left alone. The date *kinds* are the
+	 * caller's to pass, because dragging a bar never changes an all-day task
+	 * into a timed one — only the user switching between them does (§8.4).
+	 */
+	public static function datesOf(
+		Task $task,
+		?int $startAt,
+		bool $startIsDate,
+		?int $dueAt,
+		bool $dueIsDate,
+	): self {
+		return new self(
+			summary: $task->getSummary() ?? '',
+			status: $task->getVtodoStatus(),
+			priority: $task->getPriority(),
+			startAt: $startAt,
+			startIsDate: $startIsDate,
+			dueAt: $dueAt,
+			dueIsDate: $dueIsDate,
+			percent: $task->getPercent(),
+			parentUid: $task->getParentUid(),
+			type: $task->getType(),
+		);
+	}
+
+	/**
+	 * The task as the index has it, with a different set of dependencies.
+	 *
+	 * Only a link edit sends these: every other write leaves the `RELATED-TO`
+	 * properties where they are (§7).
+	 *
+	 * @param list<ParsedLink> $links
+	 */
+	public static function linksOf(Task $task, array $links): self {
+		return new self(
+			summary: $task->getSummary() ?? '',
+			status: $task->getVtodoStatus(),
+			priority: $task->getPriority(),
+			startAt: $task->getStartAt(),
+			startIsDate: $task->getStartIsDate(),
+			dueAt: $task->getDueAt(),
+			dueIsDate: $task->getDueIsDate(),
+			percent: $task->getPercent(),
+			parentUid: $task->getParentUid(),
+			type: $task->getType(),
+			links: $links,
 		);
 	}
 

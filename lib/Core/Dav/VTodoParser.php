@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\Core\Dav;
 
-use DateInterval;
 use DateTimeZone;
 use OCA\Chronos\Core\Support\TaskDates;
 use Sabre\VObject\Component\VCalendar;
 use Sabre\VObject\Component\VTodo;
-use Sabre\VObject\DateTimeParser;
 use Sabre\VObject\Parameter;
 use Sabre\VObject\ParseException;
 use Sabre\VObject\Property;
@@ -131,7 +129,7 @@ class VTodoParser {
 				continue;
 			}
 
-			$gap = $this->gapSeconds($this->parameter($property, 'GAP'));
+			$gap = IcalDuration::parse($this->parameter($property, 'GAP'));
 
 			if ($reltype === ParsedLink::RELTYPE_DEPENDS_ON) {
 				// Written on the dependent task, pointing at what it waits for.
@@ -146,28 +144,6 @@ class VTodoParser {
 		}
 
 		return $relations;
-	}
-
-	/**
-	 * `GAP` is an iCalendar duration, positive for lag and negative for lead.
-	 */
-	private function gapSeconds(?string $gap): int {
-		if ($gap === null || trim($gap) === '') {
-			return 0;
-		}
-
-		try {
-			$interval = DateTimeParser::parseDuration($gap);
-		} catch (Throwable) {
-			return 0;
-		}
-
-		if (!$interval instanceof DateInterval) {
-			return 0;
-		}
-
-		$seconds = ((($interval->d * 24) + $interval->h) * 60 + $interval->i) * 60 + $interval->s;
-		return $interval->invert === 1 ? -$seconds : $seconds;
 	}
 
 	private function type(VTodo $todo): string {

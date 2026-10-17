@@ -67,7 +67,7 @@ class FeatureToggles {
 	 * Which modules actually ship code yet. A module stays unavailable until
 	 * its milestone lands, so a half-built module can never be switched on by
 	 * accident; each milestone flips its own flag. `projects` and `workflow`
-	 * shipped with M2, `kanban` with M3.
+	 * shipped with M2, `kanban` with M3, `gantt` with M4.
 	 *
 	 * @var array<string, bool>
 	 */
@@ -77,7 +77,7 @@ class FeatureToggles {
 		self::MODULE_KANBAN => true,
 		self::MODULE_FIELDS => false,
 		self::MODULE_SLA => false,
-		self::MODULE_GANTT => false,
+		self::MODULE_GANTT => true,
 		self::MODULE_ROADMAP => false,
 		self::MODULE_SPRINTS => false,
 		self::MODULE_MATRIX => false,

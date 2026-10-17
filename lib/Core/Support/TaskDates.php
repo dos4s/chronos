@@ -133,6 +133,35 @@ final class TaskDates {
 	}
 
 	/**
+	 * The same, in a given time zone: adding a day keeps the wall-clock time,
+	 * so a task at 9 am is still at 9 am on the other side of a daylight-saving
+	 * change (§8.4). Used for timed dates, where a day is a local day.
+	 */
+	public static function addDaysIn(int $at, int $days, DateTimeZone $zone): int {
+		if ($days === 0) {
+			return $at;
+		}
+
+		$sign = $days < 0 ? '-' : '+';
+		$moved = (new DateTimeImmutable('@' . $at))
+			->setTimezone($zone)
+			->modify($sign . abs($days) . ' day');
+
+		return $moved === false ? $at : $moved->getTimestamp();
+	}
+
+	/**
+	 * The value to write back for an instant in a given zone, without the
+	 * trailing `Z`: what a `DATE-TIME` with a `TZID` looks like, and what a
+	 * floating one looks like in the zone it is floating in (§8.4).
+	 */
+	public static function toDateTimeValueIn(int $at, DateTimeZone $zone): string {
+		return (new DateTimeImmutable('@' . $at))
+			->setTimezone($zone)
+			->format('Ymd\THis');
+	}
+
+	/**
 	 * Builds a date, returning null instead of throwing on a malformed value.
 	 */
 	private static function build(string $format, string $value, DateTimeZone $zone): ?DateTimeImmutable {
