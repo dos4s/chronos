@@ -8,12 +8,14 @@ import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCap
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcContent from '@nextcloud/vue/components/NcContent'
+import { useModulesStore } from './stores/modules.ts'
 import { useProjectsStore } from './stores/projects.ts'
 import { useTimeStore } from './stores/time.ts'
 
 const route = useRoute()
 const time = useTimeStore()
 const projects = useProjectsStore()
+const modules = useModulesStore()
 
 const wide = computed(() => route.name !== 'timer')
 
@@ -55,6 +57,22 @@ onMounted(() => {
 								width="16"
 								height="16">
 								<path d="M3 5h2v2H3V5m0 6h2v2H3v-2m0 6h2v2H3v-2M7 5h14v2H7V5m0 6h14v2H7v-2m0 6h14v2H7v-2" />
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
+						v-if="modules.kanban"
+						id="view-board"
+						:name="t('chronos', 'Board')"
+						:to="{ name: 'board' }">
+						<template #icon>
+							<svg
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								fill="currentColor"
+								width="16"
+								height="16">
+								<path d="M4 4h4v12H4V4m6 0h4v16h-4V4m6 0h4v8h-4V4M2 2v20h20V2H2m2 2h16v16H4V4Z" />
 							</svg>
 						</template>
 					</NcAppNavigationItem>

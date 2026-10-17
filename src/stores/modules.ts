@@ -30,6 +30,7 @@ export const useModulesStore = defineStore('modules', () => {
 
 	const projects = computed(() => enabled('projects'))
 	const workflow = computed(() => enabled('workflow'))
+	const kanban = computed(() => enabled('kanban'))
 
-	return { state, enabled, projects, workflow }
+	return { state, enabled, projects, workflow, kanban }
 })

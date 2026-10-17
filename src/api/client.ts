@@ -127,6 +127,11 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'This project has no workflow, so it has no statuses')
 		case 'transition_not_allowed':
 			return t('chronos', 'This workflow does not allow that move')
+		case 'no_cards':
+		case 'invalid_cards':
+			return t('chronos', 'That card could not be moved')
+		case 'too_many_cards':
+			return t('chronos', 'That is too many cards to move at once')
 		case 'comment_required':
 			return t('chronos', 'This change needs a note')
 		case 'comment_too_long':

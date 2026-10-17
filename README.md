@@ -22,7 +22,9 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
   rules and a history of every status change. Every status maps to one of the four standard iCalendar
   statuses, so your other clients always see something sensible
 - **Kanban**: a board whose columns *are* those statuses — moving a card changes the real status, in your
-  other clients too. A project without a workflow gets a board of the four standard statuses
+  other clients too. Drag one card or several, from the mouse, a finger or the keyboard; undo the last move
+  with a button or `Ctrl+Z`; set how many cards belong in a column and which moves are allowed. A project
+  without a workflow gets a board of the four standard statuses
 
 Projects, workflows and the kanban board are modules: an administrator chooses what the instance offers under
 *Administration settings → Additional settings*, and each user chooses what they see under *Personal

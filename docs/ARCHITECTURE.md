@@ -729,6 +729,13 @@ Kanban cards, Gantt bars and links, matrix cards, roadmap rows and the session e
   drag handles.
 - **Escape** cancels a drag and snaps back.
 
+**As built in M3.** `composables/useDrag` deals in **lanes** and a **position within a lane**, and knows
+nothing about statuses or tasks: a board column is a lane today, a Gantt row will be one later. It answers
+one question — where would this land if it were dropped now? — and the view decides what that means. Every
+drag is also a keyboard drag, from the same engine: space picks a card up, the arrows move it between
+positions and columns (stepping over the columns the workflow will not take), space drops it, escape puts
+it back, and each step is written into a live region.
+
 ### 15.2 Smoothness
 - **No reactive state changes per pointer move.** During a drag only a lightweight preview moves, via
   `transform: translate3d()` updated in `requestAnimationFrame`. State changes once, on drop.
@@ -738,12 +745,24 @@ Kanban cards, Gantt bars and links, matrix cards, roadmap rows and the session e
 - **Virtualise** long lists and Gantt rows above a few hundred items.
 - Drop and revert animations ≤ 150 ms; `prefers-reduced-motion` respected.
 
+**As built in M3.** The card that follows the pointer is one element whose `transform` is written directly
+inside a frame callback; Vue never sees it move. The reactive drop position changes only when the position
+actually changes — crossing a card's midpoint or a column's edge — which is what redraws the placeholder,
+and not once per pointer move. Lane rectangles and card midpoints are read once at drag start, and again
+only when autoscroll has moved them.
+
 ### 15.3 Feedback while dragging
 - **Kanban:** placeholder at the exact drop position; columns the workflow doesn't allow are dimmed; WIP
   limit warning on the target column.
 - **Gantt:** tooltip with the new start, end and duration; dependency lines follow live; **conflicts shown
   before the drop** (link turns red); in cascade mode, ghost bars show where dependents will move.
 - **Matrix:** the target quadrant highlights and lists the fields that will change.
+
+**As built in M3.** The placeholder is a dashed gap drawn at the exact position in the column, and a column
+the workflow will not take the card from where it is is dimmed — which is what finally makes a transition
+rule visible (D28). A column over its WIP limit says so in its header and above its cards, in warning
+colour, whether or not anything is being dragged. Dragging several cards at once shows the first one under
+the pointer and *and n more* beneath it.
 
 ### 15.4 Accuracy (Gantt and session editor)
 - **One scale function** converts pixels ↔ seconds for the current zoom; all drag math goes through it.
@@ -817,6 +836,16 @@ and the size of every column, so a WIP warning appears without re-reading the bo
 advisory**: the column says it is over, the server does not refuse the drop. Transition rules are the only
 thing a drop is refused for, which is the one M3 promised to enforce server-side.
 
+**Undo is a button, not a toast action.** The line above says the toast offers it; `@nextcloud/dialogs`
+toasts take a message, not an action, so the board keeps an *Undo move* button beside the project picker for
+as long as there is something to undo, and `Ctrl+Z` does the same. It sends the inverse drop — the column
+the cards came from and the cards they sat between — so an undo restores the position and not only the
+status. One drop can empty cards out of more than one column, and the undo is then one request per column.
+
+**A move that needs a note asks for one first.** A transition with `requires_comment` would be refused by
+the server after the card had already moved on the screen, so the view asks for the note before it sends
+anything, and the drop waits in the browser until there is one.
+
 ### 15.7 Keyboard and accessibility
 - Focus a card or bar → **Space** picks it up, **arrow keys** move it (column/position, or one snap step),
   **Space** drops, **Escape** cancels.
@@ -843,9 +872,10 @@ Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means
 D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
 D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, D28–D29 are what
-M2 knowingly left for the milestone that can do them properly, and D30–D32 came from the second real
-upgrade. None of them were in the original list. Three times now, checking against a real instance has
-found something no amount of CI could: D25 and D30 from the integration suite, and D31 and D32 from
+M2 knowingly left for the milestone that can do them properly, D30–D32 came from the second real upgrade,
+and D33–D34 are what M3 knowingly left: the two places where the board does less than §15 asks. None of
+them were in the original list. Three times now, checking against a real instance has found something no
+amount of CI could: D25 and D30 from the integration suite, and D31 and D32 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. Four of them are why none of
 this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
@@ -880,11 +910,13 @@ requests never fires.
 | D25 | **The seconds migration dropped pause time no pause described:** `paused_seconds` was recomputed from the pause rows, so a legacy `paused_duration` with an empty or missing `pauses_blob` became zero — and that time became worked time | `Version2000…` | On the one instance upgraded, two sessions lost 2 h 31 m of pause time, overstating work by the same amount | Compare the legacy total with what the pauses account for and add the difference back as a pause (§8.7) | M2 | done in 0.2.1; an instance already on 0.2.0 needs the comparison run against its pre-upgrade backup |
 | D26 | **The integration suite could not run on a real instance:** `tests/bootstrap.php` required the server's own test bootstrap, which a release tarball does not ship | `tests/bootstrap.php` | The suite written to verify an upgrade could not be run where it was needed | Fall back to booting `lib/base.php` | M2 | done |
 | D27 | An integration test defined `count()`, which PHPUnit declares final, and two others assumed a pause could be measured inside the same second | `tests/integration/` | The suite aborted, then failed two tests, on first real run | Renamed; assert the invariant instead of the row count | M2 | done |
-| D28 | **Transition rules have no UI:** `PUT /workflows/{id}/transitions` replaces them, but nothing in the app draws them | `WorkflowController`, `src/components/` | A workflow's rules can only be set through the API, so in practice every move stays allowed | Edit them where they are visible: the kanban dims a column a card may not go to (F5) | M3 | planned |
+| D28 | **Transition rules have no UI:** `PUT /workflows/{id}/transitions` replaces them, but nothing in the app draws them | `WorkflowController`, `src/components/` | A workflow's rules can only be set through the API, so in practice every move stays allowed | Edit them where they are visible: the kanban dims a column a card may not go to (F5) | M3 | done |
 | D31 | **Attaching a workflow skipped every task with no `STATUS`:** the bulk fill matched the four standard statuses, but most clients write none until a task is started or finished — 40 of 229 tasks on the real instance, and all 6 of the list the check ran against | `WorkflowService::assignToProject`, `TaskMapper::fillStatusWhereUnset` | A project given a workflow showed most of its tasks with no status at all, until each was edited | Fill the tasks with no standard status with the initial status, which is the same answer the index gives when it reads one | M2 | done in 0.3.2 |
 | D32 | **Every Chronos write was recorded as external:** `WriteRegistry` was told about a write *after* the backend call, but the backend dispatches the calendar-object event from inside it, so the listener always found the registry empty — and a delete was never announced at all | `CalDavGateway`, `WriteRegistry`, `CalendarObjectListener` | Harmless until M2, because nothing read the source; status history then credited every change Chronos made to "another app" | Announce the write before the call, keyed without the etag, counted, and cleared if it throws (§11.1) | M2 | done in 0.3.2 |
 | D30 | **A status whose standard status was `NEEDS-ACTION` could not be inserted:** the entity defaulted `vtodoStatus` to that value, `Entity::setter()` therefore recorded no change, `QBMapper` left the column out of the insert, and a NOT NULL column with no default refused the row — so creating any workflow failed on MySQL | `Workflow/Db/Status`, `Version5000…` | Every workflow template failed to create on a real database; unit tests with mocked mappers could not see it | Default the property to a value no status has, give the column a database default (`Version5001…`), and assert the insert would carry each NOT NULL field | M2 | done in 0.3.1 |
 | D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
+| D33 | **Cards are not virtualised:** a column draws every card it has | `src/components/KanbanColumn.vue` | A project with thousands of open tasks in one column draws thousands of cards; §15.2 asks for virtualisation above a few hundred | Virtualise the column list; the drag engine already measures once, so only the measuring needs to follow the window | M4 | planned |
+| D34 | **A `412` is resolved by reloading, not by merging:** §15.6 says a write refused on its etag should re-apply itself when the other change touched different fields | `src/stores/board.ts`, `src/stores/tasks.ts` | Two people editing one task in different ways makes the second one re-do their change, instead of it merging silently | Fetch the current task, compare field by field, re-apply when the sets are disjoint and offer both versions when they are not | M4 | planned |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 
@@ -1068,9 +1100,16 @@ project without a workflow is a board of the standard four), transition rules en
 limits reported as advisory, a card's place forgotten when its task is deleted, and the rebalance job. The
 `kanban` module is implemented and switchable. The live check drops cards on a real instance (§18).
 
-Still to come in M3: the **drag engine** and the **kanban view** that uses all of this — with it the
-optimistic save, the multi-select drag, the undo toast, keyboard dragging and the transition-rule UI that
-makes a dimmed column mean something (D28).
+**Part 2 implemented** — the view: the shared drag engine (`composables/useDrag`, §15.1–15.2), the board
+itself with its placeholder, dimmed columns, WIP warnings and card chips, optimistic drops that revert on
+refusal and re-read on a `412`, multi-select with ctrl or shift, undo by button and `Ctrl+Z`, keyboard
+dragging with a live region, the note dialog for a transition that requires one, and the **column settings
+dialog** that edits WIP limits and allowed moves — which closes D28, the one piece of M2 that had an API
+and no face.
+
+What M3 did not do: cards are not virtualised, so a column of several thousand draws every card (§15.2 asks
+for it above a few hundred — D33), and the `412` resolution is a reload rather than the field-by-field
+merge §15.6 describes (D34). Both are listed in §17.
 
 ### M4 — Gantt and roadmap · v0.5.0
 - Timeline scale and snapping; DATE/DATE-TIME handling per §8.4.
