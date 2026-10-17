@@ -1094,9 +1094,13 @@ The grid — ticks, month bands and weekend stripes for a 400-day window — tak
 a 2,000-task plan's arithmetic is about **15 ms**, and the DOM is handed about forty rows however large the
 project is, because only the rows in view are drawn.
 
-What that does *not* measure is a real instance with 2,000 tasks in one list: the instance this was built
-against has 229 across seven lists, where `GET /plan` is one index query. The honest claim is that nothing
-in the drawing or the scheduling grows badly, and that the remaining variable is the round trip.
+On the instance itself, with 229 tasks across seven lists: reading the plan of the largest one — 83 rows —
+takes **45 ms** on the server and produces **46 kB** of JSON, which it serialises in 0.2 ms; the whole
+roadmap, every project at once, takes **8 ms**. The plan read is dominated by the one index query it makes.
+
+What none of that measures is a real instance with 2,000 tasks in one list, which this one does not have.
+The honest claim is that nothing in the drawing or the scheduling grows badly, that a real plan of 83 rows
+costs 45 ms, and that the remaining variable is the round trip.
 
 ## 17. Current technical debt
 
