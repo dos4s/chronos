@@ -28,8 +28,18 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
 - **Subtasks on the board**: a subtask is a card of its own — it has a status of its own — but it says
   whose it is, and a card says how much of the work under it is done. Roll the subtasks up when a board has
   too many of them, and a parent dropped into *Done* can take its unfinished subtasks along
+- **Timeline**: your tasks' dates as bars. Drag one to move it, its edges to change a date, and the dot on
+  its right onto another task to make that task wait for this one — written into the task as a standard
+  iCalendar relationship, so anything that reads your calendar can see it. Choose per project whether a
+  move warns you about what it breaks or carries the dependents along; either way the bars show you what
+  will happen before you let go. Most tasks have one date or none, so one date draws a suggestion and a
+  double-click on an empty row gives a task a day to live in
+- **Roadmap**: every project at once, grouped by area, with its milestones marked on it. Click a line to
+  open its timeline
+- **Promote a subproject to a list** once it has outgrown being a task: its tasks go with it, keeping their
+  history, their dependencies and the time logged against them
 
-Projects, workflows and the kanban board are modules: an administrator chooses what the instance offers under
+Projects, workflows, the kanban board, the timeline and the roadmap are modules: an administrator chooses what the instance offers under
 *Administration settings → Additional settings*, and each user chooses what they see under *Personal
 settings → Additional settings*. Switching a module off keeps its data.
 

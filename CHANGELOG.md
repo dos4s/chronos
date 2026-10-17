@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-17
+
+M4: the timeline. Your tasks' dates become bars you can drag, the dependencies between them are real
+iCalendar relationships every other client can read, and a roadmap shows every project at once. The
+session editor is rebuilt on the same engine, and a subproject can finally become a list of its own.
+
+### Added
+
+- **The timeline.** A tree table and a chart: drag a bar to move it, its edges to change when a task
+  starts or is due, and the dot on its right onto another task to make that task wait for this one. Three
+  zooms — months, weeks, days — with the snapping each deserves, alt to drag freely, and the keyboard for
+  all of it: focus a bar, press space, and the arrow keys move it while shift and the arrows stretch its
+  end.
+- **Dependencies that other clients understand.** A link is written into the task itself as RFC 9253
+  `RELATED-TO`, with its lag or lead as `GAP`, on whichever of the two tasks declares it. Anything that
+  reads your calendar can see it; nothing of Chronos's own is needed to keep it.
+- **Warn or cascade, per project.** Move a task and either the dependencies it breaks turn red, or
+  everything waiting on it follows in the same request — and in that case the bars show you where they
+  will land *before* you let go.
+- **A task with one date still gets a bar.** Most tasks in a real list have a due date and no start, so
+  one date draws a one-day bar as a dashed suggestion; nothing is written until you move it, and then both
+  ends are. A **double-click on a row with no bar** gives the task a day to live in.
+- **Summary bars and milestones.** A subproject, or a parent with no dates of its own, spans everything
+  beneath it and shows how much of it is done. A milestone is a diamond.
+- **Today's line, and the days you do not work** shaded behind the bars. A task pushed by a dependency
+  lands on a working day.
+- **The roadmap.** Every project at once, grouped by area, each one a line from its earliest task to its
+  latest with its milestones marked on it — hollow once met. Click a line to open its timeline.
+- **Promote a subproject to a list.** It becomes a list of its own, with its tasks, their history, their
+  dependencies and the time logged against them; the new list remembers which project it came out of.
+- **The session editor is rebuilt.** A day is a row, a session is a block along it and its breaks are
+  blocks inside it — all of them draggable. A break stays inside its session and clear of the others, and
+  moving a session takes its breaks with it. The dialog and the break menu are still there for typing an
+  exact time.
+
+### Fixed
+
+- **A timed date kept its time zone.** Editing a task in Chronos rewrote `DUE;TZID=Europe/Madrid` as UTC,
+  and a *floating* time — one that means six o'clock wherever you are — came back pinned to an instant.
+  The instant was never wrong, but what the task said about itself was. It now keeps the form it was
+  written in (D39).
+- **An all-day date read as the day before, west of Greenwich.** A task due the 30th showed as the 29th for
+  anybody in a negative-offset zone, because an all-day date is midnight UTC and is not an instant. Dates
+  now say which kind they are (D40).
+
+### Changed
+
+- `vue-cal` is no longer a dependency: the session editor draws itself, which also took 69 kB off that
+  view's bundle.
+- The live check drags bars on a real calendar, reads a dependency back out of the VTODO, and promotes a
+  throwaway subproject into a list and away again.
+
 ## [0.4.2] - 2026-10-17
 
 The board had been treating a subtask as though it were nobody's: a card like any other, with nothing on it
