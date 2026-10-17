@@ -172,6 +172,20 @@ describe('what the sidebar offers', () => {
 		expect(store.inScope.map((candidate) => candidate.uri)).toEqual(['work'])
 	})
 
+	/**
+	 * A link into the timeline can name an archived project, and an archived
+	 * project is not on offer — so asking to work in one shows them, rather
+	 * than opening an empty view with nothing to say why.
+	 */
+	it('shows the archived projects when asked to work in one of them', () => {
+		const store = loaded()
+
+		store.choose('old')
+
+		expect(store.showArchived).toBe(true)
+		expect(store.current).toBe('old')
+	})
+
 	it('has no project to show at all when there are none', () => {
 		const store = useProjectsStore()
 

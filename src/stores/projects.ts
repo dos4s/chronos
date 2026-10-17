@@ -124,8 +124,19 @@ export const useProjectsStore = defineStore('projects', () => {
 		return current.value === uri
 	}
 
-	/** Clicking a project: work in this one, and look at this one. */
+	/**
+	 * Clicking a project: work in this one, and look at this one.
+	 *
+	 * A project asked for by name — a roadmap line, a link into the timeline —
+	 * may be archived, and an archived project is not on offer. Asking to work
+	 * in one is reason enough to show them: otherwise the view it opens would
+	 * be empty, with nothing on the screen to say why.
+	 */
 	function choose(uri: string): void {
+		if (find(uri)?.archived === true) {
+			showArchived.value = true
+		}
+
 		selection.value = [uri]
 		chosen.value = uri
 	}
