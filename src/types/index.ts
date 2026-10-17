@@ -368,6 +368,44 @@ export interface PlanMoveResult {
 	cascaded: boolean
 }
 
+/** A date something has to be true by: a milestone with a `DUE` (§6). */
+export interface RoadmapMilestone {
+	uid: string
+	summary: string | null
+	at: UnixSeconds
+	isDate: boolean
+	done: boolean
+}
+
+/** One line of the roadmap: a project, or a subproject inside one (§12.6). */
+export interface RoadmapRow {
+	/** The project reference, which is what a click opens. */
+	ref: string
+	name: string
+	color: string | null
+	depth: number
+	areaId: number | null
+	/** For a subproject, the container VTODO it is. */
+	parentUid: string | null
+	span: PlanBar | null
+	tasks: number
+	open: number
+	milestones: RoadmapMilestone[]
+}
+
+export interface RoadmapArea {
+	id: number | null
+	name: string | null
+	color: string | null
+}
+
+export interface Roadmap {
+	areas: RoadmapArea[]
+	from: UnixSeconds | null
+	to: UnixSeconds | null
+	rows: RoadmapRow[]
+}
+
 /** Which modules this instance offers and this user wants (§13). */
 export type ModuleState = Record<string, boolean>
 

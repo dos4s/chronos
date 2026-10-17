@@ -22,10 +22,16 @@ import { formatDayMonth, formatMonth, formatTimeOfDay } from './format.ts'
  * hour before it in New York, which at day zoom is half a bar's width.
  */
 
-export type Zoom = 'month' | 'week' | 'day'
+export type Zoom = 'quarter' | 'month' | 'week' | 'day'
 
-/** How wide a day is at each zoom, and what a drag snaps to there (§15.4). */
+/**
+ * How wide a day is at each zoom, and what a drag snaps to there (§15.4).
+ *
+ * `quarter` is the roadmap's: a year fits on two screens, which is the scale a
+ * project is read at. The timeline uses the other three.
+ */
 const ZOOMS: Record<Zoom, { pxPerDay: number, snap: number }> = {
+	quarter: { pxPerDay: 8, snap: 86400 },
 	month: { pxPerDay: 28, snap: 86400 },
 	week: { pxPerDay: 120, snap: 86400 },
 	day: { pxPerDay: 1200, snap: 900 },
@@ -83,7 +89,7 @@ export function windowFor(
 	now: UnixSeconds,
 	zoom: Zoom = 'month',
 ): { from: UnixSeconds, to: UnixSeconds } {
-	const padding = zoom === 'day' ? 1 : zoom === 'week' ? 3 : 7
+	const padding = zoom === 'day' ? 1 : zoom === 'week' ? 3 : zoom === 'month' ? 7 : 21
 	const earliest = from === null ? now : Math.min(from, now) as UnixSeconds
 	const latest = to === null ? now : Math.max(to, now) as UnixSeconds
 
@@ -156,8 +162,9 @@ export function createScale(zoom: Zoom, from: UnixSeconds, to: UnixSeconds): Sca
 			// Rounded, not ceiled: the hour a clock change adds to a day is
 			// not another column (§8.4).
 			const days = Math.round((end - start) / 86400)
-			// At month zoom a tick per day is unreadable; one per week is not.
-			const step = zoom === 'month' ? 7 : 1
+			// At month zoom a tick per day is unreadable; one per week is not,
+			// and at quarter zoom even that is too many.
+			const step = zoom === 'quarter' ? 28 : zoom === 'month' ? 7 : 1
 
 			for (let day = 0; day < days; day += step) {
 				const at = addDays(start, day)

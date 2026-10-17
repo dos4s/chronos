@@ -43,6 +43,9 @@ use OCA\Chronos\Core\Index\TaskMapper;
 use OCA\Chronos\Core\Settings\FeatureToggles;
 use OCA\Chronos\Core\Task\TaskService;
 use OCA\Chronos\Core\Task\TaskWrite;
+use OCA\Chronos\Planning\PlanSettings;
+use OCA\Chronos\Planning\Service\PlanService;
+use OCA\Chronos\Planning\Service\RoadmapService;
 use OCA\Chronos\Projects\Service\ProjectService;
 use OCA\Chronos\Workflow\Db\StatusChange;
 use OCA\Chronos\Workflow\Db\StatusChangeMapper;
@@ -71,6 +74,9 @@ $taskMapper = Server::get(TaskMapper::class);
 $history = Server::get(StatusChangeMapper::class);
 $board = Server::get(BoardService::class);
 $rankMapper = Server::get(BoardRankMapper::class);
+$planService = Server::get(PlanService::class);
+$roadmapService = Server::get(RoadmapService::class);
+$calendars = Server::get(\OCA\Chronos\Core\Dav\CalDavGateway::class);
 $toggles = Server::get(FeatureToggles::class);
 
 $project = null;
@@ -477,7 +483,219 @@ try {
 		implode(', ', array_map(static fn (Task $moved): string => $moved->getUid(), $again->cards)),
 	);
 
-	// 14. Whether the board is switched on at all. A module ships off, so this
+	// 14. The timeline (§12.5). The throwaway task gets dates by being
+	// dragged, which is the only way an inferred bar becomes a real one.
+	$planService->configure($user, $ref, PlanSettings::MODE_WARN, [1, 2, 3, 4, 5]);
+	$everything = $taskMapper->findForCalendars([$calendarId]);
+	$firstPlan = $planService->plan($user, $ref);
+	check(
+		'the plan has a row for every task in the list',
+		count($firstPlan->rows) === count($everything),
+		count($firstPlan->rows) . ' rows for ' . count($everything) . ' tasks',
+	);
+
+	$monday = (new \DateTimeImmutable('next monday', new \DateTimeZone('UTC')))->setTime(0, 0);
+	$start = $monday->getTimestamp();
+	$due = $monday->modify('+2 day')->getTimestamp();
+
+	$current = null;
+	foreach ($taskMapper->findForCalendars([$calendarId]) as $candidate) {
+		if ($candidate->getUid() === $taskUid) {
+			$current = $candidate;
+		}
+	}
+
+	$dragged = $planService->move($user, $ref, $taskUid, $start, true, $due, true, $current?->getEtag());
+	$afterDrag = null;
+	foreach ($dragged->rows as $row) {
+		if ($row->task->getUid() === $taskUid) {
+			$afterDrag = $row;
+		}
+	}
+	check(
+		'a drag writes both dates',
+		$afterDrag !== null && $afterDrag->task->getStartAt() === $start && $afterDrag->task->getDueAt() === $due,
+		date('Y-m-d', $afterDrag?->task->getStartAt() ?? 0) . ' → ' . date('Y-m-d', $afterDrag?->task->getDueAt() ?? 0),
+	);
+	check(
+		'the bar covers the whole of the day it is due',
+		$afterDrag?->bar !== null && $afterDrag->bar->endAt === $due + 86400,
+		'ends at ' . date('Y-m-d', $afterDrag?->bar?->endAt ?? 0),
+	);
+	check(
+		'an all-day date is written as a date, not an instant',
+		($afterDrag?->task->getDueIsDate() ?? false) === true,
+		'DUE;VALUE=DATE',
+	);
+
+	// The subtask from the board checks is the dependent here: a real second
+	// task in the same list, which is what a dependency needs. It has to have
+	// dates of its own before a cascade can move it — a task with none has no
+	// bar, and the schedule has nothing to push.
+	//
+	// The order matters, and says something about the model: the parent is
+	// dragged first, because while it has no dates of its own and its child
+	// has some it is a *summary* row, and a summary is derived rather than
+	// dragged (§12.5).
+	$childNow = null;
+	foreach ($taskMapper->findForCalendars([$calendarId]) as $candidate) {
+		if ($candidate->getUid() === $childUid) {
+			$childNow = $candidate;
+		}
+	}
+	$childStart = $monday->modify('+5 day')->getTimestamp();
+	$childPlan = $planService->move(
+		$user,
+		$ref,
+		$childUid,
+		$childStart,
+		true,
+		$childStart + 86400,
+		true,
+		$childNow?->getEtag(),
+	);
+	check(
+		'a second bar lands where it was put, clear of the first',
+		count($childPlan->rows) >= 1 && $childPlan->conflicts === [],
+		date('Y-m-d', $childStart),
+	);
+
+	$linked = $planService->link($user, $ref, $taskUid, $childUid, 'FINISHTOSTART', 86400);
+	check(
+		'a dependency is stored once, predecessor to successor',
+		count($linked->links) === 1
+			&& $linked->links[0]->predecessorUid === $taskUid
+			&& $linked->links[0]->successorUid === $childUid,
+		count($linked->links) . ' links',
+	);
+	check('the gap survives being written and read back', ($linked->links[0]->gapSeconds ?? 0) === 86400, 'GAP=P1D');
+
+	// M4's acceptance criterion: what Chronos wrote is in the VTODO, where
+	// every other client can read it.
+	$predecessorUri = null;
+	foreach ($taskMapper->findForCalendars([$calendarId]) as $candidate) {
+		if ($candidate->getUid() === $taskUid) {
+			$predecessorUri = $candidate->getObjectUri();
+		}
+	}
+	$object = $predecessorUri === null ? null : $calendars->getObject($calendarId, $predecessorUri);
+	$ics = (string)($object['calendarData'] ?? '');
+	check(
+		'the dependency is readable in the VTODO itself',
+		str_contains($ics, 'RELTYPE=FINISHTOSTART') && str_contains($ics, $childUid),
+		'RELATED-TO;RELTYPE=FINISHTOSTART;GAP=P1D',
+	);
+	check('the gap is written as an iCalendar duration', str_contains($ics, 'GAP=P1D'), 'GAP=P1D');
+
+	// A loop cannot be satisfied by any dates, so it is refused.
+	try {
+		$planService->link($user, $ref, $childUid, $taskUid, 'FINISHTOSTART');
+		check('a dependency that would close a loop is refused', false, 'it was accepted');
+	} catch (\OCA\Chronos\Core\Error\ValidationFailedException $e) {
+		check('a dependency that would close a loop is refused', $e->getErrorCode() === 'link_cycle', $e->getErrorCode());
+	}
+
+	// In warn mode the dependent stays put and the broken link is reported.
+	$planService->configure($user, $ref, PlanSettings::MODE_WARN, [1, 2, 3, 4, 5]);
+	$beforeWarn = $planService->plan($user, $ref);
+	$dependentBefore = null;
+	foreach ($beforeWarn->rows as $row) {
+		if ($row->task->getUid() === $childUid) {
+			$dependentBefore = $row;
+		}
+	}
+	$predecessorNow = null;
+	foreach ($beforeWarn->rows as $row) {
+		if ($row->task->getUid() === $taskUid) {
+			$predecessorNow = $row;
+		}
+	}
+	$later = $monday->modify('+14 day')->getTimestamp();
+	$warned = $planService->move(
+		$user,
+		$ref,
+		$taskUid,
+		$later,
+		true,
+		$later + 86400,
+		true,
+		$predecessorNow?->task->getEtag(),
+	);
+	// One row comes back — the task that moved — and one conflict: the
+	// dependent is now too early, which is exactly what the warning is for.
+	check(
+		'in warn mode only the task that was dragged moves',
+		count($warned->rows) === 1 && count($warned->conflicts) === 1,
+		count($warned->rows) . ' rows, ' . count($warned->conflicts) . ' conflicts',
+	);
+
+	// In cascade mode the dependent follows, in the same request.
+	$planService->configure($user, $ref, PlanSettings::MODE_CASCADE, [1, 2, 3, 4, 5]);
+	$plannedNow = $planService->plan($user, $ref);
+	$predecessorAgain = null;
+	foreach ($plannedNow->rows as $row) {
+		if ($row->task->getUid() === $taskUid) {
+			$predecessorAgain = $row;
+		}
+	}
+	$further = $monday->modify('+28 day')->getTimestamp();
+	$cascadedPlan = $planService->move(
+		$user,
+		$ref,
+		$taskUid,
+		$further,
+		true,
+		$further + 86400,
+		true,
+		$predecessorAgain?->task->getEtag(),
+	);
+	$movedUids = array_map(static fn ($row): string => $row->task->getUid(), $cascadedPlan->rows);
+	check(
+		'in cascade mode what depends on it follows',
+		in_array($childUid, $movedUids, true) && $cascadedPlan->conflicts === [],
+		implode(', ', $movedUids),
+	);
+
+	$dependentAfter = null;
+	foreach ($cascadedPlan->rows as $row) {
+		if ($row->task->getUid() === $childUid) {
+			$dependentAfter = $row;
+		}
+	}
+	check(
+		'the dependent lands after the gap, on a working day',
+		$dependentAfter?->bar !== null
+			&& $dependentAfter->bar->startAt >= $further + 2 * 86400
+			&& (int)date('N', $dependentAfter->bar->startAt) <= 5,
+		date('D Y-m-d', $dependentAfter?->bar?->startAt ?? 0),
+	);
+
+	$withoutLink = $planService->unlink($user, $ref, $linked->links[0]->id);
+	check('removing a dependency rewrites the task without it', $withoutLink->links === [], count($withoutLink->links) . ' links left');
+	$object = $predecessorUri === null ? null : $calendars->getObject($calendarId, $predecessorUri);
+	check(
+		'and takes it out of the VTODO as well',
+		!str_contains((string)($object['calendarData'] ?? ''), 'FINISHTOSTART'),
+		'no RELATED-TO left',
+	);
+
+	// 15. The roadmap (§12.6): every project at once, this one among them.
+	$road = $roadmapService->roadmap($user, true);
+	$refs = array_map(static fn ($row): string => $row->ref, $road->rows);
+	check('the roadmap has a line for this project', in_array($ref, $refs, true), count($road->rows) . ' lines');
+	$mine = null;
+	foreach ($road->rows as $row) {
+		if ($row->ref === $ref && $row->depth === 0) {
+			$mine = $row;
+		}
+	}
+	check(
+		'the line spans the dates the tasks have',
+		$mine?->span !== null && $mine->tasks > 0,
+		$mine === null ? '(no line)' : $mine->tasks . ' tasks, ' . ($mine->span === null ? 'no span' : date('Y-m-d', $mine->span->startAt)),
+	);
+
+	// 16. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
 	check(
 		'the kanban module is switched on for this user',
@@ -503,6 +721,14 @@ try {
 		$hard->delete('chronos_tasks')
 			->where($hard->expr()->eq('uid', $hard->createNamedParameter($throwaway)));
 		$hard->executeStatement();
+	}
+
+	// The timeline settings this check wrote, back to none at all.
+	try {
+		$projects->writeSettings($user, $ref, null);
+		echo '  timeline settings cleared' . PHP_EOL;
+	} catch (\Throwable $e) {
+		echo '  COULD NOT CLEAR THE TIMELINE SETTINGS: ' . $e->getMessage() . PHP_EOL;
 	}
 
 	// The card positions, back to exactly the rows that were there before:

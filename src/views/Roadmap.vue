@@ -1,0 +1,431 @@
+<script setup lang="ts">
+import type { Roadmap, RoadmapRow } from '../types/index.ts'
+import type { Zoom } from '../utils/scale.ts'
+
+import { showError } from '@nextcloud/dialogs'
+import { n, t } from '@nextcloud/l10n'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import GanttScale from '../components/GanttScale.vue'
+import { messageFor } from '../api/client.ts'
+import { fetchRoadmap } from '../api/roadmap.ts'
+import { useNow } from '../composables/useNow.ts'
+import { formatDate } from '../utils/format.ts'
+import { createScale, windowFor } from '../utils/scale.ts'
+
+/**
+ * The roadmap (§12.6).
+ *
+ * The timeline asks when a task runs; this asks the same thing about the
+ * projects, which is a different screen: one line each, grouped by area, with
+ * the milestones marked on it and nothing to drag. Clicking a line opens its
+ * timeline, which is where the tasks — and the dragging — are.
+ *
+ * It shares the timeline's scale and header, so a project read here and opened
+ * there is drawn by the same arithmetic (§15.4).
+ */
+const router = useRouter()
+const { now } = useNow()
+
+const roadmap = ref<Roadmap | null>(null)
+const loading = ref(false)
+const showArchived = ref(false)
+const zoom = ref<Zoom>('quarter')
+
+const chart = ref<HTMLElement | null>(null)
+const scrollLeft = ref(0)
+const scrollTop = ref(0)
+
+/** Every line is this tall, in the list and on the chart alike. */
+const ROW_HEIGHT = 34
+
+const rows = computed(() => roadmap.value?.rows ?? [])
+
+const scale = computed(() => {
+	const window = windowFor(roadmap.value?.from ?? null, roadmap.value?.to ?? null, now.value, zoom.value)
+
+	return createScale(zoom.value, window.from, window.to)
+})
+
+/**
+ * The lines with their area headings worked in, so the chart and the list can
+ * walk the same sequence and stay aligned.
+ */
+const lines = computed(() => {
+	const areas = roadmap.value?.areas ?? []
+	const out: ({ kind: 'area', name: string } | { kind: 'row', row: RoadmapRow })[] = []
+
+	for (const area of areas) {
+		const mine = rows.value.filter((row) => row.areaId === area.id)
+		if (mine.length === 0) {
+			continue
+		}
+
+		out.push({ kind: 'area', name: area.name ?? t('chronos', 'No area') })
+		for (const row of mine) {
+			out.push({ kind: 'row', row })
+		}
+	}
+
+	return out
+})
+
+const height = computed(() => Math.max(240, lines.value.length * ROW_HEIGHT))
+const todayX = computed(() => scale.value.xOf(now.value, false))
+
+function placeOf(row: RoadmapRow) {
+	return row.span === null ? null : scale.value.place(row.span)
+}
+
+function onScroll(): void {
+	const element = chart.value
+	if (element === null) {
+		return
+	}
+	scrollLeft.value = element.scrollLeft
+	scrollTop.value = element.scrollTop
+}
+
+function open(row: RoadmapRow): void {
+	void router.push({ name: 'timeline', query: { project: row.ref } })
+}
+
+function label(row: RoadmapRow): string {
+	if (row.tasks === 0) {
+		return t('chronos', 'Nothing in it yet')
+	}
+
+	return row.open === 0
+		? n('chronos', '%n task, all done', '%n tasks, all done', row.tasks)
+		: t('chronos', '{open} of {total} open', { open: row.open, total: row.tasks })
+}
+
+async function load(): Promise<void> {
+	loading.value = true
+	try {
+		roadmap.value = await fetchRoadmap(showArchived.value)
+	} catch (error) {
+		showError(messageFor(error))
+	} finally {
+		loading.value = false
+	}
+}
+
+async function toggleArchived(): Promise<void> {
+	showArchived.value = !showArchived.value
+	await load()
+}
+
+onMounted(async () => {
+	window.addEventListener('resize', onScroll)
+	await load()
+	const element = chart.value
+	if (element !== null) {
+		element.scrollLeft = Math.max(0, todayX.value - element.clientWidth / 3)
+	}
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('resize', onScroll)
+})
+</script>
+
+<template>
+	<div :class="$style.view">
+		<div class="chronos-header">
+			<h2 class="chronos-section-title">
+				{{ t('chronos', 'Roadmap') }}
+			</h2>
+			<span v-if="rows.length" :class="$style.count">
+				{{ n('chronos', '%n project', '%n projects', rows.length) }}
+			</span>
+		</div>
+
+		<div :class="$style.toolbar">
+			<label :class="$style.archived">
+				<input type="checkbox" :checked="showArchived" @change="toggleArchived">
+				{{ t('chronos', 'Show archived') }}
+			</label>
+			<div :class="$style.spacer" />
+			<div :class="$style.zooms" role="group" :aria-label="t('chronos', 'Zoom')">
+				<NcButton
+					v-for="level in (['quarter', 'month', 'week'] as Zoom[])"
+					:key="level"
+					:variant="zoom === level ? 'primary' : 'tertiary'"
+					@click="zoom = level">
+					{{ level === 'quarter' ? t('chronos', 'Quarters') : level === 'month' ? t('chronos', 'Months') : t('chronos', 'Weeks') }}
+				</NcButton>
+			</div>
+		</div>
+
+		<div v-if="loading" :class="$style.loading">
+			<NcLoadingIcon :size="32" />
+		</div>
+
+		<div v-else-if="lines.length" :class="$style.grid">
+			<div :class="[$style.cell, $style.corner]">
+				{{ t('chronos', 'Project') }}
+			</div>
+
+			<div :class="[$style.cell, $style.scaleHead]">
+				<div :style="{ transform: `translateX(${-scrollLeft}px)` }">
+					<GanttScale :scale="scale" />
+				</div>
+			</div>
+
+			<div :class="[$style.cell, $style.list]">
+				<div :style="{ transform: `translateY(${-scrollTop}px)` }">
+					<template v-for="(line, index) in lines" :key="index">
+						<div v-if="line.kind === 'area'" :class="[$style.line, $style.areaRow]">
+							{{ line.name }}
+						</div>
+						<button
+							v-else
+							:class="[$style.line, $style.project]"
+							:style="{ paddingInlineStart: `${10 + line.row.depth * 14}px` }"
+							@click="open(line.row)">
+							<span :class="$style.name">{{ line.row.name }}</span>
+							<span :class="$style.meta">{{ label(line.row) }}</span>
+						</button>
+					</template>
+				</div>
+			</div>
+
+			<div
+				ref="chart"
+				:class="[$style.cell, $style.chart]"
+				@scroll.passive="onScroll">
+				<div
+					:class="$style.canvas"
+					:style="{ width: `${scale.width}px`, height: `${height}px` }">
+					<span
+						:class="$style.today"
+						:style="{ insetInlineStart: `${todayX}px` }"
+						:title="t('chronos', 'Today')"
+						aria-hidden="true" />
+
+					<div
+						v-for="(line, index) in lines"
+						:key="index"
+						:class="$style.lane"
+						:style="{ insetBlockStart: `${index * ROW_HEIGHT}px` }">
+						<template v-if="line.kind === 'row'">
+							<span
+								v-if="placeOf(line.row)"
+								:class="$style.span"
+								:style="{
+									insetInlineStart: `${placeOf(line.row)!.x}px`,
+									width: `${placeOf(line.row)!.width}px`,
+									background: line.row.color || 'var(--color-primary-element)',
+								}"
+								:title="line.row.name" />
+							<span
+								v-for="milestone in line.row.milestones"
+								:key="milestone.uid"
+								:class="[$style.milestone, { [$style.met]: milestone.done }]"
+								:style="{ insetInlineStart: `${scale.xOf(milestone.at, milestone.isDate)}px` }"
+								:title="`${milestone.summary || t('chronos', 'Milestone')} — ${formatDate(milestone.at, milestone.isDate)}`" />
+						</template>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<NcEmptyContent
+			v-else
+			:class="$style.empty"
+			:name="t('chronos', 'No projects to map')"
+			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
+
+		<p :class="$style.hint">
+			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Click a line to open its timeline.') }}
+		</p>
+	</div>
+</template>
+
+<style module>
+.view {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.count {
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.toolbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.archived {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}
+
+.spacer {
+	flex: 1;
+}
+
+.zooms {
+	display: flex;
+	gap: 2px;
+}
+
+.loading {
+	display: flex;
+	justify-content: center;
+	padding: 32px;
+}
+
+.empty {
+	padding: 24px 0;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: 300px 1fr;
+	grid-template-rows: 44px 1fr;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	overflow: hidden;
+	min-height: 280px;
+	max-height: calc(100vh - 300px);
+}
+
+.cell {
+	overflow: hidden;
+}
+
+.corner {
+	display: flex;
+	align-items: flex-end;
+	padding: 0 8px 4px;
+	font-size: 12px;
+	font-weight: 600;
+	border-inline-end: 1px solid var(--color-border);
+	border-block-end: 1px solid var(--color-border);
+	background: var(--color-background-hover);
+}
+
+.scaleHead {
+	border-block-end: 1px solid var(--color-border);
+	background: var(--color-background-hover);
+}
+
+.list {
+	border-inline-end: 1px solid var(--color-border);
+}
+
+.chart {
+	overflow: auto;
+	position: relative;
+}
+
+.canvas {
+	position: relative;
+}
+
+.line {
+	height: 34px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	box-sizing: border-box;
+	border-block-end: 1px solid var(--color-border-dark);
+	padding-inline: 10px;
+	width: 100%;
+	text-align: start;
+}
+
+.areaRow {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--color-text-maxcontrast);
+	background: var(--color-background-dark);
+}
+
+.project {
+	background: transparent;
+	border-inline: none;
+	border-block-start: none;
+	cursor: pointer;
+	font: inherit;
+	color: inherit;
+}
+
+.project:hover {
+	background: var(--color-background-hover);
+}
+
+.name {
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.meta {
+	font-size: 10px;
+	color: var(--color-text-maxcontrast);
+}
+
+.lane {
+	position: absolute;
+	inset-inline: 0;
+	height: 34px;
+	border-block-end: 1px solid var(--color-border-dark);
+	box-sizing: border-box;
+}
+
+.span {
+	position: absolute;
+	inset-block-start: 12px;
+	height: 10px;
+	border-radius: 5px;
+	opacity: 0.85;
+}
+
+.milestone {
+	position: absolute;
+	inset-block-start: 10px;
+	width: 12px;
+	height: 12px;
+	margin-inline-start: -6px;
+	background: var(--color-warning);
+	transform: rotate(45deg);
+}
+
+/* A milestone that has been met is hollow: it is history, not a deadline. */
+.met {
+	background: transparent;
+	border: 2px solid var(--color-success);
+}
+
+.today {
+	position: absolute;
+	inset-block: 0;
+	width: 2px;
+	background: var(--color-error);
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.hint {
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+	margin: 0;
+}
+</style>

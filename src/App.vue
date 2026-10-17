@@ -93,6 +93,22 @@ onMounted(() => {
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
+						v-if="modules.roadmap"
+						id="view-roadmap"
+						:name="t('chronos', 'Roadmap')"
+						:to="{ name: 'roadmap' }">
+						<template #icon>
+							<svg
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								fill="currentColor"
+								width="16"
+								height="16">
+								<path d="M15 19l-6-2V5l6 2v12m2-12 4-1.5v12L17 19V7M7 5v12l-4 1.5v-12L7 5Z" />
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
 						id="view-analytics"
 						:name="t('chronos', 'Analytics')"
 						:to="{ name: 'analytics' }">
