@@ -29,7 +29,14 @@ export function createLink(payload: {
 	return post<Plan>('/plan/link', payload)
 }
 
-export const deleteLink = (project: string, id: number) => del<Plan>(`/plan/link/${id}`, { project })
+/**
+ * A dependency is named by the two tasks it joins, not by its row id: the row
+ * is rewritten whenever the task that declares it is written, so an id read
+ * when the link was made does not survive a drag (D42).
+ */
+export function deleteLink(project: string, predecessorUid: string, successorUid: string) {
+	return del<Plan>('/plan/link', { project, predecessorUid, successorUid })
+}
 
 export function savePlanSettings(payload: { project: string } & PlanSettings) {
 	return put<PlanSettings>('/plan/settings', payload)

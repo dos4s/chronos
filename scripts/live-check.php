@@ -676,7 +676,11 @@ try {
 		date('D Y-m-d', $dependentAfter?->bar?->startAt ?? 0),
 	);
 
-	$withoutLink = $planService->unlink($user, $ref, $linked->links[0]->id);
+	// Named by the two tasks rather than by the row id: the row is rewritten
+	// every time the task that declares it is written, so an id read when the
+	// link was made is stale as soon as a bar has been dragged (D42) — which
+	// is exactly what happened here on the first run.
+	$withoutLink = $planService->unlink($user, $ref, $taskUid, $childUid);
 	check('removing a dependency rewrites the task without it', $withoutLink->links === [], count($withoutLink->links) . ' links left');
 	$object = $predecessorUri === null ? null : $calendars->getObject($calendarId, $predecessorUri);
 	check(

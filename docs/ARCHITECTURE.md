@@ -675,6 +675,11 @@ a temporal link, the dependent task for `DEPENDS-ON` — so `POST /plan/link` wr
 `chronos_task_links` re-indexes from it. A link that would close a loop is **refused**, because no dates can
 satisfy one; a loop another client wrote is reported as a conflict and never followed.
 
+A link is **named by the two tasks it joins**, never by its row id. Re-indexing replaces a task's link
+rows rather than editing them, so every id changes whenever that task is written — and a link's id read
+when it was made is stale as soon as its bar has been dragged. The row still has an id, which is a
+convenient key for a list, and it is never an identity (D42).
+
 ### 12.6 Roadmap (cross-project)
 One row per project/subproject grouped by area; milestones and spans over months/quarters; click → Gantt.
 
@@ -1103,8 +1108,9 @@ M2 knowingly left for the milestone that can do them properly, D30–D32 came fr
 D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — D35 came
 from the third real upgrade, found by the live check on a list with fifty cards in one column, and D36–D38
 are what 0.4.2 left after giving the board its tree back (§15.9), D39 and D40 were found while building M4 — a date's time zone and an all-day date's
-day, neither of which anything before a timeline handled often enough to notice — and D41 is what M4
-knowingly left. None of
+day, neither of which anything before a timeline handled often enough to notice — D41 is what M4 knowingly
+left, and D42 came from the fourth real deployment: the live check's new timeline section found it within a
+minute of 0.5.0 landing on the instance. None of
 them were in the original list. Three times now, checking against a real instance has found something no
 amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
@@ -1155,6 +1161,7 @@ requests never fires.
 | D36 | **Undoing a cascade puts the subtasks back at the end of their old column**, not at the place they had: the page never saw where they were, and a rank is one row per card, so the old one is gone the moment the new one is written | `src/stores/board.ts`, `Board/Service/BoardService` | An undo restores every status exactly and one position approximately, which §15.6 promises to do exactly | Return the rank each card had as well as the column, and let the undo send it back as a position rather than an end | M4 | planned |
 | D37 | **A new subtask of an arranged parent appears at the end of its column**, not under its parent: a card with no rank sorts after the ranked ones (§15.5), and nesting only orders the unranked tail | `Board/CardOrder`, `Board/Service/BoardService` | On a board that has been arranged, a subtask created in the Tasks view turns up away from its parent — correctly labelled, but not where it belongs | Give a new card a rank beside its parent's when its parent has one, which is a write outside a drop and needs §15.5 to say so first | M4 | planned |
 | D38 | **The subtask view is not remembered:** rolling the board up lasts as long as the page does, like *Show archived* beside it | `src/views/Kanban.vue` | A preference that has to be set again on every visit | A per-user setting, with the other view preferences, when there is somewhere to put them | M5 | planned |
+| D42 | **A dependency could not be removed after its task had been dragged:** `DELETE /plan/link/{id}` named a link by its `chronos_task_links` row id, and the index *replaces* a task's link rows whenever that task is written — so every id changed the moment a bar moved, and removing a link that was plainly there answered `link_not_found` | `Planning/Service/PlanService::unlink()`, `PlanController` | Clicking a dependency to delete it failed for every link whose predecessor had been dragged since the page was loaded, which is most of them | Name a link by the two tasks it joins, which is what it *is*; there is only ever one between a pair. Found by the live check on the first real run of 0.5.0 | 0.5.1 | done |
 | D40 | **An all-day date was shown as the day before, west of Greenwich:** the date chips formatted an all-day value in the reader's own zone, although §8.4 says such a value is midnight UTC and never an instant | `src/utils/format.ts`, the task and card chips | A task due the 30th read as the 29th for every user in a negative-offset zone. Invisible on the instance this was built against, which has no all-day tasks at all — and then unavoidable on a timeline, where all-day bars are the common case | `formatDate(at, isDate)` reads an all-day value in UTC; every caller says which kind it has | M4 | done |
 | D41 | **Two gesture implementations:** the board's `useDrag` (lanes and positions) and the timeline's `useTimeDrag` (an axis and deltas) each carry their own pointer capture, threshold, long press, autoscroll and keyboard handling | `src/composables/useDrag.ts`, `src/composables/useTimeDrag.ts` | The thing §15.8 set out to avoid: two copies of the input manners, which can drift apart | Extract the gesture mechanics into one primitive both sit on. Not done with M4 because the board is deployed and verified and there is no way to test pointer code in the node test environment — so the refactor would be unverifiable, which is a worse trade than the duplication | M5 | planned |
 | D39 | **Every timed date was rewritten as UTC:** the writer always wrote `DTSTART`/`DUE` as `…Z`, although §7 and §8.4 both say the value type and the `TZID` or floating form are preserved | `Core/Dav/VTodoWriter::setDate()` | The instant survived, so no time was lost, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z` — and a *floating* time, which means six o'clock wherever the reader is, came back pinned to an instant, which says something else. Found while building M4, where a drag writes dates constantly | Read the property that is there before replacing it: a `TZID` is written again as that `TZID`, a floating time stays floating, anything else stays UTC | M4 | done |

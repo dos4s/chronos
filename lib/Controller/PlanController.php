@@ -106,10 +106,22 @@ class PlanController extends Controller {
 		);
 	}
 
+	/**
+	 * A dependency is named by the two tasks it joins rather than by its row
+	 * id: the row is rewritten whenever the task that declares it is written,
+	 * so an id read when the link was made does not survive a drag (D42).
+	 */
 	#[NoAdminRequired]
-	#[FrontpageRoute(verb: 'DELETE', url: '/plan/link/{id}')]
-	public function unlink(string $project, int $id): JSONResponse {
-		return new JSONResponse($this->plan->unlink($this->user(), $project, $id)->jsonSerialize());
+	#[FrontpageRoute(verb: 'DELETE', url: '/plan/link')]
+	public function unlink(string $project, string $predecessorUid, string $successorUid): JSONResponse {
+		return new JSONResponse(
+			$this->plan->unlink(
+				$this->user(),
+				$project,
+				trim($predecessorUid),
+				trim($successorUid),
+			)->jsonSerialize(),
+		);
 	}
 
 	/**

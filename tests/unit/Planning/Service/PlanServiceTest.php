@@ -477,7 +477,7 @@ class PlanServiceTest extends TestCase {
 			$this->link('a', 'a', 'c', 'STARTTOSTART', id: 8),
 		];
 
-		$this->plan->unlink(self::USER, self::REF, 7);
+		$this->plan->unlink(self::USER, self::REF, 'a', 'b');
 
 		self::assertSame(['a'], array_column($this->written, 'uid'));
 		$links = $this->written[0]['write']->links;
@@ -486,11 +486,31 @@ class PlanServiceTest extends TestCase {
 		self::assertSame('c', $links[0]->successorUid);
 	}
 
+	/**
+	 * A link is named by the two tasks it joins, not by its row id. The index
+	 * *replaces* a task's link rows whenever that task is written, so every
+	 * id changes the moment a bar is dragged — and deleting by id then fails
+	 * with `link_not_found` on a link that is plainly there, which is what the
+	 * live check caught on a real instance (D42).
+	 */
+	public function testALinkCanStillBeRemovedAfterItsRowsHaveBeenRewritten(): void {
+		$this->index = [$this->task('a'), $this->task('b')];
+		$this->stored = [$this->link('a', 'a', 'b', 'FINISHTOSTART', id: 7)];
+
+		// What a write of task `a` does to the index: same link, new row.
+		$this->stored = [$this->link('a', 'a', 'b', 'FINISHTOSTART', id: 9814)];
+
+		$this->plan->unlink(self::USER, self::REF, 'a', 'b');
+
+		self::assertSame(['a'], array_column($this->written, 'uid'));
+		self::assertSame([], $this->written[0]['write']->links);
+	}
+
 	public function testUnlinkingSomethingThatIsNotThereIsRefused(): void {
 		$this->expectException(NotFoundException::class);
 		$this->expectExceptionMessage('link_not_found');
 
-		$this->plan->unlink(self::USER, self::REF, 99);
+		$this->plan->unlink(self::USER, self::REF, 'a', 'nothing-like-this');
 	}
 
 	public function testTheProjectsSettingsAreStoredBesideTheOtherModulesOwn(): void {

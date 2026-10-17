@@ -176,7 +176,7 @@ export const usePlanStore = defineStore('plan', () => {
 		}
 	}
 
-	async function unlink(id: number): Promise<boolean> {
+	async function unlink(predecessorUid: string, successorUid: string): Promise<boolean> {
 		const ref = projectRef.value
 		if (ref === null) {
 			return false
@@ -184,7 +184,7 @@ export const usePlanStore = defineStore('plan', () => {
 
 		saving.value = true
 		try {
-			plan.value = await api.deleteLink(ref, id)
+			plan.value = await api.deleteLink(ref, predecessorUid, successorUid)
 			return true
 		} catch (error) {
 			showError(messageFor(error))
