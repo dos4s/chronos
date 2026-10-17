@@ -103,6 +103,28 @@ final class TaskWrite {
 	}
 
 	/**
+	 * The task as the index has it, with its parent link taken away.
+	 *
+	 * What promoting a subproject does to the tasks that were inside it: the
+	 * container has become the list they are in, so there is nothing left for
+	 * the link to point at (F2, §6).
+	 */
+	public static function withoutParent(Task $task): self {
+		return new self(
+			summary: $task->getSummary() ?? '',
+			status: $task->getVtodoStatus(),
+			priority: $task->getPriority(),
+			startAt: $task->getStartAt(),
+			startIsDate: $task->getStartIsDate(),
+			dueAt: $task->getDueAt(),
+			dueIsDate: $task->getDueIsDate(),
+			percent: $task->getPercent(),
+			parentUid: null,
+			type: $task->getType(),
+		);
+	}
+
+	/**
 	 * The task as the index has it, with a different set of dependencies.
 	 *
 	 * Only a link edit sends these: every other write leaves the `RELATED-TO`

@@ -368,6 +368,19 @@ export interface PlanMoveResult {
 	cascaded: boolean
 }
 
+/**
+ * What promoting a subproject to a list did (F2, §6).
+ *
+ * `left` is not zero when the move stopped part way: CalDAV is one object at a
+ * time, so the answer says how far it got and the operation can be run again.
+ */
+export interface PromoteResult {
+	project: Project
+	moved: number
+	left: number
+	failure: string | null
+}
+
 /** A date something has to be true by: a milestone with a `DUE` (§6). */
 export interface RoadmapMilestone {
 	uid: string

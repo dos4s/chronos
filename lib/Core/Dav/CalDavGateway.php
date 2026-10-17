@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace OCA\Chronos\Core\Dav;
 
 use OCA\Chronos\AppInfo\Application;
+use OCA\Chronos\Core\Error\ForbiddenException;
 use OCA\Chronos\Core\Error\NotFoundException;
 use OCA\Chronos\Core\Error\PreconditionFailedException;
 use OCA\DAV\CalDAV\CalDavBackend;
 use Psr\Log\LoggerInterface;
+use Sabre\CalDAV\Xml\Property\SupportedCalendarComponentSet;
 use Throwable;
 
 /**
@@ -18,7 +20,8 @@ use Throwable;
  * Nextcloud release that changes it touches this one file. Everything else goes
  * through these methods.
  *
- * @psalm-suppress UndefinedClass CalDavBackend is internal to the DAV app and
+ * @psalm-suppress UndefinedClass CalDavBackend and Sabre's component-set
+ *                                property are internal to the DAV app and
  *   not visible to static analysis
  * @psalm-suppress MixedAssignment
  * @psalm-suppress MixedArgument
@@ -63,6 +66,86 @@ class CalDavGateway {
 			}
 		}
 		return $calendars;
+	}
+
+	/**
+	 * A new task list, for promoting a subproject into one (F2, §6).
+	 *
+	 * The component set is what makes it a task list rather than a calendar
+	 * (D12), and it is a Sabre property object rather than a string — the
+	 * backend refuses anything else. The class is checked for rather than
+	 * assumed, because this is the one place in Chronos that reaches into
+	 * another app's library.
+	 *
+	 * @throws ForbiddenException when the DAV app is not there to ask
+	 */
+	public function createTaskCalendar(string $userId, string $displayName, ?string $color): CalendarRef {
+		if ($this->backend === null) {
+			throw new ForbiddenException('calendars_unavailable');
+		}
+
+		$principalUri = 'principals/users/' . $userId;
+		$properties = [self::DISPLAY_NAME => $displayName];
+		if ($color !== null) {
+			$properties[self::COLOR] = $color;
+		}
+		if (class_exists(SupportedCalendarComponentSet::class)) {
+			$properties['{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set']
+				= new SupportedCalendarComponentSet(['VTODO']);
+		}
+
+		$uri = $this->freeUri($userId, $displayName);
+		$id = (int)$this->backend->createCalendar($principalUri, $uri, $properties);
+
+		$calendar = $this->getCalendar($id);
+		if ($calendar === null) {
+			throw new ForbiddenException('calendar_not_created');
+		}
+
+		return $calendar;
+	}
+
+	/**
+	 * Removes a calendar again — used to clean up a list that was created for
+	 * a promotion that then moved nothing into it (F2).
+	 *
+	 * `$permanently` skips the calendar trash bin, which is right for a list
+	 * that was created seconds ago and holds nothing: leaving it in the trash
+	 * would be litter rather than safety.
+	 */
+	public function deleteCalendar(int $calendarId, bool $permanently = false): void {
+		$this->backend?->deleteCalendar($calendarId, $permanently);
+	}
+
+	/**
+	 * A URI nobody is using yet, from the name the user gave.
+	 */
+	private function freeUri(string $userId, string $displayName): string {
+		$slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $displayName) ?? '');
+		$slug = trim($slug, '-');
+		if ($slug === '' || strlen($slug) > 60) {
+			$slug = substr($slug, 0, 60);
+		}
+		if ($slug === '') {
+			$slug = 'list';
+		}
+
+		$taken = [];
+		foreach ($this->getCalendars($userId) as $calendar) {
+			$taken[$calendar->uri] = true;
+		}
+
+		if (!isset($taken[$slug])) {
+			return $slug;
+		}
+
+		for ($suffix = 2; $suffix < 100; $suffix++) {
+			if (!isset($taken[$slug . '-' . $suffix])) {
+				return $slug . '-' . $suffix;
+			}
+		}
+
+		return $slug . '-' . substr(sha1($displayName . microtime()), 0, 6);
 	}
 
 	/**

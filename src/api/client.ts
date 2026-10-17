@@ -154,6 +154,15 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'That is not a kind of dependency Chronos schedules with')
 		case 'gap_too_large':
 			return t('chronos', 'That lag is more than a year')
+		case 'not_a_subproject':
+			return t('chronos', 'Only a subproject can become a list of its own')
+		case 'nothing_to_promote':
+			return t('chronos', 'That subproject has nothing in it to move')
+		case 'promote_failed':
+			return t('chronos', 'Nothing could be moved, so no list was made')
+		case 'calendars_unavailable':
+		case 'calendar_not_created':
+			return t('chronos', 'The new list could not be created')
 		case 'unknown_mode':
 		case 'invalid_working_days':
 			return t('chronos', 'Those timeline settings could not be saved')
