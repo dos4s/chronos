@@ -932,6 +932,12 @@ finished, and it does not move one that is already in the column the drop is goi
 checked before anything is written, so a subtask the rules will not let out of its column stops the
 parent's drop as well, rather than moving half a branch.
 
+**What a drag deliberately does not do: reparent.** Dropping a card onto another card does not make it
+its subtask. A drag on a board means a status and a position, and letting a card become another's child by
+passing over it would be far too easy to do by accident — and a mis-drop that rewrote the tree would not be
+put right by dragging the card back. Reparenting stays where it is deliberate: the task's own details, and
+*Add subtask* in the task list.
+
 **What an undo of a cascade can and cannot restore.** It restores every card's status, and the dragged
 card's position exactly. The subtasks go back to the column they came from but to the end of it, because
 the page never saw where they were and a rank is one row per card: the old one is gone the moment the new
