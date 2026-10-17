@@ -865,6 +865,15 @@ a decision.
 - **Resize** never goes below a minimum duration; the start can't be dragged past the end.
 - Session editor: pauses can't be dragged outside the session or over another pause.
 
+**As built in M4 (the editor's rules).** They live in `utils/editor.ts` as pure functions of the session
+and the position being tried, and they are applied to the **preview** as well as to the write — so a block
+cannot be dragged somewhere it will not be saved, which is the only version of a rule a pointer believes.
+A break stays inside its session and clear of the breaks either side of it, and is pushed back inside
+rather than refused: a drag that runs into the end of its session stops there, which is what a wall feels
+like. Nothing becomes shorter than five minutes. A session's start may not cross its first break, nor its
+end its last. **Moving a session carries its breaks**; resizing one leaves them where they are, because
+moving both ends by the same amount is a move and moving one is not.
+
 **As built in M4 (the arithmetic).** Three rules decide every date on a timeline, and each one is a bug
 waiting to happen if it is written out twice — so they are written once, in `Planning/PlanDates` and its
 twin `src/utils/planDates.ts` (AD16):
@@ -992,6 +1001,12 @@ The shared engine is small enough to build in-house, which keeps behaviour consi
 for the Gantt, **frappe-gantt** (MIT) is a starting point, but it must meet §15.2–15.6 or be wrapped. Avoid
 dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The session editor currently uses
 **vue-cal**; it moves onto the shared engine when the editor is rebuilt (M4).
+
+**As built in M4.** No library. The timeline is `utils/scale.ts` and `composables/useTimeDrag.ts`, about
+450 lines between them, and the session editor is now the same two: a day is a row, a session is a block
+along it, a break is a block inside the block, and all of them drag with the same engine and the same
+arithmetic. **vue-cal is gone**, which also took 69 kB off that view's bundle — it was drawing blocks
+nobody could touch, since every one of its editing options was switched off.
 
 ### 15.9 Subtasks on a board
 A board is flat and a task list is a tree, and M3 shipped a board that dropped the tree on the floor. A
@@ -1396,6 +1411,12 @@ their history, their dependencies and their logged time, and the new list rememb
 out of (§6). The live check does it against a real calendar and takes the list away again afterwards,
 because it is the riskiest operation in the app and the only one that writes a calendar rather than an
 object in one.
+
+**Part 5 implemented** — the session editor, rebuilt on the shared engine (§15.8). It was a calendar
+library showing blocks nobody could touch; now a day is a row, a session is a block along it with its
+breaks inside, and all of them move and resize by pointer or keyboard, with the editor's own rules applied
+to the preview as well as to the write (§15.4). The dialog and the break menu stayed, because typing a
+time is sometimes exactly what is wanted. `vue-cal` is no longer a dependency.
 
 ### M5 — Time per task · v0.6.0
 - `task_uid` on sessions; start the timer from a task in any view.
