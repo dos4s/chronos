@@ -6,8 +6,10 @@ import type { PlanBar, Session, SessionUpdatePayload } from '../types/index.ts'
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import BreakMenu from '../components/BreakMenu.vue'
 import SessionEditorModal from '../components/SessionEditorModal.vue'
+import ShortcutsDialog from '../components/ShortcutsDialog.vue'
 import { addDays, asSeconds, startOfDay } from '../api/time.ts'
 import { useTimeDrag } from '../composables/useTimeDrag.ts'
 import { useProjectsStore } from '../stores/projects.ts'
@@ -47,6 +49,7 @@ const menu = ref<{
 	initialStart: string
 } | null>(null)
 
+const shortcuts = ref(false)
 const chart = ref<HTMLElement | null>(null)
 const scrollLeft = ref(0)
 const scrollTop = ref(0)
@@ -350,6 +353,13 @@ onBeforeUnmount(() => {
 			<span v-if="shown.length" :class="$style.count">
 				{{ n('chronos', '%n session', '%n sessions', shown.length) }}
 			</span>
+			<NcButton
+				variant="tertiary"
+				:aria-label="t('chronos', 'Keyboard and gestures')"
+				:title="t('chronos', 'Keyboard and gestures')"
+				@click="shortcuts = true">
+				?
+			</NcButton>
 		</div>
 
 		<div v-if="days.length" :class="$style.grid">
@@ -458,13 +468,15 @@ onBeforeUnmount(() => {
 		</p>
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Drag a session to move it, its edges to change when it started or ended, and a break inside it to move the break. A break stays inside its session and clear of the others, and moving a session takes its breaks with it. Double-click for the exact times, right-click to add a break. Focus a block and press space to move it with the arrow keys.') }}
+			{{ t('chronos', 'Drag a session or one of its breaks; double-click for the exact times. A break stays inside its session, and moving a session takes its breaks with it.') }}
 		</p>
 
 		<!-- What a screen reader hears while a block is in the air (§15.7). -->
 		<div :class="$style.live" aria-live="polite" role="status">
 			{{ drag.announcement.value }}
 		</div>
+
+		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
 		<BreakMenu
 			v-if="menu"

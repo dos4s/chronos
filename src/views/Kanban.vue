@@ -15,6 +15,7 @@ import FilterBar from '../components/FilterBar.vue'
 import KanbanCard from '../components/KanbanCard.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
+import ShortcutsDialog from '../components/ShortcutsDialog.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { useDrag } from '../composables/useDrag.ts'
 import { useBoardStore } from '../stores/board.ts'
@@ -47,6 +48,7 @@ const editing = ref<BoardCard | null>(null)
  */
 const filter = ref<TaskFilter>({ query: '', showCompleted: true })
 const configuring = ref<BoardColumn | null>(null)
+const shortcuts = ref(false)
 
 /** A drop that needs a note waits here until there is one (§12.1). */
 const pending = ref<{ uids: string[], column: string, index: number, cascade: boolean } | null>(null)
@@ -381,6 +383,13 @@ async function columnSaved(): Promise<void> {
 			</label>
 			<div :class="$style.spacer" />
 			<NcButton
+				variant="tertiary"
+				:aria-label="t('chronos', 'Keyboard and gestures')"
+				:title="t('chronos', 'Keyboard and gestures')"
+				@click="shortcuts = true">
+				?
+			</NcButton>
+			<NcButton
 				v-if="board.undoable"
 				variant="secondary"
 				:disabled="board.saving"
@@ -441,7 +450,7 @@ async function columnSaved(): Promise<void> {
 		</p>
 
 		<p v-else :class="$style.hint">
-			{{ t('chronos', 'Drag a card, or focus one and press space: the arrow keys move it, space drops it, escape puts it back. Ctrl or shift picks more than one card.') }}
+			{{ t('chronos', 'Drag a card between columns, or press space on one to move it from the keyboard.') }}
 		</p>
 
 		<!--
@@ -534,6 +543,8 @@ async function columnSaved(): Promise<void> {
 			:task="editing"
 			@close="editing = null"
 			@save="saveDetails" />
+
+		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
 		<ColumnSettingsDialog
 			v-if="configuring && board.board"

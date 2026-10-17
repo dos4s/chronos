@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
@@ -9,6 +9,7 @@ import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import RunningTimer from './components/RunningTimer.vue'
+import ShortcutsDialog from './components/ShortcutsDialog.vue'
 import { useModulesStore } from './stores/modules.ts'
 import { useProjectsStore } from './stores/projects.ts'
 import { useTimeStore } from './stores/time.ts'
@@ -19,6 +20,30 @@ const projects = useProjectsStore()
 const modules = useModulesStore()
 
 const wide = computed(() => route.name !== 'timer')
+
+/** Everything the app can be told to do, on `?` (§15.7). */
+const shortcuts = ref(false)
+
+/**
+ * `?` anywhere — except while typing, where it is a question mark. A dialog
+ * that opened mid-sentence would be worse than no dialog at all.
+ */
+function onKeyDown(event: KeyboardEvent): void {
+	if (event.key !== '?' || event.ctrlKey || event.metaKey || event.altKey) {
+		return
+	}
+
+	const target = event.target
+	const typing = target instanceof HTMLElement && (
+		target.isContentEditable
+		|| ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+	)
+
+	if (!typing) {
+		event.preventDefault()
+		shortcuts.value = true
+	}
+}
 
 /**
  * A plain click works in that project and looks at it; ctrl or ⌘ adds another
@@ -31,8 +56,13 @@ function onProjectClick(event: MouseEvent, uri: string): void {
 }
 
 onMounted(() => {
+	window.addEventListener('keydown', onKeyDown)
 	time.refresh()
 	projects.refresh()
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('keydown', onKeyDown)
 })
 </script>
 
@@ -205,6 +235,8 @@ onMounted(() => {
 				</template>
 			</template>
 		</NcAppNavigation>
+
+		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
 		<NcAppContent>
 			<div :class="[$style.main, wide ? $style.wide : $style.narrow]">
