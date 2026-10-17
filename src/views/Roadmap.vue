@@ -4,7 +4,7 @@ import type { Zoom } from '../utils/scale.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -122,6 +122,10 @@ async function toggleArchived(): Promise<void> {
 onMounted(async () => {
 	window.addEventListener('resize', onScroll)
 	await load()
+
+	// The chart only exists once there is something to draw, which is after
+	// Vue has rendered what `load()` fetched.
+	await nextTick()
 	const element = chart.value
 	if (element !== null) {
 		element.scrollLeft = Math.max(0, todayX.value - element.clientWidth / 3)
