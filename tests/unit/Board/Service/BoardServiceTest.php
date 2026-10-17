@@ -304,6 +304,102 @@ class BoardServiceTest extends TestCase {
 		self::assertGreaterThan(0, strcmp($this->stored['a']->getCardRank(), $before['b']));
 	}
 
+	/**
+	 * Naming the card above a drop means landing *directly* below it. Reading
+	 * the missing side as "and nothing below it" put the card halfway down
+	 * everything that followed, with a rank that could equal one already in
+	 * the column (D35).
+	 */
+	public function testACardDroppedBelowAnotherLandsDirectlyBelowIt(): void {
+		$this->index = [
+			$this->task('a', 2, 'IN-PROCESS'),
+			$this->task('b', 2, 'IN-PROCESS'),
+			$this->task('c', 2, 'IN-PROCESS'),
+			$this->task('mover', 1, 'NEEDS-ACTION'),
+		];
+		$this->taskService->method('update')->willReturnCallback(
+			fn (string $userId, string $uid): Task => $this->task($uid, 2, 'IN-PROCESS'),
+		);
+
+		$result = $this->board->move(self::USER, self::REF, [['uid' => 'mover']], 'doing', 'a', null);
+
+		$rank = $result->ranks['mover'] ?? '';
+		self::assertGreaterThan(0, strcmp($rank, $this->stored['a']->getCardRank()));
+		self::assertLessThan(0, strcmp($rank, $this->stored['b']->getCardRank()));
+	}
+
+	public function testACardDroppedAboveAnotherLandsDirectlyAboveIt(): void {
+		$this->index = [
+			$this->task('a', 2, 'IN-PROCESS'),
+			$this->task('b', 2, 'IN-PROCESS'),
+			$this->task('c', 2, 'IN-PROCESS'),
+		];
+
+		$result = $this->board->move(self::USER, self::REF, [['uid' => 'c']], 'doing', null, 'b');
+
+		$rank = $result->ranks['c'] ?? '';
+		self::assertGreaterThan(0, strcmp($rank, $this->stored['a']->getCardRank()));
+		self::assertLessThan(0, strcmp($rank, $this->stored['b']->getCardRank()));
+	}
+
+	/**
+	 * A drop that names no neighbour at all — an API caller rather than the
+	 * board — goes to the end of the column, which is the one position that is
+	 * always meant and always free.
+	 */
+	public function testACardDroppedWithNoNeighboursLandsAtTheEnd(): void {
+		$this->index = [
+			$this->task('a', 2, 'IN-PROCESS'),
+			$this->task('b', 2, 'IN-PROCESS'),
+			$this->task('mover', 1, 'NEEDS-ACTION'),
+		];
+		$this->taskService->method('update')->willReturnCallback(
+			fn (string $userId, string $uid): Task => $this->task($uid, 2, 'IN-PROCESS'),
+		);
+
+		$result = $this->board->move(self::USER, self::REF, [['uid' => 'mover']], 'doing');
+
+		$rank = $result->ranks['mover'] ?? '';
+		self::assertGreaterThan(0, strcmp($rank, $this->stored['b']->getCardRank()));
+		self::assertNotSame($this->stored['a']->getCardRank(), $rank);
+		self::assertNotSame($this->stored['b']->getCardRank(), $rank);
+	}
+
+	/**
+	 * Two cards cannot share a rank: a rank is a position, and a position two
+	 * cards both claim is decided by the query plan.
+	 */
+	public function testNoTwoCardsInAColumnEndUpAtTheSameRank(): void {
+		$this->index = [
+			$this->task('a', 2, 'IN-PROCESS'),
+			$this->task('b', 2, 'IN-PROCESS'),
+			$this->task('c', 2, 'IN-PROCESS'),
+			$this->task('d', 2, 'IN-PROCESS'),
+		];
+
+		// The same card dropped over and over, each time just below the first.
+		for ($round = 0; $round < 20; $round++) {
+			$this->board->move(self::USER, self::REF, [['uid' => 'd']], 'doing', 'a', null);
+		}
+
+		$ranks = array_map(static fn (BoardRank $rank): string => $rank->getCardRank(), $this->stored);
+
+		self::assertSame(count($ranks), count(array_unique($ranks)));
+	}
+
+	/**
+	 * A card named as the neighbour but moved away since — a board read from a
+	 * stale page — must not make the drop fail or land on another card's rank.
+	 */
+	public function testANeighbourThatIsNoLongerInTheColumnStillGivesAPosition(): void {
+		$this->index = [$this->task('a', 2, 'IN-PROCESS'), $this->task('b', 2, 'IN-PROCESS')];
+
+		$result = $this->board->move(self::USER, self::REF, [['uid' => 'b']], 'doing', 'gone-elsewhere', null);
+
+		self::assertNotSame('', $result->ranks['b'] ?? '');
+		self::assertGreaterThan(0, strcmp($result->ranks['b'] ?? '', $this->stored['a']->getCardRank()));
+	}
+
 	private function calendar(bool $writable = true): CalendarRef {
 		return new CalendarRef(
 			self::CALENDAR_ID,

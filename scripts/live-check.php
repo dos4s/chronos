@@ -253,23 +253,36 @@ try {
 	// 9. A drop into another column: the status is written, and the card's
 	// place is recorded.
 	//
-	// The column chosen is the one with the most other cards in it, so that
-	// the reorder below has something to be reordered against — in a list
-	// whose tasks are nearly all open, that is the initial column, and the
-	// drop also makes the board rank every card already there (§15.5).
-	$busiest = 'doing';
-	$most = -1;
+	// The column chosen is the one with the most cards in it, other than the
+	// one the card is already in, so that the reorder below has something to
+	// be reordered against — and so that the drop is a real status change. It
+	// also makes the board rank every card already there (§15.5).
 	$beforeBoard = $board->board($user, $ref);
+	$sittingIn = null;
 	foreach ($keys as $key) {
-		$others = count(array_filter(
-			$beforeBoard->column($key),
-			static fn (Task $candidate): bool => $candidate->getUid() !== $taskUid,
-		));
+		foreach ($beforeBoard->column($key) as $candidate) {
+			if ($candidate->getUid() === $taskUid) {
+				$sittingIn = $key;
+				break 2;
+			}
+		}
+	}
+
+	// Not the column the card is already in: a drop into that one writes
+	// nothing at all, which is correct and tests nothing.
+	$busiest = null;
+	$most = -1;
+	foreach ($keys as $key) {
+		if ($key === $sittingIn) {
+			continue;
+		}
+		$others = count($beforeBoard->column($key));
 		if ($others > $most) {
 			$most = $others;
 			$busiest = $key;
 		}
 	}
+	$busiest ??= 'doing';
 
 	$dropped = $board->move($user, $ref, [['uid' => $taskUid, 'etag' => $done->getEtag()]], $busiest);
 	$card = $dropped->cards[0];

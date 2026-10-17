@@ -274,9 +274,9 @@ class BoardService {
 		?string $beforeUid,
 	): array {
 		$ranks = $this->materialise($calendarId, $columnKey, $others);
+		$order = array_map(static fn (Task $card): string => $card->getUid(), $others);
 
-		$after = $afterUid === null ? null : ($ranks[$afterUid] ?? null);
-		$before = $beforeUid === null ? null : ($ranks[$beforeUid] ?? null);
+		[$after, $before] = $this->gap($order, $ranks, $afterUid, $beforeUid);
 
 		$assigned = $this->sequenceBetween($movedUids, $after, $before);
 
@@ -289,9 +289,16 @@ class BoardService {
 			}
 
 			$this->rebalance($calendarId, $columnKey);
-			$fresh = $this->ranks->findForCalendar($calendarId);
-			$after = $afterUid === null ? null : CardOrder::rankForUid($fresh, $afterUid, $columnKey);
-			$before = $beforeUid === null ? null : CardOrder::rankForUid($fresh, $beforeUid, $columnKey);
+			$stored = $this->ranks->findForCalendar($calendarId);
+			$fresh = [];
+			foreach ($order as $uid) {
+				$rank = CardOrder::rankForUid($stored, $uid, $columnKey);
+				if ($rank !== null) {
+					$fresh[$uid] = $rank;
+				}
+			}
+
+			[$after, $before] = $this->gap($order, $fresh, $afterUid, $beforeUid);
 			$assigned = $this->sequenceBetween($movedUids, $after, $before);
 			break;
 		}
@@ -308,6 +315,43 @@ class BoardService {
 		}
 
 		return $assigned;
+	}
+
+	/**
+	 * The gap a drop landed in, as two ranks.
+	 *
+	 * The client names the cards above and below the drop, but it does not
+	 * have to name both, and a card it named may have been moved away since.
+	 * The missing side is taken from the column itself, because the column is
+	 * right here: naming the card above a drop means landing *directly* below
+	 * it, and naming neither means the end of the column.
+	 *
+	 * Reading one side as "and nothing below it" instead would put the card
+	 * halfway down everything that follows — which is where the live check
+	 * found it, with a rank that could equal a rank already in the column
+	 * (D35).
+	 *
+	 * @param list<string> $order the column's cards, in order, without the moved ones
+	 * @param array<string, string> $ranks their ranks
+	 * @return array{0: string|null, 1: string|null}
+	 */
+	private function gap(array $order, array $ranks, ?string $afterUid, ?string $beforeUid): array {
+		$at = $afterUid === null ? false : array_search($afterUid, $order, true);
+		if ($at !== false) {
+			return [$ranks[$order[$at]] ?? null, $ranks[$order[$at + 1] ?? ''] ?? null];
+		}
+
+		$at = $beforeUid === null ? false : array_search($beforeUid, $order, true);
+		if ($at !== false) {
+			return [$at === 0 ? null : ($ranks[$order[$at - 1]] ?? null), $ranks[$order[$at]] ?? null];
+		}
+
+		// Neither card is in this column: the one named has been moved away,
+		// or the caller named none at all. Either way the end of the column is
+		// the one position that is always meant and always free.
+		$last = $order === [] ? null : ($ranks[$order[count($order) - 1]] ?? null);
+
+		return [$last, null];
 	}
 
 	/**
