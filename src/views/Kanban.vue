@@ -324,7 +324,7 @@ async function columnSaved(): Promise<void> {
 
 		<div :class="$style.picker">
 			<ProjectHeading />
-			<label :class="$style.archived">
+			<label :class="$style.toggle">
 				<input
 					type="checkbox"
 					:checked="rolled"
@@ -520,7 +520,7 @@ async function columnSaved(): Promise<void> {
 	flex: 1;
 }
 
-.archived {
+.toggle {
 	display: flex;
 	align-items: center;
 	gap: 6px;
