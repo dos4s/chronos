@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Hide what is finished, and find what is not.** The task list and the timeline now show the unfinished
+  work by default — two thirds of a real list is usually done — with a *Show completed* tick to see the
+  rest, and all three task views have a search box. Searching keeps the parents of what it finds, faded, so
+  a subtask still shows where it belongs; hiding finished work never hides the open work underneath it.
+  The board has no *Show completed*, because a final column is exactly where finished cards live.
+
 ## [0.5.3] - 2026-10-17
 
 ### Changed

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TaskNode } from '../utils/tasks.ts'
+import type { FilteredNode } from '../utils/filter.ts'
 
 import { t } from '@nextcloud/l10n'
 import { computed, ref } from 'vue'
@@ -13,11 +13,11 @@ import { useWorkflowsStore } from '../stores/workflows.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isCompleted, isDueToday, isOverdue } from '../utils/tasks.ts'
 
-const props = defineProps<{ node: TaskNode, depth: number, readOnly: boolean }>()
+const props = defineProps<{ node: FilteredNode, depth: number, readOnly: boolean }>()
 const emit = defineEmits<{
-	edit: [node: TaskNode]
-	addSubtask: [node: TaskNode]
-	promote: [node: TaskNode]
+	edit: [node: FilteredNode]
+	addSubtask: [node: FilteredNode]
+	promote: [node: FilteredNode]
 }>()
 
 const tasks = useTasksStore()
@@ -70,7 +70,9 @@ async function commit() {
 
 <template>
 	<li :class="$style.item">
-		<div :class="[$style.row, { [$style.done]: done }]" :style="{ paddingInlineStart: (depth * 24) + 'px' }">
+		<div
+			:class="[$style.row, { [$style.done]: done, [$style.context]: node.faded }]"
+			:style="{ paddingInlineStart: (depth * 24) + 'px' }">
 			<!--
 				The browser is not allowed to tick this by itself: the state
 				follows the saved task, so a write that fails or is refused
@@ -175,6 +177,14 @@ async function commit() {
 
 .row:hover {
 	background: var(--color-background-hover);
+}
+
+/*
+ * A row kept only to show where its children are: there to be read past
+ * rather than read (§14.2).
+ */
+.context {
+	opacity: 0.55;
 }
 
 .done .summary {

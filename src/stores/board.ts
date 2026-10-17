@@ -103,6 +103,11 @@ export const useBoardStore = defineStore('board', () => {
 	 * `cascade` takes each card's unfinished subtasks along with it (§15.9).
 	 * Which cards those are is the server's to work out — in a rolled-up board
 	 * the page is not even showing them — so the drop only asks for it.
+	 *
+	 * `among` is the column as the user is *seeing* it, which is not the whole
+	 * of it while a search is on. A drop between two visible cards means
+	 * between those two, whatever is hidden in between, so the position is
+	 * worked out against that order and then translated back (§14.2).
 	 */
 	async function drop(
 		uids: string[],
@@ -110,6 +115,7 @@ export const useBoardStore = defineStore('board', () => {
 		index: number,
 		comment: string | null = null,
 		cascade = false,
+		among: string[] | null = null,
 	): Promise<boolean> {
 		const current = board.value
 		const ref = projectRef.value
@@ -122,16 +128,26 @@ export const useBoardStore = defineStore('board', () => {
 			return false
 		}
 
-		const { afterUid, beforeUid } = neighboursAt(target.cards, index, uids)
+		const seen = among === null
+			? target.cards
+			: among.flatMap((uid) => cardByUid(current, uid) ?? [])
+
+		const { afterUid, beforeUid } = neighboursAt(seen, index, uids)
 		if (!cascade && isWhereItAlreadyIs(current, uids, columnKey, afterUid, beforeUid)) {
 			return true
 		}
+
+		// Where that is in the whole column, which is what the board draws.
+		const staying = target.cards.filter((card) => !uids.includes(card.uid))
+		const at = afterUid === null
+			? (beforeUid === null ? staying.length : staying.findIndex((card) => card.uid === beforeUid))
+			: staying.findIndex((card) => card.uid === afterUid) + 1
 
 		const inverse = inverseDrops(current, uids)
 		const cards = uids.map((uid) => ({ uid, etag: cardByUid(current, uid)?.etag ?? null }))
 
 		// Optimistic: the board shows the drop, then the request goes (§15.6).
-		board.value = applyDrop(current, uids, columnKey, index)
+		board.value = applyDrop(current, uids, columnKey, Math.max(0, at))
 		saving.value = true
 
 		try {

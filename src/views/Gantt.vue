@@ -2,6 +2,7 @@
 import type { UnixSeconds } from '../api/time.ts'
 import type { DragKind } from '../composables/useTimeDrag.ts'
 import type { PlanBar, PlanLink, PlanRow, TaskWritePayload } from '../types/index.ts'
+import type { TaskFilter } from '../utils/filter.ts'
 import type { Zoom } from '../utils/scale.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -11,6 +12,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import FilterBar from '../components/FilterBar.vue'
 import GanttBar from '../components/GanttBar.vue'
 import GanttLinks from '../components/GanttLinks.vue'
 import GanttScale from '../components/GanttScale.vue'
@@ -22,6 +24,7 @@ import { useTimeDrag } from '../composables/useTimeDrag.ts'
 import { usePlanStore } from '../stores/plan.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
+import { filterRows, NO_FILTER } from '../utils/filter.ts'
 import { formatDate, formatDuration, formatTimeOfDay } from '../utils/format.ts'
 import { inclusiveDue } from '../utils/planDates.ts'
 import { createScale, dayAfter, windowFor } from '../utils/scale.ts'
@@ -62,7 +65,15 @@ const OVERSCAN = 6
 
 /** The project the sidebar is working in (§14.2). */
 const project = computed(() => projects.currentProject)
-const rows = computed(() => plan.rows)
+/**
+ * What is worth looking at: by default the unfinished work, because two
+ * thirds of a real list is usually done, and 54 finished bars crowd a chart
+ * as much as they crowd a list (§14.2).
+ */
+const filter = ref<TaskFilter>({ ...NO_FILTER })
+
+const rows = computed(() => filterRows(plan.rows, filter.value))
+const hidden = computed(() => Math.max(0, plan.rows.length - rows.value.length))
 const readOnly = computed(() => plan.plan !== null && !plan.writable)
 
 const scale = computed(() => {
@@ -320,6 +331,11 @@ onBeforeUnmount(() => {
 
 		<div :class="$style.toolbar">
 			<ProjectHeading />
+			<FilterBar
+				v-if="plan.plan"
+				v-model="filter"
+				:hidden="hidden"
+				:placeholder="t('chronos', 'Find a task…')" />
 
 			<div :class="$style.spacer" />
 

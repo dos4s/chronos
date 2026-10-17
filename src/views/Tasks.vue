@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Task, TaskWritePayload } from '../types/index.ts'
+import type { TaskFilter } from '../utils/filter.ts'
 import type { TaskNode } from '../utils/tasks.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -8,6 +9,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import FilterBar from '../components/FilterBar.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
 import ProjectSettingsDialog from '../components/ProjectSettingsDialog.vue'
 import PromoteDialog from '../components/PromoteDialog.vue'
@@ -18,6 +20,7 @@ import { useModulesStore } from '../stores/modules.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
+import { countNodes, filterTree, NO_FILTER } from '../utils/filter.ts'
 
 const modules = useModulesStore()
 const projects = useProjectsStore()
@@ -29,6 +32,16 @@ const subtaskParent = ref<TaskNode | null>(null)
 /** The subproject being turned into a list of its own (F2, §6). */
 const promoting = ref<TaskNode | null>(null)
 const configuring = ref(false)
+
+/**
+ * What is worth looking at: by default the unfinished work, because two
+ * thirds of a real list is usually done (§14.2).
+ */
+const filter = ref<TaskFilter>({ ...NO_FILTER })
+
+const visible = computed(() => filterTree(tasks.tree, filter.value))
+const hidden = computed(() => Math.max(0, tasks.tasks.length - countNodes(visible.value)))
+const searching = computed(() => filter.value.query.trim() !== '')
 
 /** The project the sidebar is working in (§14.2). */
 const project = computed(() => projects.currentProject)
@@ -103,6 +116,11 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 			</NcButton>
 		</div>
 
+		<FilterBar
+			v-if="project"
+			v-model="filter"
+			:hidden="hidden" />
+
 		<NcNoteCard v-if="readOnly" type="info">
 			{{ t('chronos', 'This list is shared with you read-only, so its tasks cannot be changed here.') }}
 		</NcNoteCard>
@@ -113,9 +131,9 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 			<NcLoadingIcon :size="32" />
 		</div>
 
-		<ul v-else-if="tasks.tree.length" :class="$style.list">
+		<ul v-else-if="visible.length" :class="$style.list">
 			<TaskRow
-				v-for="node in tasks.tree"
+				v-for="node in visible"
 				:key="node.task.uid"
 				:node="node"
 				:depth="0"
@@ -124,6 +142,24 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				@addSubtask="subtaskParent = $event"
 				@promote="promoting = $event" />
 		</ul>
+
+		<NcEmptyContent
+			v-else-if="project && searching"
+			:class="$style.empty"
+			:name="t('chronos', 'Nothing matches “{query}”', { query: filter.query })"
+			:description="t('chronos', 'Try a shorter word, or tick “Show completed” — finished tasks are hidden.')">
+			<template #action>
+				<NcButton variant="secondary" @click="filter = { ...filter, query: '' }">
+					{{ t('chronos', 'Clear the search') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
+
+		<NcEmptyContent
+			v-else-if="project && tasks.tasks.length"
+			:class="$style.empty"
+			:name="t('chronos', 'All done here')"
+			:description="t('chronos', 'Every task in this list is finished. Tick “Show completed” to see them.')" />
 
 		<NcEmptyContent
 			v-else-if="project"

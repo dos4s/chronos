@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DragTarget } from '../composables/useDrag.ts'
 import type { BoardCard, BoardColumn, TaskWritePayload } from '../types/index.ts'
+import type { TaskFilter } from '../utils/filter.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -10,6 +11,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import ColumnSettingsDialog from '../components/ColumnSettingsDialog.vue'
+import FilterBar from '../components/FilterBar.vue'
 import KanbanCard from '../components/KanbanCard.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
@@ -20,6 +22,7 @@ import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
 import { allowsMove, cardByUid, columnOf, needsComment, openSubtasksElsewhere } from '../utils/board.ts'
+import { passes } from '../utils/filter.ts'
 
 /**
  * The board (§15).
@@ -37,6 +40,12 @@ const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
 const editing = ref<BoardCard | null>(null)
+
+/**
+ * Finding a card. There is no *show completed* here: a final column is where
+ * finished cards live, and hiding them would empty it (§14.2).
+ */
+const filter = ref<TaskFilter>({ query: '', showCompleted: true })
 const configuring = ref<BoardColumn | null>(null)
 
 /** A drop that needs a note waits here until there is one (§12.1). */
@@ -60,7 +69,20 @@ const lanes = ref<HTMLElement | null>(null)
 
 /** The project the sidebar is working in (§14.2). */
 const project = computed(() => projects.currentProject)
-const columns = computed(() => board.columns)
+/** The columns as they are drawn: the cards that match, counted honestly. */
+const columns = computed(() => {
+	if (filter.value.query.trim() === '') {
+		return board.columns
+	}
+
+	return board.columns.map((column) => ({
+		...column,
+		cards: column.cards.filter((card) => passes(card, filter.value)),
+	}))
+})
+
+/** How many cards the search is keeping out of sight. */
+const hidden = computed(() => board.cardCount - columns.value.reduce((total, column) => total + column.cards.length, 0))
 const readOnly = computed(() => board.board !== null && !board.writable)
 
 /** Whether the board is showing branches rather than every task (§15.9). */
@@ -236,7 +258,19 @@ async function send(uids: string[], columnKey: string, index: number, cascade: b
 		return
 	}
 
-	await board.drop(uids, columnKey, index, null, cascade)
+	await board.drop(uids, columnKey, index, null, cascade, visibleOrder(columnKey))
+}
+
+/**
+ * The column as it is on the screen. While a search is on that is not the
+ * whole column, and a drop means *between these two cards* (§14.2).
+ */
+function visibleOrder(columnKey: string): string[] | null {
+	if (filter.value.query.trim() === '') {
+		return null
+	}
+
+	return columns.value.find((column) => column.key === columnKey)?.cards.map((card) => card.uid) ?? null
 }
 
 async function dropWithNote(): Promise<void> {
@@ -251,7 +285,14 @@ async function dropWithNote(): Promise<void> {
 	}
 
 	pending.value = null
-	await board.drop(waiting.uids, waiting.column, waiting.index, comment, waiting.cascade)
+	await board.drop(
+		waiting.uids,
+		waiting.column,
+		waiting.index,
+		comment,
+		waiting.cascade,
+		visibleOrder(waiting.column),
+	)
 }
 
 /** Rolling the subtasks up, or unfolding them, re-reads the board (§15.9). */
@@ -324,6 +365,12 @@ async function columnSaved(): Promise<void> {
 
 		<div :class="$style.picker">
 			<ProjectHeading />
+			<FilterBar
+				v-if="board.board"
+				v-model="filter"
+				:completedToggle="false"
+				:hidden="hidden"
+				:placeholder="t('chronos', 'Find a card…')" />
 			<label :class="$style.toggle">
 				<input
 					type="checkbox"
