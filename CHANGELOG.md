@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-17
+
+### Changed
+
+- `scripts/live-check.php` clears the index row of every task it made, including the subproject container
+  that promoting it deletes on the way. Deleting a task through the app leaves its index row behind as
+  deleted-but-recorded, which is correct for a real task and litter for a throwaway one: each run was
+  leaving one row per list behind.
+
 ## [0.5.1] - 2026-10-17
 
 Found by deploying 0.5.0 and running the live check against the real instance — within a minute of it
