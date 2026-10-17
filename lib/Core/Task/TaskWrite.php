@@ -6,6 +6,7 @@ namespace OCA\Chronos\Core\Task;
 
 use OCA\Chronos\Core\Dav\ParsedTask;
 use OCA\Chronos\Core\Error\ValidationFailedException;
+use OCA\Chronos\Core\Index\Task;
 
 /**
  * The fields Chronos manages on a task.
@@ -57,6 +58,52 @@ final class TaskWrite {
 			type: $this->type,
 			statusKey: $status->statusKey,
 			comment: $this->comment,
+		);
+	}
+
+	/**
+	 * The task as the index has it, with a different status.
+	 *
+	 * A write replaces every field Chronos manages, so changing one of them
+	 * means sending the rest back unchanged. A board drop does exactly that
+	 * and no more: it is a status change, so the summary, the dates and the
+	 * progress of the card come from the row rather than from the client, and
+	 * a card with no summary at all stays a card with no summary rather than
+	 * being refused as a task without one.
+	 *
+	 * @throws ValidationFailedException
+	 */
+	public static function fromTask(
+		Task $task,
+		?string $vtodoStatus = null,
+		?string $statusKey = null,
+		?string $comment = null,
+	): self {
+		$comment = $comment === null ? null : trim($comment);
+		if ($comment === '') {
+			$comment = null;
+		}
+		if ($comment !== null && mb_strlen($comment) > self::MAX_COMMENT) {
+			throw new ValidationFailedException('comment_too_long');
+		}
+
+		if ($vtodoStatus !== null && !in_array($vtodoStatus, ParsedTask::VTODO_STATUSES, true)) {
+			throw new ValidationFailedException('invalid_status');
+		}
+
+		return new self(
+			summary: $task->getSummary() ?? '',
+			status: $vtodoStatus ?? $task->getVtodoStatus(),
+			priority: $task->getPriority(),
+			startAt: $task->getStartAt(),
+			startIsDate: $task->getStartIsDate(),
+			dueAt: $task->getDueAt(),
+			dueIsDate: $task->getDueIsDate(),
+			percent: $task->getPercent(),
+			parentUid: $task->getParentUid(),
+			type: $task->getType(),
+			statusKey: $statusKey,
+			comment: $comment,
 		);
 	}
 

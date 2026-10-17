@@ -39,6 +39,7 @@
 		<!-- QBMapper hydrates entity properties and sets the id after insert. -->
 		<PossiblyUnusedProperty>
 			<errorLevel type="suppress">
+				<directory name="lib/Board/Db" />
 				<directory name="lib/Core/Index" />
 				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />
@@ -47,6 +48,7 @@
 		</PossiblyUnusedProperty>
 		<PropertyNotSetInConstructor>
 			<errorLevel type="suppress">
+				<directory name="lib/Board/Db" />
 				<directory name="lib/Core/Index" />
 				<directory name="lib/Projects/Db" />
 				<directory name="lib/Time/Db" />

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\AppInfo;
 
+use OCA\Chronos\Board\Listener\ForgetCardListener;
 use OCA\Chronos\Core\Event\TaskAssignedEvent;
+use OCA\Chronos\Core\Event\TaskDeletedEvent;
 use OCA\Chronos\Core\Event\TaskStatusChangedEvent;
 use OCA\Chronos\Core\Index\CalendarObjectListener;
 use OCA\Chronos\Core\Middleware\ApiErrorMiddleware;
@@ -60,6 +62,10 @@ class Application extends App implements IBootstrap {
 		// container can read config.
 		$context->registerEventListener(TaskStatusChangedEvent::class, StatusHistoryListener::class);
 		$context->registerEventListener(TaskAssignedEvent::class, StatusHistoryListener::class);
+
+		// A card's place on a board outlives nothing: once its task is gone,
+		// so is the row that said where it sat (§15.5).
+		$context->registerEventListener(TaskDeletedEvent::class, ForgetCardListener::class);
 
 		// Whoever writes a task — this app, the Tasks app, a phone over DAVx5 —
 		// the index follows (§11.2). These events are public API since

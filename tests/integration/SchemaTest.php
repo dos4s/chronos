@@ -38,6 +38,7 @@ class SchemaTest extends TestCase {
 			'chronos_statuses',
 			'chronos_transitions',
 			'chronos_status_history',
+			'chronos_board_ranks',
 		] as $table) {
 			self::assertTrue($this->db->tableExists($table), $table . ' is missing');
 		}
@@ -85,6 +86,11 @@ class SchemaTest extends TestCase {
 			['chronos_status_history', 'from_key'],
 			['chronos_status_history', 'to_key'],
 			['chronos_status_history', 'changed_at'],
+			// `card_rank`, because `RANK` is reserved in MySQL 8 (§10.3).
+			['chronos_board_ranks', 'calendar_id'],
+			['chronos_board_ranks', 'task_uid'],
+			['chronos_board_ranks', 'column_key'],
+			['chronos_board_ranks', 'card_rank'],
 		];
 	}
 

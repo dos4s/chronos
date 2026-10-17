@@ -429,8 +429,15 @@ query serves a user by first asking CalDAV which calendars they can see.
   anything the moment its workflow is deleted, and history is the one thing here that cannot be rebuilt, so
   each row also keeps the keys as they were. Deleting a workflow therefore clears the ids and leaves the
   rows readable.
-- **`chronos_board_ranks`** (`project_id`, `task_uid`, `status_id`, `rank` VARCHAR(64)) — card order within a
-  column as a lexicographic rank (§15.5)
+- **`chronos_board_ranks`** (`id`, `calendar_id`, `task_uid`, `column_key`, `card_rank` VARCHAR(64)) — card
+  order within a column as a lexicographic rank (§15.5). Three names differ from the original list, each
+  for a reason the database gave. **`calendar_id`, not `project_id`:** a `chronos_projects` row exists only
+  once somebody has configured that project, while every task list is a board, and the calendar is what a
+  task row already carries. **`card_rank`, not `rank`:** `RANK` is reserved in MySQL 8, the same trap
+  `status_key` avoided. **`column_key`, not `status_id`:** a column is a workflow status *or* one of the
+  four standard ones, and only the key names both; it also makes a stale rank obvious — a card whose status
+  was changed in another client carries a rank from the column it has left, and the board ignores it rather
+  than ordering the card by it. Unique on `(calendar_id, task_uid)`, because a card has one position.
 
 Status history is created in M2, before SLA exists, because it can't be reconstructed later.
 
@@ -568,6 +575,15 @@ there the status that matches the standard status they have, so a list does not 
 something re-reads it; taking the workflow away forgets them again. `auto_timer` is recorded but does
 nothing until M5, which is where the timer learns about tasks.
 
+**The board reads its columns through one contract.** A board needs to know which statuses a project has,
+in which order, with which WIP limits, and which moves are allowed — and it must not care whether the
+workflow module is installed. So `Core/Task/StatusGateway` answers all of that in one call
+(`columnsFor()` → `StatusColumns`): with a workflow those are its statuses; without, the four standard ones
+(`Core/Task/StandardStatuses`), whose keys are the standard values lowercased so that a column key is a
+column key whichever side it came from. The kanban module therefore has one code path, and nothing outside
+the workflow module knows whether a workflow exists (§5). A project with the module on but no workflow of
+its own is a board of the standard four, exactly as it was before M2.
+
 **What a status change writes.** `X-CHRONOS-STATUS` carries the key and `STATUS` the standard status, both
 decided in one place (`Core/Task/StatusGateway`, implemented by the workflow module). The Chronos tables
 are the authority: a client that strips the property loses nothing, because the index still holds the
@@ -644,6 +660,9 @@ setting); dragging between quadrants updates those fields.
   when its module is off, so a switched-off module answers like one that is not there. Listing projects is
   *not* part of the `projects` module — the task views cannot work without it — while areas, project
   settings and the parent link are.
+- **State after M3:** `kanban` is implemented and switchable. It requires nothing: without the workflow
+  module a board is the four standard statuses, which is a complete way to work. Both board routes refuse a
+  request while the module is off, like every other module's.
 - One compromise: a listener cannot be left unregistered, because registration happens before the
   container may read config, so the status-history listener is registered always and checks the toggle
   itself. A switched-off module still records nothing, which is what the rule is for.
@@ -742,6 +761,30 @@ Card order within a column is a **lexicographic rank** (`chronos_board_ranks`): 
 others gets a rank between theirs, so a move writes one row instead of renumbering the column. A background
 job rebalances ranks when they grow long.
 
+**As built in M3.** The alphabet is digits and lowercase letters, in ASCII order, and nothing else: a
+case-insensitive collation — the MySQL default — would make `A` and `a` the same rank, and a rank that is
+not unique within its column is a card whose position depends on the query plan. A rank is a fraction
+written without its leading `0.`, which is what makes the digits missing from the shorter of two ranks the
+bottom of the range rather than nothing, and `i` the middle of an empty column.
+
+Two things the original line left out, both of which turned out to matter:
+
+- **The first drop into a column ranks all of it.** There has to be something to drop *between*, and a
+  board nobody has arranged has no ranks at all, so the cards already there are given evenly spaced ranks
+  in the order the column was already showing them (due date, then name). After that a drop writes one row
+  per moved card.
+- **A drop that would write a long rank rebalances its column there and then**, in the same request, and
+  works the rank out again. Dropping card after card into the same narrowing gap adds a character each
+  time, and it takes about sixty drops to reach the limit — an afternoon on one card, not a year, so a
+  daily job is not enough on its own. The job stays as the sweeper for columns left long by an older
+  release, by a restore, or by rows written straight into the table.
+
+A card that has never been dropped has no rank and sits after the ranked ones in the list's own order, so a
+new card turns up somewhere predictable instead of in the middle of yesterday's arrangement. Ranks are
+Chronos's own view of a list and are never written to the VTODO: a task moved by a phone keeps its place,
+and arranging a board wakes nobody's phone. A card's rank is forgotten when its task is deleted, by a
+listener on `TaskDeletedEvent`.
+
 ### 15.6 Saving
 - **Optimistic:** the UI applies the change on drop and sends one request; on failure it reverts with a
   short animation and a toast.
@@ -753,6 +796,26 @@ job rebalances ranks when they grow long.
 - **Cascade** sends the moved task and all shifted dependents in one request, applied in one transaction.
 - **Undo:** the toast after each drop or bulk action offers *Undo* (and `Ctrl+Z`), which sends the inverse
   change.
+
+**As built in M3.** One drop is `POST /board/move`: the cards it dragged (each with the etag the page had
+for it), the column they landed in, and the two cards they landed between — `afterUid` and `beforeUid`,
+rather than an index, because that is what the user actually pointed at. A card somebody else has moved in
+the meantime changes what "position 3" means but not what "under this card" means.
+
+A drop is a status change like any other, so it goes through the task layer: CalDAV is written, the
+workflow refuses a move its rules do not allow, and the history records who moved it. Two consequences
+worth stating:
+
+- **Reordering within a column writes nothing to CalDAV.** The task has not changed; only the board's own
+  view of it has, so the card's etag is untouched and no history row is made.
+- **A bulk move is checked before any card is written.** Every card's transition is tested first, so a drop
+  the workflow refuses leaves the board exactly as it was rather than half moved.
+
+The response carries the moved cards as they now are — above all their new etags, without which the next
+write of the same card would be refused — the rank each one was given, so an undo knows where it came from,
+and the size of every column, so a WIP warning appears without re-reading the board. A **WIP limit is
+advisory**: the column says it is over, the server does not refuse the drop. Transition rules are the only
+thing a drop is refused for, which is the one M3 promised to enforce server-side.
 
 ### 15.7 Keyboard and accessibility
 - Focus a card or bar → **Space** picks it up, **arrow keys** move it (column/position, or one snap step),
@@ -873,6 +936,13 @@ D31 and D32 were found — a fill that skipped the tasks carrying no `STATUS`, a
 credited to another app. Run it after deploying, as `www-data`:
 `php scripts/live-check.php <user> <list-uri>`.
 
+Since M3 it also drops cards: that the board's columns are the workflow's statuses, that every task in the
+list is a card exactly once, that a drop writes the status and the card's place and changes its etag, that
+reordering a column changes the place and *not* the etag, that an undo puts the card back, and that a drop
+the transition rules forbid is refused. It keeps the card positions it found and puts them back afterwards,
+because arranging somebody's board is not a check's business. The last check is whether the `kanban` module
+is switched on for that user at all — a module ships off, and that is a reminder rather than a bug.
+
 ## 19. Risks
 
 | Risk | Likelihood | Mitigation |
@@ -990,6 +1060,17 @@ authoritative, so building ahead of it was safe — but it must be run before M2
 **Acceptance:** 60 fps with 500 cards; one request per drop; disallowed columns dimmed and rejected
 server-side; every drag also works by keyboard; undo restores status and position.
 **Depends on:** M2
+
+**Part 1 implemented** — the board behind the board: `chronos_board_ranks` and the rank algorithm
+(`Board/Rank`, §15.5), reading a board and moving cards on it (`GET /board`, `POST /board/move`), the
+columns contract every board reads its statuses through (`Core/Task/StatusGateway::columnsFor()`, so a
+project without a workflow is a board of the standard four), transition rules enforced on every drop, WIP
+limits reported as advisory, a card's place forgotten when its task is deleted, and the rebalance job. The
+`kanban` module is implemented and switchable. The live check drops cards on a real instance (§18).
+
+Still to come in M3: the **drag engine** and the **kanban view** that uses all of this — with it the
+optimistic save, the multi-select drag, the undo toast, keyboard dragging and the transition-rule UI that
+makes a dimmed column mean something (D28).
 
 ### M4 — Gantt and roadmap · v0.5.0
 - Timeline scale and snapping; DATE/DATE-TIME handling per §8.4.

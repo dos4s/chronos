@@ -26,6 +26,10 @@ class NoWorkflow implements StatusGateway {
 		return null;
 	}
 
+	public function columnsFor(string $userId, string $projectRef): StatusColumns {
+		return new StatusColumns(StandardStatuses::columns());
+	}
+
 	public function prepareWrite(
 		string $userId,
 		string $projectRef,
