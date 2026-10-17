@@ -229,6 +229,14 @@ onMounted(() => {
 	max-width: 820px;
 }
 
+/* A phone has no 28px to spare on either side (§14.2). */
+@media (max-width: 700px) {
+	.main {
+		padding: 16px 12px 32px;
+		gap: 16px;
+	}
+}
+
 .wide {
 	max-width: 1200px;
 }
