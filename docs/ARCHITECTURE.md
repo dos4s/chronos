@@ -1081,6 +1081,18 @@ one is written. That is the one way an undo is less exact than the drop it undoe
 - SLA, notifications and rollups run in background jobs.
 - The budgets in N2–N5 are checked before each milestone ships.
 
+**What M4 measured.** Its criterion was *a 2,000-task project interactive in under a second*, so the parts
+that scale with the project were measured rather than assumed. For 2,000 tasks and 1,500 dependencies:
+placing every bar takes **3.9 ms** in the browser and the conflicts over every link **1.9 ms**; a cascade
+takes **4.0 ms** there and **0.8 ms** on the server, and reading every conflict on the server **2.5 ms**.
+The grid — ticks, month bands and weekend stripes for a 400-day window — takes **4.8 ms**. So the whole of
+a 2,000-task plan's arithmetic is about **15 ms**, and the DOM is handed about forty rows however large the
+project is, because only the rows in view are drawn.
+
+What that does *not* measure is a real instance with 2,000 tasks in one list: the instance this was built
+against has 229 across seven lists, where `GET /plan` is one index query. The honest claim is that nothing
+in the drawing or the scheduling grows badly, and that the remaining variable is the round trip.
+
 ## 17. Current technical debt
 
 Found in the codebase at v0.1.1. All items are scheduled in §20. **Done** means fixed and released;
@@ -1379,6 +1391,13 @@ end of its column (D37), and the roll-up is not remembered between visits (D38).
 through Friday; dependencies created in Chronos are readable in the VTODO; 2,000-task project interactive
 < 1 s.
 **Depends on:** M2 (M3's drag engine)
+
+**Acceptance, answered.** The first two are tests on both sides of the wire (`PlanDatesTest`,
+`schedule.spec.ts`) and the second is also what the exclusive-end rule exists for. The third is a live
+check against a real calendar: it creates a dependency through the API and reads
+`RELATED-TO;RELTYPE=FINISHTOSTART;GAP=P1D` back out of the VTODO, which is the only place that question
+can be answered. The fourth is measured in §16 — about 15 ms of arithmetic for 2,000 tasks and 1,500 links,
+with forty rows drawn whatever the size — with what was *not* measured stated there too.
 
 **Part 1 implemented** — the plan behind the timeline: the arithmetic of §15.4 (`Planning/PlanDates`, with
 both acceptance criteria about dates as tests), the dependency algebra and the cascade
