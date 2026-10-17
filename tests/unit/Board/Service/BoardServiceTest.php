@@ -423,6 +423,28 @@ class BoardServiceTest extends TestCase {
 	}
 
 	/**
+	 * Dragging a subtask changes which column it is in and nothing else: it
+	 * must not quietly stop being a subtask. The write carries the parent, so
+	 * `RELATED-TO;RELTYPE=PARENT` survives a drop.
+	 */
+	public function testDraggingASubtaskKeepsItsParent(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('child', 1, 'NEEDS-ACTION', parentUid: 'parent'),
+		];
+
+		$this->taskService->expects(self::once())
+			->method('update')
+			->willReturnCallback(function (string $userId, string $uid, $write): Task {
+				self::assertSame('parent', $write->parentUid);
+
+				return $this->task($uid, 2, 'IN-PROCESS', parentUid: 'parent');
+			});
+
+		$this->board->move(self::USER, self::REF, [['uid' => 'child']], 'doing');
+	}
+
+	/**
 	 * Rolled up, the top of a branch stands for the work under it: fifty tasks
 	 * with two hundred subtasks is a readable board again (§15.9). The counts
 	 * are counted the same way, which is why the choice is made here rather
