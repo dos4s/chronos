@@ -248,6 +248,31 @@ describe('a drop', () => {
 		])
 	})
 
+	/**
+	 * While a search is on, the column on the screen is not the whole column —
+	 * so a drop between the two cards the user can see has to mean those two,
+	 * whatever is hidden between them (§14.2).
+	 */
+	it('lands between the cards that are actually visible', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue(moved('a', 1))
+
+		// `todo` holds a and b; only b is on the screen, and the card is
+		// dropped below it.
+		await store.drop(['a'], 'todo', 1, null, false, ['b'])
+
+		expect(moveCards.mock.calls[0][0]).toMatchObject({ afterUid: 'b', beforeUid: null })
+	})
+
+	it('falls back to the whole column when nothing is hidden', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue(moved('c', 1))
+
+		await store.drop(['c'], 'todo', 1, null, false, null)
+
+		expect(moveCards.mock.calls[0][0]).toMatchObject({ afterUid: 'a', beforeUid: 'b' })
+	})
+
 	it('carries the note a transition asked for', async () => {
 		const store = await loaded()
 		moveCards.mockResolvedValue(moved('a', 2))
