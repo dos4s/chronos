@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The running timer follows you.** While a session is running it sits at the top of the navigation — the
+  time, the project, and buttons to pause or check out — and in the browser tab's title, which is where a
+  timer left running overnight is actually noticed. Before this it was only on the Timer view.
 - **Hide what is finished, and find what is not.** The task list and the timeline now show the unfinished
   work by default — two thirds of a real list is usually done — with a *Show completed* tick to see the
   rest, and all three task views have a search box. Searching keeps the parents of what it finds, faded, so

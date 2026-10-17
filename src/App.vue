@@ -8,6 +8,7 @@ import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCap
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcAppNavigationList from '@nextcloud/vue/components/NcAppNavigationList'
 import NcContent from '@nextcloud/vue/components/NcContent'
+import RunningTimer from './components/RunningTimer.vue'
 import { useModulesStore } from './stores/modules.ts'
 import { useProjectsStore } from './stores/projects.ts'
 import { useTimeStore } from './stores/time.ts'
@@ -39,6 +40,9 @@ onMounted(() => {
 	<NcContent appName="chronos">
 		<NcAppNavigation>
 			<template #list>
+				<!-- The running session, wherever you are (§14.2). -->
+				<RunningTimer />
+
 				<NcAppNavigationList>
 					<NcAppNavigationItem
 						id="view-timer"

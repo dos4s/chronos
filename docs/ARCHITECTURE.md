@@ -775,6 +775,14 @@ src/
 - Views are lazy-loaded (`() => import('./views/Gantt.vue')`); logic lives in composables and stores.
 - All strings via `t('chronos', …)`.
 
+**The running session is visible from everywhere.** It used to be on the Timer view and nowhere else, so a
+session you had forgotten was discoverable only by navigating to it — in a *time tracker*, where it is the
+one piece of state that should never leave the screen. It now sits at the top of the navigation while it
+runs, with the time, the project and the two buttons that end it, and in the **browser tab's title**, which
+is where a timer left running overnight is actually noticed. A paused session says so and stops counting;
+nothing at all is drawn when nothing is running, because an empty panel answers less than the Timer view
+one click away.
+
 **Finding a task, and hiding what is finished.** Two thirds of a real list is usually done — 54 of the 83
 tasks in the list this was written against, 50 of 77 in the next — and every one of them was being drawn,
 struck through, for ever, while the header counted "29 open" and offered no way to see only those. So the
