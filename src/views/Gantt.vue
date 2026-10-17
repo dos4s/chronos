@@ -6,7 +6,7 @@ import type { LabelledProject } from '../utils/projects.ts'
 import type { Zoom } from '../utils/scale.ts'
 
 import { n, t } from '@nextcloud/l10n'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -284,12 +284,17 @@ watch(options, (available) => {
 })
 
 watch(() => plan.plan, async (loaded) => {
-	if (loaded !== null) {
-		// Wait for the chart to exist before scrolling it.
-		await Promise.resolve()
-		onScroll()
-		scrollToToday()
+	if (loaded === null) {
+		return
 	}
+
+	// `nextTick`, not a microtask: the chart is behind a `v-else-if` on the
+	// rows, so it does not exist until Vue has rendered the plan that just
+	// arrived — and scrolling an element that is not there does nothing at
+	// all, quietly.
+	await nextTick()
+	onScroll()
+	scrollToToday()
 })
 
 onMounted(async () => {

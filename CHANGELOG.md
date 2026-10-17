@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-17
+
+### Fixed
+
+- **The timeline, the roadmap and the session editor now open where they should.** Each of them scrolls to
+  today, or to the working day, as soon as it has something to draw — and each was doing that one tick too
+  early, before the chart element existed, so the scroll went nowhere and they opened at midnight on the
+  first day of their window.
+
+### Changed
+
+- `scripts/live-check.php` clears the index row of every task it made, including the subproject container
+  that promoting it deletes on the way. Deleting a task through the app leaves its index row behind as
+  deleted-but-recorded, which is correct for a real task and litter for a throwaway one: each run was
+  leaving one row per list behind.
+
 ## [0.5.1] - 2026-10-17
 
 Found by deploying 0.5.0 and running the live check against the real instance — within a minute of it

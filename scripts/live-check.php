@@ -102,6 +102,12 @@ $workflow = null;
 $taskUid = null;
 $childUid = null;
 $containerUid = null;
+/**
+ * The container's UID is kept separately as well, because `$containerUid` is
+ * cleared once the promotion has deleted it — and the index row it leaves
+ * behind still has to be cleaned up.
+ */
+$everythingMade = [];
 $promotedUid = null;
 $promotedCalendarId = null;
 $promotedRef = null;
@@ -165,6 +171,7 @@ try {
 		null,
 	));
 	$taskUid = $created->getUid();
+	$everythingMade[] = $taskUid;
 	$initial = $workflow->statusById($created->getStatusId());
 	check('a new task starts in the initial status', $initial?->getStatusKey() === 'todo', (string)$initial?->getStatusKey());
 
@@ -381,6 +388,7 @@ try {
 		null,
 	));
 	$childUid = $child->getUid();
+	$everythingMade[] = $childUid;
 
 	$withChild = $board->board($user, $ref);
 	$childFacts = $withChild->tree->factsFor($childUid);
@@ -723,6 +731,7 @@ try {
 		null,
 	));
 	$containerUid = $container->getUid();
+	$everythingMade[] = $containerUid;
 	$inside = $tasks->create($user, $ref, TaskWrite::fromParams(
 		'Chronos live check — inside the container',
 		null,
@@ -738,6 +747,7 @@ try {
 		null,
 	));
 	$promotedUid = $inside->getUid();
+	$everythingMade[] = $promotedUid;
 
 	$promoted = $promoteService->promote($user, $ref, $containerUid, 'Chronos live check — promoted');
 	$promotedRef = $promoted->project->ref();
@@ -816,10 +826,11 @@ try {
 		}
 	}
 
-	// The index rows of every task this check made, including the promoted one
-	// deleted above and the soft-deleted row it left in the list it came from.
+	// The index rows of every task this check made — including the ones it
+	// deleted through the app, which leaves the row behind as soft-deleted, and
+	// the container the promotion removed on its way.
 	$db = Server::get(\OCP\IDBConnection::class);
-	foreach (array_filter([$childUid, $taskUid, $containerUid, $promotedUid]) as $throwaway) {
+	foreach (array_unique(array_filter($everythingMade)) as $throwaway) {
 		$delete = $db->getQueryBuilder();
 		$delete->delete('chronos_status_history')
 			->where($delete->expr()->eq('task_uid', $delete->createNamedParameter($throwaway)));

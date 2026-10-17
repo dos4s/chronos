@@ -5,7 +5,7 @@ import type { PlanBar, Session, SessionUpdatePayload } from '../types/index.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BreakMenu from '../components/BreakMenu.vue'
 import SessionEditorModal from '../components/SessionEditorModal.vue'
 import { addDays, asSeconds, startOfDay } from '../api/time.ts'
@@ -314,13 +314,26 @@ async function save(payload: SessionUpdatePayload): Promise<void> {
 	}
 }
 
-onMounted(() => {
-	window.addEventListener('resize', onScroll)
-	// Open on the working day rather than on midnight.
+/**
+ * Opens on the working day rather than on midnight — once there is something
+ * to open: the sessions are loaded by the app, so the chart does not exist
+ * when this view is mounted.
+ */
+watch(days, async (loaded, before) => {
+	if (loaded.length === 0 || (before ?? []).length > 0) {
+		return
+	}
+
+	await nextTick()
+	onScroll()
 	const element = chart.value
 	if (element !== null) {
 		element.scrollLeft = 7 * scale.value.pxPerDay / 24
 	}
+}, { immediate: true })
+
+onMounted(() => {
+	window.addEventListener('resize', onScroll)
 })
 
 onBeforeUnmount(() => {
