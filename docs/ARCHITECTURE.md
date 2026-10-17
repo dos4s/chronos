@@ -199,6 +199,17 @@ Area (optional)      → Chronos only           Work, Personal, Homelab…
   which stays meaningful on the phone. Its UID lets time and progress roll up through it.
 - **Promote to list:** moves a large subproject's tasks into a new list; the parent link is kept in
   `chronos_projects.parent_project_id`.
+
+  **As built in M4.** `POST /projects/promote` creates a task list — a calendar whose component set says
+  VTODO, which is what makes it a list rather than a calendar (D12) — moves the whole branch into it, takes
+  the parent link off the tasks that were directly inside the container, since the container has become the
+  list they are in, deletes the container, and records the old project as the new one's parent. The tasks
+  keep their UIDs, so their history, their dependencies and the time logged against them follow them.
+  **There is no transaction**, because CalDAV is one object at a time, so three things make that safe
+  rather than frightening: every task is read and checked before anything is written; the answer says how
+  many moved and how many are left, and running it again moves the rest; and a promotion that moves nothing
+  takes its new list away again rather than leaving an empty one behind. The dialog says what is about to
+  happen, in those words, before it happens.
 - **Milestone** = VTODO with `X-CHRONOS-TYPE:MILESTONE` and `DUE` only (zero duration).
 - A subproject completed in another client is accepted if all children are done; otherwise Chronos reopens
   it and shows a notice.
@@ -1379,6 +1390,12 @@ too: a plan has a row per task, a drag writes both dates and writes an all-day o
 due, a dependency created in Chronos is **readable in the VTODO** — M4's acceptance criterion — a loop is
 refused, warn mode moves one task and reports the conflict, cascade mode moves the dependent onto a working
 day, and the roadmap has a line for the project (§18).
+
+**Part 4 implemented** — promote to list (F2): a subproject becomes a list of its own, with its tasks,
+their history, their dependencies and their logged time, and the new list remembers which project it came
+out of (§6). The live check does it against a real calendar and takes the list away again afterwards,
+because it is the riskiest operation in the app and the only one that writes a calendar rather than an
+object in one.
 
 ### M5 — Time per task · v0.6.0
 - `task_uid` on sessions; start the timer from a task in any view.

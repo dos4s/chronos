@@ -47,6 +47,7 @@ use OCA\Chronos\Planning\PlanSettings;
 use OCA\Chronos\Planning\Service\PlanService;
 use OCA\Chronos\Planning\Service\RoadmapService;
 use OCA\Chronos\Projects\Service\ProjectService;
+use OCA\Chronos\Projects\Service\PromoteService;
 use OCA\Chronos\Workflow\Db\StatusChange;
 use OCA\Chronos\Workflow\Db\StatusChangeMapper;
 use OCA\Chronos\Workflow\Service\WorkflowService;
@@ -77,6 +78,7 @@ $rankMapper = Server::get(BoardRankMapper::class);
 $planService = Server::get(PlanService::class);
 $roadmapService = Server::get(RoadmapService::class);
 $calendars = Server::get(\OCA\Chronos\Core\Dav\CalDavGateway::class);
+$promoteService = Server::get(PromoteService::class);
 $toggles = Server::get(FeatureToggles::class);
 
 $project = null;
@@ -99,6 +101,10 @@ echo 'list: ' . $project->calendar->name() . ' (' . $ref . ')' . PHP_EOL;
 $workflow = null;
 $taskUid = null;
 $childUid = null;
+$containerUid = null;
+$promotedUid = null;
+$promotedCalendarId = null;
+$promotedRef = null;
 
 // The drops below give the cards in the columns they touch a place, which is
 // the first drop's job (§15.5) but would rearrange a board somebody has
@@ -695,7 +701,74 @@ try {
 		$mine === null ? '(no line)' : $mine->tasks . ' tasks, ' . ($mine->span === null ? 'no span' : date('Y-m-d', $mine->span->startAt)),
 	);
 
-	// 16. Whether the board is switched on at all. A module ships off, so this
+	// 16. Promoting a subproject to a list of its own (F2, §6). The riskiest
+	// operation in the app — one copy and one delete per task, with no
+	// transaction — so it is the one most worth doing against a real calendar.
+	$container = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — container',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		'subproject',
+		null,
+		null,
+	));
+	$containerUid = $container->getUid();
+	$inside = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — inside the container',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		$containerUid,
+		null,
+		null,
+		null,
+	));
+	$promotedUid = $inside->getUid();
+
+	$promoted = $promoteService->promote($user, $ref, $containerUid, 'Chronos live check — promoted');
+	$promotedRef = $promoted->project->ref();
+	$promotedCalendarId = $promoted->project->calendar->id;
+
+	check('promoting a subproject moves everything in it', $promoted->moved === 1 && $promoted->left === 0, $promoted->moved . ' moved, ' . $promoted->left . ' left');
+	check(
+		'the new list is a task list, not a calendar',
+		$promoted->project->calendar->supportsVTodo,
+		'supported-calendar-component-set: VTODO',
+	);
+	check('the new list remembers where it came from', $promoted->project->jsonSerialize()['parentUri'] === $ref, (string)$promoted->project->jsonSerialize()['parentUri']);
+
+	$inNewList = $taskMapper->findForCalendars([$promotedCalendarId]);
+	$movedTask = null;
+	foreach ($inNewList as $candidate) {
+		if ($candidate->getUid() === $promotedUid) {
+			$movedTask = $candidate;
+		}
+	}
+	check('the task is indexed in the new list, under the same UID', $movedTask !== null, $promotedUid);
+	check(
+		'and it is no longer a subtask of the container it came out of',
+		$movedTask !== null && $movedTask->getParentUid() === null,
+		(string)($movedTask?->getParentUid() ?? '(none)'),
+	);
+
+	$oldList = array_map(
+		static fn (Task $task): string => $task->getUid(),
+		$taskMapper->findForCalendars([$calendarId]),
+	);
+	check('the old list has neither the task nor the container any more', !in_array($promotedUid, $oldList, true) && !in_array($containerUid, $oldList, true), count($oldList) . ' tasks left in it');
+	$containerUid = null;
+
+	// 17. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
 	check(
 		'the kanban module is switched on for this user',
@@ -703,16 +776,46 @@ try {
 		'occ config:app:set chronos module_kanban --value 1 --type boolean',
 	);
 } finally {
+	// The promoted list, and everything in it: created by this check, so it
+	// goes for good rather than into the calendar trash.
+	if ($promotedUid !== null) {
+		try {
+			$tasks->delete($user, $promotedUid);
+		} catch (\Throwable $e) {
+			echo '  COULD NOT DELETE THE PROMOTED TASK: ' . $e->getMessage() . PHP_EOL;
+		}
+	}
+	if ($promotedRef !== null) {
+		try {
+			$projects->configure($user, $promotedRef, null, null, false, 0);
+		} catch (\Throwable $e) {
+			echo '  COULD NOT CLEAR THE PROMOTED PROJECT ROW: ' . $e->getMessage() . PHP_EOL;
+		}
+	}
+	if ($promotedCalendarId !== null) {
+		try {
+			$calendars->deleteCalendar($promotedCalendarId, true);
+			echo '  deleted the promoted list' . PHP_EOL;
+		} catch (\Throwable $e) {
+			echo '  COULD NOT DELETE THE PROMOTED LIST: ' . $e->getMessage() . PHP_EOL;
+		}
+	}
+
 	// Undo everything, in reverse. The subtask goes first: a parent with a
-	// child left behind is exactly the mess this release is about.
-	foreach (array_filter([$childUid, $taskUid]) as $throwaway) {
+	// child left behind is exactly the mess 0.4.2 was about.
+	foreach (array_filter([$childUid, $taskUid, $containerUid]) as $throwaway) {
 		try {
 			$tasks->delete($user, $throwaway);
 			echo '  cleaned up the throwaway task ' . $throwaway . PHP_EOL;
 		} catch (\Throwable $e) {
 			echo '  COULD NOT DELETE THE TASK: ' . $e->getMessage() . PHP_EOL;
 		}
-		$db = Server::get(\OCP\IDBConnection::class);
+	}
+
+	// The index rows of every task this check made, including the promoted one
+	// deleted above and the soft-deleted row it left in the list it came from.
+	$db = Server::get(\OCP\IDBConnection::class);
+	foreach (array_filter([$childUid, $taskUid, $containerUid, $promotedUid]) as $throwaway) {
 		$delete = $db->getQueryBuilder();
 		$delete->delete('chronos_status_history')
 			->where($delete->expr()->eq('task_uid', $delete->createNamedParameter($throwaway)));

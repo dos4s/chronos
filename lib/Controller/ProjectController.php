@@ -9,6 +9,7 @@ use OCA\Chronos\Core\Settings\FeatureToggles;
 use OCA\Chronos\Core\Support\CurrentUser;
 use OCA\Chronos\Projects\ProjectView;
 use OCA\Chronos\Projects\Service\ProjectService;
+use OCA\Chronos\Projects\Service\PromoteService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -29,6 +30,7 @@ class ProjectController extends Controller {
 	public function __construct(
 		IRequest $request,
 		private ProjectService $projects,
+		private PromoteService $promote,
 		private FeatureToggles $toggles,
 		private CurrentUser $currentUser,
 	) {
@@ -67,6 +69,24 @@ class ProjectController extends Controller {
 				$archived,
 				$sort,
 			)->jsonSerialize(),
+		);
+	}
+
+	/**
+	 * Promotes a subproject to a list of its own (F2, §6).
+	 *
+	 * One copy and one delete per task, and CalDAV has no transaction to wrap
+	 * them in, so the answer says how many moved — and running it again moves
+	 * whatever is left.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/projects/promote')]
+	public function promote(string $project, string $uid, ?string $name = null): JSONResponse {
+		$userId = $this->currentUser->getUid();
+		$this->toggles->requireEnabled(FeatureToggles::MODULE_PROJECTS, $userId);
+
+		return new JSONResponse(
+			$this->promote->promote($userId, $project, trim($uid), $name)->jsonSerialize(),
 		);
 	}
 }

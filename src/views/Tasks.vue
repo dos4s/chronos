@@ -11,6 +11,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import ProjectSettingsDialog from '../components/ProjectSettingsDialog.vue'
+import PromoteDialog from '../components/PromoteDialog.vue'
 import TaskComposer from '../components/TaskComposer.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import TaskRow from '../components/TaskRow.vue'
@@ -27,6 +28,8 @@ const workflows = useWorkflowsStore()
 const project = ref<LabelledProject | null>(null)
 const editing = ref<Task | null>(null)
 const subtaskParent = ref<TaskNode | null>(null)
+/** The subproject being turned into a list of its own (F2, §6). */
+const promoting = ref<TaskNode | null>(null)
 const showArchived = ref(false)
 const configuring = ref(false)
 
@@ -70,6 +73,16 @@ onMounted(async () => {
  */
 async function settingsClosed(): Promise<void> {
 	configuring.value = false
+	await tasks.refresh()
+}
+
+/**
+ * A promoted subproject has left this list, and there is a new project in the
+ * picker — so both the projects and the tasks are read again (F2).
+ */
+async function onPromoted(): Promise<void> {
+	promoting.value = null
+	await projects.refresh()
 	await tasks.refresh()
 }
 
@@ -137,7 +150,8 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				:depth="0"
 				:readOnly="readOnly"
 				@edit="editing = $event.task"
-				@addSubtask="subtaskParent = $event" />
+				@addSubtask="subtaskParent = $event"
+				@promote="promoting = $event" />
 		</ul>
 
 		<NcEmptyContent
@@ -167,6 +181,13 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 			:task="editing"
 			@close="editing = null"
 			@save="saveDetails" />
+
+		<PromoteDialog
+			v-if="promoting && project"
+			:node="promoting"
+			:project="project.uri"
+			@close="promoting = null"
+			@promoted="onPromoted" />
 
 		<ProjectSettingsDialog
 			v-if="configuring && project"

@@ -7,15 +7,21 @@ import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
 import { useNow } from '../composables/useNow.ts'
+import { useModulesStore } from '../stores/modules.ts'
 import { useTasksStore } from '../stores/tasks.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isCompleted, isDueToday, isOverdue } from '../utils/tasks.ts'
 
 const props = defineProps<{ node: TaskNode, depth: number, readOnly: boolean }>()
-const emit = defineEmits<{ edit: [node: TaskNode], addSubtask: [node: TaskNode] }>()
+const emit = defineEmits<{
+	edit: [node: TaskNode]
+	addSubtask: [node: TaskNode]
+	promote: [node: TaskNode]
+}>()
 
 const tasks = useTasksStore()
+const modules = useModulesStore()
 const workflows = useWorkflowsStore()
 const { workflowId } = useCurrentWorkflow()
 const { now } = useNow()
@@ -125,6 +131,15 @@ async function commit() {
 				<NcActionButton @click="emit('addSubtask', node)">
 					{{ t('chronos', 'Add subtask') }}
 				</NcActionButton>
+				<!--
+					A subproject is the right shape until it holds forty tasks,
+					and then it wants to be a list of its own (F2, §6).
+				-->
+				<NcActionButton
+					v-if="task.type === 'subproject' && modules.projects"
+					@click="emit('promote', node)">
+					{{ t('chronos', 'Promote to a list') }}
+				</NcActionButton>
 				<NcActionButton @click="tasks.remove(task)">
 					{{ t('chronos', 'Delete') }}
 				</NcActionButton>
@@ -139,7 +154,8 @@ async function commit() {
 				:depth="depth + 1"
 				:readOnly="readOnly"
 				@edit="emit('edit', $event)"
-				@addSubtask="emit('addSubtask', $event)" />
+				@addSubtask="emit('addSubtask', $event)"
+				@promote="emit('promote', $event)" />
 		</ul>
 	</li>
 </template>
