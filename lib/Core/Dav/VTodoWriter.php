@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Chronos\Core\Dav;
 
+use DateTimeZone;
 use OCA\Chronos\Core\Support\TaskDates;
 use OCA\Chronos\Core\Task\TaskWrite;
 use Sabre\VObject\Component\VCalendar;
@@ -46,7 +47,9 @@ class VTodoWriter {
 		$todo->add('DTSTAMP', TaskDates::toDateTimeValue($now));
 		$todo->add('SEQUENCE', 0);
 
-		$this->applyTo($todo, $write, $now);
+		// A new task has no date to preserve the form of, so the zone a
+		// floating one would be written in never comes up.
+		$this->applyTo($todo, $write, $now, new DateTimeZone('UTC'));
 
 		return $document->serialize();
 	}
@@ -54,9 +57,18 @@ class VTodoWriter {
 	/**
 	 * The same task with Chronos's fields changed.
 	 *
+	 * @param DateTimeZone $floating the zone a floating date-time in this task
+	 *                               means — the user's own, as the parser read
+	 *                               it, so a floating time stays the same wall
+	 *                               clock after a write (§8.4)
 	 * @return string|null null when the data cannot be read as a task
 	 */
-	public function apply(string $calendarData, TaskWrite $write, int $now): ?string {
+	public function apply(
+		string $calendarData,
+		TaskWrite $write,
+		int $now,
+		DateTimeZone $floating,
+	): ?string {
 		try {
 			$document = Reader::read($calendarData, Reader::OPTION_FORGIVING);
 		} catch (Throwable) {
@@ -79,13 +91,17 @@ class VTodoWriter {
 			return null;
 		}
 
-		$this->applyTo($todo, $write, $now);
+		$this->applyTo($todo, $write, $now, $floating);
 		$this->bumpSequence($todo);
 
 		return $document->serialize();
 	}
 
-	private function applyTo(VTodo $todo, TaskWrite $write, int $now): void {
+	/**
+	 * @param DateTimeZone $floating the zone a floating date-time means, which
+	 *                               is the user's own, as the parser read it
+	 */
+	private function applyTo(VTodo $todo, TaskWrite $write, int $now, DateTimeZone $floating): void {
 		$todo->SUMMARY = $write->summary;
 		$todo->STATUS = $write->status ?? 'NEEDS-ACTION';
 		$todo->{'LAST-MODIFIED'} = TaskDates::toDateTimeValue($now);
@@ -94,8 +110,8 @@ class VTodoWriter {
 		$this->setOrRemove($todo, 'PRIORITY', $write->priority === 0 ? null : (string)$write->priority);
 		$this->setOrRemove($todo, 'PERCENT-COMPLETE', $write->percent === null ? null : (string)$write->percent);
 
-		$this->setDate($todo, 'DTSTART', $write->startAt, $write->startIsDate);
-		$this->setDate($todo, 'DUE', $write->dueAt, $write->dueIsDate);
+		$this->setDate($todo, 'DTSTART', $write->startAt, $write->startIsDate, $floating);
+		$this->setDate($todo, 'DUE', $write->dueAt, $write->dueIsDate, $floating);
 
 		// COMPLETED belongs to a completed task and to no other.
 		if ($write->status === 'COMPLETED') {
@@ -105,6 +121,7 @@ class VTodoWriter {
 		}
 
 		$this->setParent($todo, $write->parentUid);
+		$this->setLinks($todo, $write->links);
 		$this->setOrRemove($todo, self::X_TYPE, $write->type === 'task' ? null : strtoupper($write->type));
 		// The workflow status, for the clients that keep it; the Chronos tables
 		// remain the authority either way (§7).
@@ -114,8 +131,24 @@ class VTodoWriter {
 	/**
 	 * Writes a date, keeping the kind of date the caller asked for: an all-day
 	 * date stays all-day, a timed one stays timed (§8.4).
+	 *
+	 * A timed date also keeps the **zone it was written in**. Chronos used to
+	 * rewrite every timed date as UTC, which §7 and §8.4 both say it does not:
+	 * the instant survived, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z`,
+	 * and a *floating* time — one that means six o'clock wherever the reader
+	 * is — came back pinned to an instant, which is a different thing to say
+	 * (D39). So the property that is there is read before it is replaced: a
+	 * `TZID` is written again as that `TZID`, a floating time stays floating,
+	 * and anything else is UTC as before.
 	 */
-	private function setDate(VTodo $todo, string $name, ?int $at, bool $isDate): void {
+	private function setDate(
+		VTodo $todo,
+		string $name,
+		?int $at,
+		bool $isDate,
+		DateTimeZone $floating,
+	): void {
+		$form = $this->dateForm($todo, $name, $floating);
 		$todo->remove($name);
 		if ($at === null) {
 			return;
@@ -129,7 +162,92 @@ class VTodoWriter {
 			return;
 		}
 
-		$todo->add($name, TaskDates::toDateTimeValue($at));
+		if ($form === null) {
+			$todo->add($name, TaskDates::toDateTimeValue($at));
+			return;
+		}
+
+		[$tzid, $zone] = $form;
+		$property = $todo->add($name, TaskDates::toDateTimeValueIn($at, $zone));
+		if ($tzid !== null && $property instanceof Property) {
+			$property['TZID'] = $tzid;
+		}
+	}
+
+	/**
+	 * How this date is written today: its `TZID` and the zone that means, or
+	 * the viewer's zone for a floating time, or null for UTC and for a date
+	 * that is not there at all.
+	 *
+	 * @return array{0: string|null, 1: DateTimeZone}|null
+	 */
+	private function dateForm(VTodo $todo, string $name, DateTimeZone $floating): ?array {
+		$property = $todo->{$name};
+		if (!$property instanceof Property) {
+			return null;
+		}
+
+		/** @var mixed $raw */
+		$raw = $property->getValue();
+		$value = is_scalar($raw) ? (string)$raw : '';
+		if ($value === '' || str_ends_with($value, 'Z')) {
+			return null;
+		}
+
+		if ($property->offsetExists('TZID')) {
+			$tzid = $this->valueOf($property['TZID']);
+			try {
+				return $tzid === '' ? null : [$tzid, new DateTimeZone($tzid)];
+			} catch (Throwable) {
+				// A zone nobody has heard of is not one to write back.
+				return null;
+			}
+		}
+
+		// No TZID and no Z: a floating time, which stays floating. It is
+		// written in the zone it was read in (§8.4), so the wall-clock time
+		// the user set is the wall-clock time that comes back.
+		return [null, $floating];
+	}
+
+	/**
+	 * Replaces the dependencies, leaving the parent link and anything that is
+	 * not a `RELATED-TO` alone (§12.5).
+	 *
+	 * Null means "not a link edit", which is every write but one, and then
+	 * nothing here happens at all.
+	 *
+	 * @param list<ParsedLink>|null $links
+	 */
+	private function setLinks(VTodo $todo, ?array $links): void {
+		if ($links === null) {
+			return;
+		}
+
+		foreach ($this->relatedTo($todo) as $property) {
+			if ($this->reltypeOf($property) !== ParsedLink::RELTYPE_PARENT) {
+				$todo->remove($property);
+			}
+		}
+
+		foreach ($links as $link) {
+			// A temporal link is written on the predecessor and points at the
+			// successor; `DEPENDS-ON` is written on the dependent task and
+			// points at what it waits for (§7, RFC 9253).
+			$target = $link->reltype === ParsedLink::RELTYPE_DEPENDS_ON
+				? $link->predecessorUid
+				: $link->successorUid;
+
+			$property = $todo->add('RELATED-TO', $target);
+			if (!$property instanceof Property) {
+				continue;
+			}
+
+			$property['RELTYPE'] = $link->reltype;
+			if ($link->gapSeconds !== 0) {
+				$property['GAP'] = IcalDuration::format($link->gapSeconds);
+			}
+		}
 	}
 
 	/**
@@ -137,22 +255,8 @@ class VTodoWriter {
 	 * Gantt dependencies — exactly as it found them.
 	 */
 	private function setParent(VTodo $todo, ?string $parentUid): void {
-		// Collected first: removing a property while iterating the same list
-		// would skip the next one.
-		$existing = [];
-		foreach ($todo->select('RELATED-TO') as $property) {
-			if ($property instanceof Property) {
-				$existing[] = $property;
-			}
-		}
-
-		foreach ($existing as $property) {
-			$parameter = $property->offsetExists('RELTYPE') ? $property['RELTYPE'] : null;
-			$reltype = $parameter === null
-				? ParsedLink::RELTYPE_PARENT
-				: strtoupper($this->valueOf($parameter));
-
-			if ($reltype === ParsedLink::RELTYPE_PARENT) {
+		foreach ($this->relatedTo($todo) as $property) {
+			if ($this->reltypeOf($property) === ParsedLink::RELTYPE_PARENT) {
 				$todo->remove($property);
 			}
 		}
@@ -165,6 +269,34 @@ class VTodoWriter {
 		if ($property instanceof Property) {
 			$property['RELTYPE'] = ParsedLink::RELTYPE_PARENT;
 		}
+	}
+
+	/**
+	 * Every `RELATED-TO` on the task, collected first: removing a property
+	 * while iterating the same list would skip the next one.
+	 *
+	 * @return list<Property>
+	 */
+	private function relatedTo(VTodo $todo): array {
+		$properties = [];
+		foreach ($todo->select('RELATED-TO') as $property) {
+			if ($property instanceof Property) {
+				$properties[] = $property;
+			}
+		}
+
+		return $properties;
+	}
+
+	/**
+	 * A relationship's type. No `RELTYPE` means `PARENT` (RFC 5545 §3.2.15).
+	 */
+	private function reltypeOf(Property $property): string {
+		if (!$property->offsetExists('RELTYPE')) {
+			return ParsedLink::RELTYPE_PARENT;
+		}
+
+		return strtoupper($this->valueOf($property['RELTYPE']));
 	}
 
 	/**

@@ -191,6 +191,30 @@ class ProjectService {
 	}
 
 	/**
+	 * The module settings JSON on a project's row, which is every module's at
+	 * once: each one keeps its own key in it (§10.2).
+	 */
+	public function settings(string $userId, string $ref): ?string {
+		return $this->projects->findByUri($userId, $ref)?->getSettings();
+	}
+
+	/**
+	 * Replaces that JSON, creating the row if the project had none and
+	 * removing it again if this leaves nothing to say.
+	 *
+	 * @throws NotFoundException
+	 */
+	public function writeSettings(string $userId, string $ref, ?string $json): void {
+		$this->requireCalendar($userId, $ref);
+
+		$existing = $this->projects->findByUri($userId, $ref);
+		$project = $existing ?? $this->newRow($userId, $ref);
+		$project->setSettings($json);
+
+		$this->save($userId, $project, $existing?->getId());
+	}
+
+	/**
 	 * Writes the row, or deletes it when it has nothing left to say.
 	 *
 	 * A row that is still somebody's parent stays: deleting it would leave a

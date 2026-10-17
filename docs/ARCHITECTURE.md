@@ -87,6 +87,7 @@ and the web UI); billing/invoicing.
 | AD12 | Route-bearing controllers stay directly in `lib/Controller/` | One controller per module directory | Nextcloud discovers attribute routes with a non-recursive `DirectoryIterator` over `lib/Controller`, reflecting `OCA\Chronos\Controller\<File>`. Only the controllers live there; each module keeps its services, mappers and requests (§9) |
 | AD13 | One active session per user enforced by a unique index | Transaction and re-check only | A re-check inside a transaction still races under MySQL's default isolation. `chronos_entries.active_user_id` holds the uid while a session runs and NULL afterwards; a unique index over it allows many NULLs on every database in N1, so a second check-in fails at the database (D5) |
 | AD14 | Hash routing in the frontend | Path routing with a catch-all backend route | Every view stays inside the app's single server route, so no backend route is needed per view |
+| AD16 | **The scheduling algorithm is written twice**, once in PHP and once in TypeScript, from one specification and one set of test cases | Compute only on the server and show the answer after the round trip; compute only in the browser and trust what it sends | §15.3 asks for the dependents' **ghost bars before the drop**, and §15.6 for the server to be the authority on what is written. One copy cannot do both: a preview that is not the same function as the write is a guess that will eventually be wrong. So `Planning/Schedule` and `src/utils/schedule.ts` are the same algorithm with the same tests, and the test files say so to each other (§15.4) |
 | AD15 | **A subtask is a card of its own**; rolling subtasks up into their parent is a view, not the model | Parent-only board with a progress bar (Jira); subtasks as checklist items (Deck, Trello) | A subtask has a `STATUS` of its own and a column *is* a status (AD7), so hiding it would make the board disagree with every other CalDAV client about where that work is. What it needs instead is to say whose it is. The roll-up is answered by the server, because the server also counts the columns and a count has to describe what is on the screen (§15.9) |
 
 ## 4. Requirements
@@ -632,6 +633,37 @@ That is also what lets the Chronos checkbox keep working under a workflow.
 - Later: critical path, baselines.
 - Interaction details in §15.
 
+**As built in M4.** A plan is one project read in one request (`GET /plan`): the task tree flattened into
+rows with their depths, the bar each row draws, the dependencies between them, what the dates already
+break, and the project's own reschedule settings. Six decisions the original three lines did not make, each
+of which the real data or the real algorithm forced:
+
+- **A task with one date still gets a bar.** On the instance this was built against, 26 of 229 tasks had a
+  due date and 11 had a start — a timeline that drew only tasks with both would have been an empty screen.
+  So one date makes a one-day bar, marked `inferred`, drawn as a suggestion; **nothing is written until the
+  user drags it**, and then both ends are.
+- **A row with children and no dates of its own is a summary**, spanning its whole branch rather than its
+  direct children, and **cannot be dragged**: it is derived, so there is nothing to write. A row that has
+  dates of its own always draws its own bar, children or not. Unlike the board, a **subproject is a row**
+  here — a container with a span is exactly what a summary bar is for (§6).
+- **A bar's end is exclusive.** `DUE` on an all-day task is the last day of the bar, so the bar ends at the
+  start of the next day; keeping it that way makes every comparison in the scheduler a plain `>=` and
+  leaves exactly one place — where a write is prepared — that turns it back into an inclusive date (§8.4).
+- **A cascade only ever pushes work later.** It never pulls a dependent forward into the space a
+  predecessor left behind: dates somebody set are not the scheduler's to tighten.
+- **`warn` is the default.** A cascade rewrites tasks the user did not touch, and a tool should not start
+  doing that before it is asked to. The mode and the project's working days live in
+  `chronos_projects.settings` under a `plan` key, so the next module to want a setting does not have to
+  care about this one.
+- **Working days are the project's weekdays** until business calendars arrive with the SLA module (§10.6).
+  A cascade lands a task's *start* on a working day; it does not stretch a bar over a weekend, which would
+  mean holding durations in working days rather than in time.
+
+Dependencies are RFC 9253 `RELATED-TO` and are written on the task that declares them — the predecessor for
+a temporal link, the dependent task for `DEPENDS-ON` — so `POST /plan/link` writes one task and
+`chronos_task_links` re-indexes from it. A link that would close a loop is **refused**, because no dates can
+satisfy one; a loop another client wrote is reported as a conflict and never followed.
+
 ### 12.6 Roadmap (cross-project)
 One row per project/subproject grouped by area; milestones and spans over months/quarters; click → Gantt.
 
@@ -668,6 +700,9 @@ setting); dragging between quadrants updates those fields.
 - **State after M3:** `kanban` is implemented and switchable. It requires nothing: without the workflow
   module a board is the four standard statuses, which is a complete way to work. Both board routes refuse a
   request while the module is off, like every other module's.
+- **State after M4:** `gantt` is implemented and switchable, and requires nothing: a timeline is the dates
+  on the tasks, which every list has. `roadmap` and `sprints` require it, as they always did, and stay
+  unimplemented until theirs lands.
 - One compromise: a listener cannot be left unregistered, because registration happens before the
   container may read config, so the status-history listener is registered always and checks the toggle
   itself. A switched-off module still records nothing, which is what the rule is for.
@@ -779,6 +814,35 @@ the pointer and *and n more* beneath it.
 - **Working days:** cascade and duration display can skip non-working days from the business calendar.
 - **Resize** never goes below a minimum duration; the start can't be dragged past the end.
 - Session editor: pauses can't be dragged outside the session or over another pause.
+
+**As built in M4 (the arithmetic).** Three rules decide every date on a timeline, and each one is a bug
+waiting to happen if it is written out twice — so they are written once, in `Planning/PlanDates` and its
+twin `src/utils/planDates.ts` (AD16):
+
+- **An all-day date moves in UTC days.** It is stored as midnight UTC and is never shifted by a zone, so
+  adding a day adds a day. This is M4's acceptance criterion: dragging an all-day task across a
+  daylight-saving change keeps its dates, where adding 86,400 seconds would land it an hour before
+  midnight — which reads as the day before.
+- **A timed date moves in local days.** Whole days are added in the viewer's zone and only the remainder as
+  seconds, so a nine o'clock task dragged a week to the right is still at nine o'clock.
+- **A due date is inclusive and a bar's end is not**, which is the other acceptance criterion: a task due
+  Friday is covered through Friday.
+
+The four temporal relationships each constrain one end of the successor, and every one of them is "not
+before" rather than "exactly at", because slack is not an error. That is also why pushing a cascaded task
+onto a working day can never break the link it was pushed for.
+
+| `RELTYPE` | the successor may not |
+|---|---|
+| `FINISHTOSTART` | **start** before the predecessor's end, plus the gap |
+| `STARTTOSTART` | **start** before the predecessor's start, plus the gap |
+| `FINISHTOFINISH` | **end** before the predecessor's end, plus the gap |
+| `STARTTOFINISH` | **end** before the predecessor's start, plus the gap |
+
+`GAP` is positive for lag and negative for lead, and survives a round trip in both directions
+(`Core/Dav/IcalDuration`). `DEPENDS-ON` is drawn and never scheduled: it says what blocks what, not when
+(RFC 9253 §5). A cascade longer than one request may carry — 100 tasks — is refused whole rather than
+written in part, like a bulk move on the board.
 
 ### 15.5 Ordering
 Card order within a column is a **lexicographic rank** (`chronos_board_ranks`): a card dropped between two
@@ -961,7 +1025,8 @@ D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a 
 M2 knowingly left for the milestone that can do them properly, D30–D32 came from the second real upgrade,
 D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — D35 came
 from the third real upgrade, found by the live check on a list with fifty cards in one column, and D36–D38
-are what 0.4.2 left after giving the board its tree back (§15.9). None of
+are what 0.4.2 left after giving the board its tree back (§15.9), and D39 was found while building M4 —
+a date's time zone, which nothing before a timeline wrote often enough to notice. None of
 them were in the original list. Three times now, checking against a real instance has found something no
 amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
@@ -1012,6 +1077,7 @@ requests never fires.
 | D36 | **Undoing a cascade puts the subtasks back at the end of their old column**, not at the place they had: the page never saw where they were, and a rank is one row per card, so the old one is gone the moment the new one is written | `src/stores/board.ts`, `Board/Service/BoardService` | An undo restores every status exactly and one position approximately, which §15.6 promises to do exactly | Return the rank each card had as well as the column, and let the undo send it back as a position rather than an end | M4 | planned |
 | D37 | **A new subtask of an arranged parent appears at the end of its column**, not under its parent: a card with no rank sorts after the ranked ones (§15.5), and nesting only orders the unranked tail | `Board/CardOrder`, `Board/Service/BoardService` | On a board that has been arranged, a subtask created in the Tasks view turns up away from its parent — correctly labelled, but not where it belongs | Give a new card a rank beside its parent's when its parent has one, which is a write outside a drop and needs §15.5 to say so first | M4 | planned |
 | D38 | **The subtask view is not remembered:** rolling the board up lasts as long as the page does, like *Show archived* beside it | `src/views/Kanban.vue` | A preference that has to be set again on every visit | A per-user setting, with the other view preferences, when there is somewhere to put them | M5 | planned |
+| D39 | **Every timed date was rewritten as UTC:** the writer always wrote `DTSTART`/`DUE` as `…Z`, although §7 and §8.4 both say the value type and the `TZID` or floating form are preserved | `Core/Dav/VTodoWriter::setDate()` | The instant survived, so no time was lost, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z` — and a *floating* time, which means six o'clock wherever the reader is, came back pinned to an instant, which says something else. Found while building M4, where a drag writes dates constantly | Read the property that is there before replacing it: a `TZID` is written again as that `TZID`, a floating time stays floating, anything else stays UTC | M4 | done |
 | D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
@@ -1237,6 +1303,16 @@ end of its column (D37), and the roll-up is not remembered between visits (D38).
 through Friday; dependencies created in Chronos are readable in the VTODO; 2,000-task project interactive
 < 1 s.
 **Depends on:** M2 (M3's drag engine)
+
+**Part 1 implemented** — the plan behind the timeline: the arithmetic of §15.4 (`Planning/PlanDates`, with
+both acceptance criteria about dates as tests), the dependency algebra and the cascade
+(`Planning/Schedule`), working days (`Planning/WorkingDays`), the per-project reschedule settings
+(`Planning/PlanSettings`), reading a plan and dragging a bar on it (`GET /plan`, `POST /plan/move`),
+creating and removing RFC 9253 dependencies (`POST /plan/link`, `DELETE /plan/link/{id}`) written on the
+task that declares them, and the same algorithm in the browser (`src/utils/schedule.ts`,
+`src/utils/planDates.ts`) so the ghost bars a drag shows are the write it will make (AD16). The `gantt`
+module is implemented and switchable. No migration: `chronos_task_links` has been there since M2 and
+`chronos_projects.settings` was made for exactly this.
 
 ### M5 — Time per task · v0.6.0
 - `task_uid` on sessions; start the timer from a task in any view.

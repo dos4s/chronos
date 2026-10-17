@@ -15,6 +15,7 @@ use OCA\Chronos\Core\Index\Task;
 use OCA\Chronos\Core\Index\TaskIndexer;
 use OCA\Chronos\Core\Index\TaskMapper;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\IDateTimeZone;
 use OCP\Security\ISecureRandom;
 
 /**
@@ -42,6 +43,7 @@ class TaskService {
 		private StatusGateway $statuses,
 		private ITimeFactory $timeFactory,
 		private ISecureRandom $random,
+		private IDateTimeZone $dateTimeZone,
 	) {
 	}
 
@@ -119,7 +121,12 @@ class TaskService {
 			$write->comment,
 		));
 
-		$calendarData = $this->writer->apply($current['calendarData'], $write, $this->timeFactory->getTime());
+		$calendarData = $this->writer->apply(
+			$current['calendarData'],
+			$write,
+			$this->timeFactory->getTime(),
+			$this->dateTimeZone->getTimeZone(),
+		);
 		if ($calendarData === null) {
 			throw new ValidationFailedException('task_unreadable');
 		}

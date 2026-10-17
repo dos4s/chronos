@@ -70,6 +70,42 @@ class TaskLinkMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * Every link in one task list — what a timeline draws (§12.5).
+	 *
+	 * Scoped by calendar rather than by user, like every other read of the
+	 * index: a shared list's rows belong to its owner, and a colleague has to
+	 * see them too (§10.1).
+	 *
+	 * @return list<TaskLink>
+	 */
+	public function findForCalendar(int $calendarId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('calendar_id', $qb->createNamedParameter($calendarId, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'ASC');
+
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * The links one task declared, which are the ones its own VTODO carries
+	 * and therefore the ones a write of that task replaces (§10.1).
+	 *
+	 * @return list<TaskLink>
+	 */
+	public function findForSource(int $calendarId, string $sourceUid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('calendar_id', $qb->createNamedParameter($calendarId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('source_uid', $qb->createNamedParameter($sourceUid)))
+			->orderBy('id', 'ASC');
+
+		return $this->findEntities($qb);
+	}
+
 	public function deleteForCalendar(int $calendarId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete($this->getTableName())

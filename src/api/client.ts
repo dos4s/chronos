@@ -134,6 +134,27 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'That is too many cards to move at once')
 		case 'unknown_view':
 			return t('chronos', 'This page is out of date — please reload')
+		case 'summary_not_movable':
+			return t('chronos', 'A summary bar is the span of what is under it, so it cannot be moved on its own')
+		case 'invalid_dates':
+			return t('chronos', 'A task cannot end before it starts')
+		case 'too_many_tasks':
+			return t('chronos', 'That move would reschedule too many tasks at once')
+		case 'link_to_itself':
+			return t('chronos', 'A task cannot depend on itself')
+		case 'link_exists':
+			return t('chronos', 'Those two tasks are already linked')
+		case 'link_cycle':
+			return t('chronos', 'That link would make the tasks wait for each other')
+		case 'link_not_found':
+			return t('chronos', 'That link no longer exists')
+		case 'unknown_reltype':
+			return t('chronos', 'That is not a kind of dependency Chronos schedules with')
+		case 'gap_too_large':
+			return t('chronos', 'That lag is more than a year')
+		case 'unknown_mode':
+		case 'invalid_working_days':
+			return t('chronos', 'Those timeline settings could not be saved')
 		case 'comment_required':
 			return t('chronos', 'This change needs a note')
 		case 'comment_too_long':
