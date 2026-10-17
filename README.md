@@ -36,6 +36,9 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
   double-click on an empty row gives a task a day to live in
 - **Roadmap**: every project at once, grouped by area, with its milestones marked on it. Click a line to
   open its timeline
+- **Finding things**: a search box in every task view, and finished work hidden until you ask for it — most
+  of a real list is already done. The running timer stays in the sidebar and in the browser tab wherever
+  you are, and `?` lists everything the app can be told to do
 - **Promote a subproject to a list** once it has outgrown being a task: its tasks go with it, keeping their
   history, their dependencies and the time logged against them
 
