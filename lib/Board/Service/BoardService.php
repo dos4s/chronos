@@ -6,6 +6,7 @@ namespace OCA\Chronos\Board\Service;
 
 use OCA\Chronos\Board\BoardView;
 use OCA\Chronos\Board\CardOrder;
+use OCA\Chronos\Board\CardTree;
 use OCA\Chronos\Board\Db\BoardRankMapper;
 use OCA\Chronos\Board\MoveResult;
 use OCA\Chronos\Board\Rank;
@@ -38,6 +39,12 @@ use Throwable;
  * Which columns exist is asked of `StatusGateway` (§5), so this class never
  * learns whether the project has a workflow: with one, the columns are its
  * statuses; without, the four standard ones.
+ *
+ * The one thing a board is not is flat, and a task list is a tree. A subtask
+ * has a status of its own, so it is a card of its own; what `CardTree` adds is
+ * that every card says whose subtask it is and how much of its own branch is
+ * done, that a column nobody has arranged reads as a tree, and that a drop can
+ * take a card's unfinished subtasks with it (§15.9).
  */
 class BoardService {
 
@@ -57,19 +64,30 @@ class BoardService {
 	/**
 	 * One project's board.
 	 *
+	 * `$rolled` is the subtask view (§15.9): with it, only the top of each
+	 * branch is a card and a parent stands for the work under it, which is
+	 * what makes a board of fifty tasks and two hundred subtasks readable.
+	 * The choice belongs here rather than in the browser because the column
+	 * counts, the WIP warnings and the ranks all come from this method — a
+	 * board that hid cards afterwards would show counts that no longer
+	 * described what was on the screen.
+	 *
 	 * @throws NotFoundException when the project is not one this user can see
 	 */
-	public function board(string $userId, string $projectRef): BoardView {
+	public function board(string $userId, string $projectRef, bool $rolled = false): BoardView {
 		$calendar = $this->requireCalendar($userId, $projectRef);
 		$columns = $this->statuses->columnsFor($userId, $projectRef);
 		$ranks = $this->ranks->findForCalendar($calendar->id);
+
+		$all = $this->tasks->findForCalendars([$calendar->id]);
+		$tree = new CardTree($all, $columns);
 
 		$grouped = [];
 		foreach ($columns->columns as $column) {
 			$grouped[$column->key] = [];
 		}
 
-		foreach ($this->cards($calendar->id) as $card) {
+		foreach ($this->cards($all, $tree, $rolled) as $card) {
 			$column = $columns->columnFor($card);
 			if ($column === null) {
 				continue;
@@ -78,10 +96,14 @@ class BoardService {
 		}
 
 		foreach ($grouped as $key => $cards) {
-			$grouped[$key] = CardOrder::sort($cards, $ranks, $key);
+			// Nesting first and ranking second is what keeps an arrangement an
+			// arrangement: the ranks decide where a dragged card sits, and the
+			// tree only decides the order of the cards nobody has dragged
+			// (§15.9).
+			$grouped[$key] = CardOrder::sort($tree->nest($cards), $ranks, $key);
 		}
 
-		return new BoardView($calendar, $columns, $grouped);
+		return new BoardView($calendar, $columns, $grouped, $tree);
 	}
 
 	/**
@@ -99,6 +121,11 @@ class BoardService {
 	 * needs an assignee, an etag that has moved on. The ranks follow in one
 	 * transaction once every status has been written.
 	 *
+	 * `$cascade` takes each card's unfinished subtasks along with it, which is
+	 * what a rolled-up card means and what the board offers when a parent is
+	 * dropped into a final column (§15.9). The server works out which cards
+	 * those are, because the page may not be showing them.
+	 *
 	 * @param list<array{uid: string, etag?: string|null}> $cards in the order they should end up
 	 * @throws NotFoundException|ForbiddenException|ValidationFailedException
 	 */
@@ -110,6 +137,8 @@ class BoardService {
 		?string $afterUid = null,
 		?string $beforeUid = null,
 		?string $comment = null,
+		bool $rolled = false,
+		bool $cascade = false,
 	): MoveResult {
 		$calendar = $this->requireCalendar($userId, $projectRef);
 		if (!$calendar->isWritable) {
@@ -123,11 +152,26 @@ class BoardService {
 		}
 
 		$moved = $this->requireCards($calendar->id, $cards);
+		if ($cascade) {
+			$moved = $this->withSubtasks($calendar->id, $columns, $moved, $columnKey);
+		}
 
 		// Every card is checked before any of them is written: a drop the
 		// workflow refuses should leave the board as it was, not half moved.
+		// A cascade is checked the same way, so a subtask the rules will not
+		// let out of its column stops the parent's drop too.
 		foreach ($moved as $card) {
 			$this->assertAllowed($columns, $target, $card['task']);
+		}
+
+		// Where each card was, before anything is written: an undo of a card
+		// the page never dragged has nothing else to go on (§15.6).
+		$from = [];
+		foreach ($moved as $uid => $card) {
+			$was = $columns->columnFor($card['task']);
+			if ($was !== null && $was->key !== $columnKey) {
+				$from[$uid] = $was->key;
+			}
 		}
 
 		$written = [];
@@ -138,7 +182,7 @@ class BoardService {
 		// Read once, after the statuses have been written, so the column holds
 		// what the ranks are about to describe and the counts are the ones the
 		// client should show.
-		$board = $this->board($userId, $calendar->ref);
+		$board = $this->board($userId, $calendar->ref, $rolled);
 		$movedUids = array_keys($written);
 		$others = array_values(array_filter(
 			$board->column($columnKey),
@@ -152,7 +196,13 @@ class BoardService {
 			$counts[$column->key] = count($board->column($column->key));
 		}
 
-		return new MoveResult(array_values($written), $ranks, $counts);
+		return new MoveResult(
+			array_merge(array_values($written), $this->progressChanged($board, $written)),
+			$ranks,
+			$counts,
+			$from,
+			$board->tree,
+		);
 	}
 
 	/**
@@ -192,15 +242,93 @@ class BoardService {
 	 * The cards of a project: its tasks, as the board shows them.
 	 *
 	 * A subproject is a container for other tasks rather than a piece of work
-	 * (§6), so it is not a card; its children are.
+	 * (§6), so it is not a card; its children are. A subtask *is* a card,
+	 * because it has a status of its own — unless the board is rolled up, when
+	 * the top of each branch stands for the whole of it (§15.9). A subtask
+	 * whose parent is not in this list has nothing to be folded into and stays
+	 * a card either way.
 	 *
+	 * @param list<Task> $all every task of the project, subprojects included
 	 * @return list<Task>
 	 */
-	private function cards(int $calendarId): array {
+	private function cards(array $all, CardTree $tree, bool $rolled): array {
 		return array_values(array_filter(
-			$this->tasks->findForCalendars([$calendarId]),
-			static fn (Task $task): bool => $task->getType() !== ParsedTask::TYPE_SUBPROJECT,
+			$all,
+			static fn (Task $task): bool => $task->getType() !== ParsedTask::TYPE_SUBPROJECT
+				&& !($rolled && $tree->isSubtask($task)),
 		));
+	}
+
+	/**
+	 * The cards a drop changed without moving them: the parents whose branch
+	 * is now more, or less, finished than it was (§15.9).
+	 *
+	 * Sending them back with the moved ones is what keeps *2 of 5 done* right
+	 * without reading the board again, which is the one request a drop is
+	 * allowed (§15.6).
+	 *
+	 * @param array<string, Task> $written the cards the drop moved, by UID
+	 * @return list<Task>
+	 */
+	private function progressChanged(BoardView $board, array $written): array {
+		$also = [];
+
+		foreach (array_keys($written) as $uid) {
+			foreach ($board->tree->ancestorsOf($uid) as $ancestor) {
+				$task = $board->tree->task($ancestor);
+				if (isset($written[$ancestor]) || isset($also[$ancestor]) || $task === null) {
+					continue;
+				}
+				if ($task->getType() === ParsedTask::TYPE_SUBPROJECT) {
+					continue;
+				}
+				$also[$ancestor] = $task;
+			}
+		}
+
+		return array_values($also);
+	}
+
+	/**
+	 * A drop with its cards' unfinished subtasks added behind them (§15.9).
+	 *
+	 * The page does not have to know what they are — in a rolled-up board it
+	 * is not even showing them — so the branch is read here. A subtask that is
+	 * already finished stays finished: dragging a parent must not reopen work
+	 * that is done.
+	 *
+	 * @param array<string, array{task: Task, etag: string|null}> $moved
+	 * @return array<string, array{task: Task, etag: string|null}>
+	 * @throws ValidationFailedException
+	 */
+	private function withSubtasks(
+		int $calendarId,
+		StatusColumns $columns,
+		array $moved,
+		string $columnKey,
+	): array {
+		$tree = new CardTree($this->tasks->findForCalendars([$calendarId]), $columns);
+
+		$withBranch = [];
+		foreach ($moved as $uid => $card) {
+			$withBranch[$uid] = $card;
+
+			foreach ($tree->openDescendantsFor($uid, $columnKey) as $descendant) {
+				$task = $tree->task($descendant);
+				if ($task === null || isset($moved[$descendant]) || isset($withBranch[$descendant])) {
+					continue;
+				}
+				// The page never saw these cards, so there is no etag of its
+				// own to carry: the write uses the one the server holds.
+				$withBranch[$descendant] = ['task' => $task, 'etag' => null];
+			}
+		}
+
+		if (count($withBranch) > self::MAX_CARDS_PER_MOVE) {
+			throw new ValidationFailedException('too_many_cards');
+		}
+
+		return $withBranch;
 	}
 
 	/**

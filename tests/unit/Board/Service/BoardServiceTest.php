@@ -400,6 +400,235 @@ class BoardServiceTest extends TestCase {
 		self::assertGreaterThan(0, strcmp($result->ranks['b'] ?? '', $this->stored['a']->getCardRank()));
 	}
 
+	/**
+	 * A subtask has a status of its own, and a column *is* a status (AD7), so
+	 * it is a card of its own — sitting wherever its status puts it, which is
+	 * not necessarily where its parent is (§15.9).
+	 */
+	public function testASubtaskIsACardOfItsOwnAndSaysWhoseItIs(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('child', 2, 'IN-PROCESS', parentUid: 'parent'),
+		];
+
+		$board = $this->board->board(self::USER, self::REF);
+
+		self::assertSame(['parent'], $this->uids($board->column('todo')));
+		self::assertSame(['child'], $this->uids($board->column('doing')));
+		self::assertSame('parent', $board->tree->factsFor('child')['parent']['uid'] ?? null);
+		self::assertSame(
+			['total' => 1, 'done' => 0, 'open' => ['doing' => 1]],
+			$board->tree->factsFor('parent')['subtasks'],
+		);
+	}
+
+	/**
+	 * Dragging a subtask changes which column it is in and nothing else: it
+	 * must not quietly stop being a subtask. The write carries the parent, so
+	 * `RELATED-TO;RELTYPE=PARENT` survives a drop.
+	 */
+	public function testDraggingASubtaskKeepsItsParent(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('child', 1, 'NEEDS-ACTION', parentUid: 'parent'),
+		];
+
+		$this->taskService->expects(self::once())
+			->method('update')
+			->willReturnCallback(function (string $userId, string $uid, $write): Task {
+				self::assertSame('parent', $write->parentUid);
+
+				return $this->task($uid, 2, 'IN-PROCESS', parentUid: 'parent');
+			});
+
+		$this->board->move(self::USER, self::REF, [['uid' => 'child']], 'doing');
+	}
+
+	/**
+	 * Rolled up, the top of a branch stands for the work under it: fifty tasks
+	 * with two hundred subtasks is a readable board again (§15.9). The counts
+	 * are counted the same way, which is why the choice is made here rather
+	 * than in the browser.
+	 */
+	public function testARolledUpBoardShowsOnlyTheTopOfEachBranch(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('child', 2, 'IN-PROCESS', parentUid: 'parent'),
+			$this->task('grandchild', 2, 'IN-PROCESS', parentUid: 'child'),
+			$this->task('other', 2, 'IN-PROCESS'),
+		];
+
+		$board = $this->board->board(self::USER, self::REF, rolled: true);
+
+		self::assertSame(['parent'], $this->uids($board->column('todo')));
+		self::assertSame(['other'], $this->uids($board->column('doing')));
+	}
+
+	/**
+	 * A subtask whose parent is in another list has nothing to be folded into,
+	 * so a rolled-up board still shows it rather than hiding the work.
+	 */
+	public function testARolledUpBoardKeepsASubtaskWhoseParentIsNotHere(): void {
+		$this->index = [$this->task('orphan', 1, 'NEEDS-ACTION', parentUid: 'in-another-list')];
+
+		$board = $this->board->board(self::USER, self::REF, rolled: true);
+
+		self::assertSame(['orphan'], $this->uids($board->column('todo')));
+	}
+
+	/** A task in a subproject is not a subtask, so rolling up does not fold it. */
+	public function testRollingUpDoesNotFoldATaskIntoItsSubproject(): void {
+		$this->index = [
+			$this->task('container', 1, 'NEEDS-ACTION', ParsedTask::TYPE_SUBPROJECT),
+			$this->task('inside', 1, 'NEEDS-ACTION', parentUid: 'container'),
+		];
+
+		$board = $this->board->board(self::USER, self::REF, rolled: true);
+
+		self::assertSame(['inside'], $this->uids($board->column('todo')));
+	}
+
+	/** A column nobody has arranged reads as a tree (§15.9). */
+	public function testAColumnNobodyHasArrangedReadsAsATree(): void {
+		$this->index = [
+			$this->task('a', 2, 'IN-PROCESS'),
+			$this->task('a2', 2, 'IN-PROCESS', parentUid: 'a'),
+			$this->task('b', 2, 'IN-PROCESS'),
+			$this->task('a1', 2, 'IN-PROCESS', parentUid: 'a'),
+		];
+
+		$board = $this->board->board(self::USER, self::REF);
+
+		self::assertSame(['a', 'a2', 'a1', 'b'], $this->uids($board->column('doing')));
+	}
+
+	/**
+	 * Nesting is the order of a column nobody has arranged, never a rule: a
+	 * card that was dragged somewhere stays there, because pulling it back
+	 * under its parent would silently undo the drag (§15.9).
+	 */
+	public function testAnArrangedCardStaysWhereItWasPutAwayFromItsParent(): void {
+		$this->index = [
+			$this->task('parent', 2, 'IN-PROCESS'),
+			$this->task('child', 2, 'IN-PROCESS', parentUid: 'parent'),
+			$this->task('other', 2, 'IN-PROCESS'),
+		];
+
+		// The child is dragged to the top of the column, above its parent.
+		$this->board->move(self::USER, self::REF, [['uid' => 'child']], 'doing', null, 'parent');
+
+		$board = $this->board->board(self::USER, self::REF);
+
+		self::assertSame(['child', 'parent', 'other'], $this->uids($board->column('doing')));
+	}
+
+	/**
+	 * A cascading drop takes the unfinished part of the branch with it, in one
+	 * request, and leaves finished subtasks finished: dragging a parent must
+	 * never reopen work that is done (§15.9).
+	 */
+	public function testACascadingDropTakesTheUnfinishedSubtasksWithIt(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('open', 1, 'NEEDS-ACTION', parentUid: 'parent'),
+			$this->task('finished', 3, 'COMPLETED', parentUid: 'parent'),
+		];
+
+		$written = [];
+		$this->taskService->method('update')->willReturnCallback(
+			function (string $userId, string $uid) use (&$written): Task {
+				$written[] = $uid;
+
+				return $this->task($uid, 2, 'IN-PROCESS');
+			},
+		);
+
+		$result = $this->board->move(
+			self::USER,
+			self::REF,
+			[['uid' => 'parent']],
+			'doing',
+			cascade: true,
+		);
+
+		self::assertSame(['parent', 'open'], $written);
+		// The subtask lands behind its parent, so the branch stays together.
+		self::assertLessThan(0, strcmp($result->ranks['parent'], $result->ranks['open']));
+		// The page never saw the subtask, so its undo needs to be told where
+		// it came from (§15.6).
+		self::assertSame(['parent' => 'todo', 'open' => 'todo'], $result->from);
+	}
+
+	/**
+	 * The cascade is checked like any other bulk move: a subtask the rules
+	 * will not let out of its column stops the parent's drop as well, rather
+	 * than moving half a branch.
+	 */
+	public function testACascadeTheRulesRefuseMovesNothingAtAll(): void {
+		$this->statuses = $this->createMock(StatusGateway::class);
+		$this->statuses->method('columnsFor')->willReturn(new StatusColumns($this->columns()->columns, [
+			['from' => 'todo', 'to' => 'doing', 'requiresComment' => false],
+		], 42));
+		$this->board = new BoardService(
+			$this->calendars,
+			$this->tasks,
+			$this->ranks,
+			$this->statuses,
+			$this->taskService,
+			$this->createMock(IDBConnection::class),
+		);
+
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			// Its subtask is already in progress, and nothing may leave there.
+			$this->task('child', 2, 'IN-PROCESS', parentUid: 'parent'),
+		];
+		$this->taskService->expects(self::never())->method('update');
+
+		$this->expectException(ValidationFailedException::class);
+		$this->expectExceptionMessage('transition_not_allowed');
+
+		$this->board->move(self::USER, self::REF, [['uid' => 'parent']], 'done', cascade: true);
+	}
+
+	/**
+	 * Moving a subtask changes how much of its parent's branch is done, so the
+	 * parent comes back with the drop: *2 of 5 done* is right without reading
+	 * the board again (§15.6).
+	 */
+	public function testADropSendsBackTheParentWhoseProgressItChanged(): void {
+		$this->index = [
+			$this->task('parent', 1, 'NEEDS-ACTION'),
+			$this->task('child', 1, 'NEEDS-ACTION', parentUid: 'parent'),
+		];
+		$this->taskService->method('update')->willReturnCallback(
+			fn (string $userId, string $uid): Task => $this->task($uid, 3, 'COMPLETED', parentUid: 'parent'),
+		);
+
+		$result = $this->board->move(self::USER, self::REF, [['uid' => 'child']], 'done');
+
+		self::assertSame(['child', 'parent'], $this->uids($result->cards));
+		// Only the card that moved has a rank and a column it came from.
+		self::assertSame(['child'], array_keys($result->from));
+	}
+
+	/**
+	 * A cascade of more cards than one drop may carry is refused, the same as
+	 * a selection that large: a branch that big is a different operation.
+	 */
+	public function testACascadeBiggerThanOneDropAllowsIsRefused(): void {
+		$this->index = [$this->task('parent', 1, 'NEEDS-ACTION')];
+		for ($i = 0; $i < 100; $i++) {
+			$this->index[] = $this->task('child' . $i, 1, 'NEEDS-ACTION', parentUid: 'parent');
+		}
+		$this->taskService->expects(self::never())->method('update');
+
+		$this->expectException(ValidationFailedException::class);
+		$this->expectExceptionMessage('too_many_cards');
+
+		$this->board->move(self::USER, self::REF, [['uid' => 'parent']], 'doing', cascade: true);
+	}
+
 	private function calendar(bool $writable = true): CalendarRef {
 		return new CalendarRef(
 			self::CALENDAR_ID,
@@ -426,6 +655,7 @@ class BoardServiceTest extends TestCase {
 		?int $statusId,
 		?string $vtodoStatus,
 		string $type = ParsedTask::TYPE_TASK,
+		?string $parentUid = null,
 	): Task {
 		$task = new Task();
 		$task->setUid($uid);
@@ -435,6 +665,7 @@ class BoardServiceTest extends TestCase {
 		$task->setStatusId($statusId);
 		$task->setVtodoStatus($vtodoStatus);
 		$task->setType($type);
+		$task->setParentUid($parentUid);
 
 		return $task;
 	}

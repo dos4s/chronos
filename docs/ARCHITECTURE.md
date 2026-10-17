@@ -87,6 +87,7 @@ and the web UI); billing/invoicing.
 | AD12 | Route-bearing controllers stay directly in `lib/Controller/` | One controller per module directory | Nextcloud discovers attribute routes with a non-recursive `DirectoryIterator` over `lib/Controller`, reflecting `OCA\Chronos\Controller\<File>`. Only the controllers live there; each module keeps its services, mappers and requests (§9) |
 | AD13 | One active session per user enforced by a unique index | Transaction and re-check only | A re-check inside a transaction still races under MySQL's default isolation. `chronos_entries.active_user_id` holds the uid while a session runs and NULL afterwards; a unique index over it allows many NULLs on every database in N1, so a second check-in fails at the database (D5) |
 | AD14 | Hash routing in the frontend | Path routing with a catch-all backend route | Every view stays inside the app's single server route, so no backend route is needed per view |
+| AD15 | **A subtask is a card of its own**; rolling subtasks up into their parent is a view, not the model | Parent-only board with a progress bar (Jira); subtasks as checklist items (Deck, Trello) | A subtask has a `STATUS` of its own and a column *is* a status (AD7), so hiding it would make the board disagree with every other CalDAV client about where that work is. What it needs instead is to say whose it is. The roll-up is answered by the server, because the server also counts the columns and a count has to describe what is on the screen (§15.9) |
 
 ## 4. Requirements
 
@@ -200,6 +201,10 @@ Area (optional)      → Chronos only           Work, Personal, Homelab…
 - **Milestone** = VTODO with `X-CHRONOS-TYPE:MILESTONE` and `DUE` only (zero duration).
 - A subproject completed in another client is accepted if all children are done; otherwise Chronos reopens
   it and shows a notice.
+- **On the board** every task in the list is a card, subtasks included, because every task has a status of
+  its own (AD7); a card says whose subtask it is and how much of its own branch is done, and the board can
+  roll each branch up into the card at the top of it (§15.9). A subproject is never a card: the tasks in
+  one are the project's own cards, which is also the line a roll-up refuses to fold along.
 
 ## 7. VTODO property mapping
 
@@ -798,8 +803,10 @@ Two things the original line left out, both of which turned out to matter:
   daily job is not enough on its own. The job stays as the sweeper for columns left long by an older
   release, by a restore, or by rows written straight into the table.
 
-A card that has never been dropped has no rank and sits after the ranked ones in the list's own order, so a
-new card turns up somewhere predictable instead of in the middle of yesterday's arrangement. Ranks are
+A card that has never been dropped has no rank and sits after the ranked ones in the list's own order —
+with each card's subtasks behind it, which is what makes a column nobody has arranged read as a tree
+(§15.9) — so a new card turns up somewhere predictable instead of in the middle of yesterday's
+arrangement. Ranks are
 Chronos's own view of a list and are never written to the VTODO: a task moved by a phone keeps its place,
 and arranging a board wakes nobody's phone. A card's rank is forgotten when its task is deleted, by a
 listener on `TaskDeletedEvent`.
@@ -849,6 +856,14 @@ landing *directly* below it; naming neither means the end of the column. Reading
 below it" instead puts the card halfway down everything that follows, at a rank that can equal one already
 in the column — which is what 0.4.1 fixed (D35).
 
+**The response also carries cards nobody dragged.** Moving a card changes how much of its parent's branch
+is finished, and a cascade moves a card's unfinished subtasks as well (§15.9), so the answer to a drop is
+every card the drop changed: the ones that moved, with the rank each was given, and the parents whose
+progress changed, so *2 of 5 done* is right without reading the board again. Each card says which column
+it came from, which is the only thing an undo has to go on for a card the page never saw. A cascade is the
+one drop that is followed by a read, because reconciling replaces a card where it already sits and a
+subtask that has just changed column has to be drawn somewhere else.
+
 **A move that needs a note asks for one first.** A transition with `requires_comment` would be refused by
 the server after the card had already moved on the screen, so the view asks for the note before it sends
 anything, and the drop waits in the browser until there is one.
@@ -863,6 +878,70 @@ The shared engine is small enough to build in-house, which keeps behaviour consi
 for the Gantt, **frappe-gantt** (MIT) is a starting point, but it must meet §15.2–15.6 or be wrapped. Avoid
 dhtmlx-gantt's free edition (GPLv2, likely incompatible with AGPL-3.0). The session editor currently uses
 **vue-cal**; it moves onto the shared engine when the editor is rebuilt (M4).
+
+### 15.9 Subtasks on a board
+A board is flat and a task list is a tree, and M3 shipped a board that dropped the tree on the floor. A
+subtask was a card like any other with nothing on it to say whose it was, and the one thing that mentioned
+subtasks at all — a chip counting them — counted the tasks inside a subproject as subtasks of it. Closed in
+0.4.2.
+
+**A subtask is a card (AD15).** It has a `STATUS` of its own, and a column is a status, so a subtask in
+*Doing* under a parent in *To do* is the truth about that project and the board has to be able to show it.
+Hiding subtasks behind a progress bar would make Chronos the only client that disagrees about where the
+work is.
+
+**So a card says where it sits in the tree.** `Board/CardTree` answers that once per board read, and every
+card carries it:
+
+- **`parent`** — the task or subproject it hangs under, if the user can see it. A parent in another list,
+  or one the user cannot see, is no parent at all here, exactly as in the task tree. A subtask drawn
+  directly under its parent needs no label and is drawn as part of it, a step in from the edge; one that
+  has been dragged away from its parent names it instead (*↳ Ship 0.5*), because a card nobody can place
+  is the thing the board got wrong before. A task inside a subproject says which sublist it lives in and is
+  never drawn as part of it, because it is not a piece of the subproject's work (§6).
+- **`subtasks`** — `total`, `done`, and the unfinished ones counted per column. Over the whole branch, not
+  the direct children, because that is what a card has to stand for when the board is rolled up. *Done*
+  means a final column, so cancelled counts as done and a workflow's own final statuses count correctly.
+
+**Nesting is the fallback order, never a rule.** The cards nobody has dragged come out of the server as a
+tree; the ranks then decide where the arranged cards sit (§15.5). The alternative — pulling every subtask
+back under its parent whatever its rank — was tried on paper and rejected twice over: it would silently
+undo a drag, and it would make a drop land somewhere other than where it was dropped, which is the class of
+bug D35 was. The indent plus the parent's name tells the truth wherever a card actually sits, which is
+better than a board that rearranges itself.
+
+**Rolling up is a view the server answers.** `GET /board?subtasks=rolled` returns only the top of each
+branch, and a parent then shows how much of its branch is done and which columns the rest of it is in.
+Filtering in the browser instead would have been less code and a lie: the column counts, the WIP warnings
+and the ranks all come from the same read, so a board that hid cards afterwards would show counts that no
+longer described the screen.
+
+**A drag moves what you can see.** In the unfolded view that is the card you dragged: its subtasks are
+cards in plain sight with statuses of their own, and nothing moves that you did not drag. Two cases ask
+first, because leaving the branch behind would be a surprise:
+
+- a parent dropped into a **final** column while unfinished subtasks sit elsewhere — a finished card with
+  unfinished work under it is a contradiction the board should not create quietly;
+- any drop in the **rolled-up** view, where the subtasks are not on the screen to be dragged at all.
+
+The question is asked once, before the note a transition may want, because the answer changes what is
+moving. Accepting it sends `cascade` with the drop and the **server** works out which cards those are —
+the page may not be showing them — and appends each card's unfinished subtasks behind it, so the branch
+lands together and in one request. Two things it never does: it does not reopen a subtask that is already
+finished, and it does not move one that is already in the column the drop is going to. The whole set is
+checked before anything is written, so a subtask the rules will not let out of its column stops the
+parent's drop as well, rather than moving half a branch.
+
+**What a drag deliberately does not do: reparent.** Dropping a card onto another card does not make it
+its subtask. A drag on a board means a status and a position, and letting a card become another's child by
+passing over it would be far too easy to do by accident — and a mis-drop that rewrote the tree would not be
+put right by dragging the card back. Reparenting stays where it is deliberate: the task's own details, and
+*Add subtask* in the task list.
+
+**What an undo of a cascade can and cannot restore.** It restores every card's status, and the dragged
+card's position exactly. The subtasks go back to the column they came from but to the end of it, because
+the page never saw where they were and a rank is one row per card: the old one is gone the moment the new
+one is written. That is the one way an undo is less exact than the drop it undoes (D36).
 
 ## 16. Performance
 
@@ -880,8 +959,9 @@ D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
 D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, D28–D29 are what
 M2 knowingly left for the milestone that can do them properly, D30–D32 came from the second real upgrade,
-D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — and D35 came
-from the third real upgrade, found by the live check on a list with fifty cards in one column. None of
+D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — D35 came
+from the third real upgrade, found by the live check on a list with fifty cards in one column, and D36–D38
+are what 0.4.2 left after giving the board its tree back (§15.9). None of
 them were in the original list. Three times now, checking against a real instance has found something no
 amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
@@ -929,6 +1009,9 @@ requests never fires.
 | D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
 | D33 | **Cards are not virtualised:** a column draws every card it has | `src/components/KanbanColumn.vue` | A project with thousands of open tasks in one column draws thousands of cards; §15.2 asks for virtualisation above a few hundred | Virtualise the column list; the drag engine already measures once, so only the measuring needs to follow the window | M4 | planned |
 | D34 | **A `412` is resolved by reloading, not by merging:** §15.6 says a write refused on its etag should re-apply itself when the other change touched different fields | `src/stores/board.ts`, `src/stores/tasks.ts` | Two people editing one task in different ways makes the second one re-do their change, instead of it merging silently | Fetch the current task, compare field by field, re-apply when the sets are disjoint and offer both versions when they are not | M4 | planned |
+| D36 | **Undoing a cascade puts the subtasks back at the end of their old column**, not at the place they had: the page never saw where they were, and a rank is one row per card, so the old one is gone the moment the new one is written | `src/stores/board.ts`, `Board/Service/BoardService` | An undo restores every status exactly and one position approximately, which §15.6 promises to do exactly | Return the rank each card had as well as the column, and let the undo send it back as a position rather than an end | M4 | planned |
+| D37 | **A new subtask of an arranged parent appears at the end of its column**, not under its parent: a card with no rank sorts after the ranked ones (§15.5), and nesting only orders the unranked tail | `Board/CardOrder`, `Board/Service/BoardService` | On a board that has been arranged, a subtask created in the Tasks view turns up away from its parent — correctly labelled, but not where it belongs | Give a new card a rank beside its parent's when its parent has one, which is a write outside a drop and needs §15.5 to say so first | M4 | planned |
+| D38 | **The subtask view is not remembered:** rolling the board up lasts as long as the page does, like *Show archived* beside it | `src/views/Kanban.vue` | A preference that has to be set again on every visit | A per-user setting, with the other view preferences, when there is somewhere to put them | M5 | planned |
 | D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
@@ -984,8 +1067,12 @@ credited to another app. Run it after deploying, as `www-data`:
 Since M3 it also drops cards: that the board's columns are the workflow's statuses, that every task in the
 list is a card exactly once, that a drop writes the status and the card's place and changes its etag, that
 reordering a column changes the place and *not* the etag, that an undo puts the card back, and that a drop
-the transition rules forbid is refused. It keeps the card positions it found and puts them back afterwards,
-because arranging somebody's board is not a check's business. The last check is whether the `kanban` module
+the transition rules forbid is refused. Since 0.4.2 it also makes a throwaway *subtask* of the throwaway
+task: that a subtask is a card that names its parent, that its parent counts the branch, that rolling the
+board up folds it in, that a cascading drop takes it along and lands it behind its parent while telling the
+client which column it came from, and that a subtask already finished is left alone (§15.9). It keeps the
+card positions it found and puts them back afterwards, because arranging somebody's board is not a check's
+business. The last check is whether the `kanban` module
 is switched on for that user at all — a module ships off, and that is a reminder rather than a bug.
 
 ## 19. Risks
@@ -1103,7 +1190,8 @@ authoritative, so building ahead of it was safe — but it must be run before M2
 - Optimistic saves, `412` resolution, multi-select bulk moves, undo.
 
 **Acceptance:** 60 fps with 500 cards; one request per drop; disallowed columns dimmed and rejected
-server-side; every drag also works by keyboard; undo restores status and position.
+server-side; every drag also works by keyboard; undo restores status and position; a subtask is
+recognisable as one and a parent's branch can move with it (§15.9).
 **Depends on:** M2
 
 **Part 1 implemented** — the board behind the board: `chronos_board_ranks` and the rank algorithm
@@ -1120,9 +1208,20 @@ dragging with a live region, the note dialog for a transition that requires one,
 dialog** that edits WIP limits and allowed moves — which closes D28, the one piece of M2 that had an API
 and no face.
 
+**Part 3 implemented (0.4.2) — the board gets its tree back.** M3's board was flat: a subtask was a card
+like any other with nothing on it to say whose it was. Now every card carries what the tree says about it
+(`Board/CardTree`) — whose subtask it is, or which sublist it lives in, and how much of its own branch is
+done — a subtask sitting under its parent is drawn as part of it and one dragged away from it names its
+parent, a column nobody has arranged reads as a tree while an arranged one stays arranged, the board can
+roll every branch up into the card at the top of it (`?subtasks=rolled`), and a drop can take a card's
+unfinished subtasks along in the same request without reopening the finished ones. The whole of it is
+§15.9; the decision is AD15.
+
 What M3 did not do: cards are not virtualised, so a column of several thousand draws every card (§15.2 asks
 for it above a few hundred — D33), and the `412` resolution is a reload rather than the field-by-field
-merge §15.6 describes (D34). Both are listed in §17.
+merge §15.6 describes (D34). Part 3 left three of its own, all small and all in §17: an undo of a cascade
+restores the subtasks' positions approximately (D36), a new subtask of an arranged parent appears at the
+end of its column (D37), and the roll-up is not remembered between visits (D38).
 
 ### M4 — Gantt and roadmap · v0.5.0
 - Timeline scale and snapping; DATE/DATE-TIME handling per §8.4.

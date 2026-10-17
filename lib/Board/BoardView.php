@@ -16,6 +16,11 @@ use OCA\Chronos\Core\Task\StatusColumns;
  * The columns are the statuses — there is no column model (AD7) — so this is
  * the project, the statuses it can use, the rules it moves by, and the cards
  * arranged by rank. One response, because that is one screen.
+ *
+ * Each card also carries what the tree it came out of says about it — whose
+ * subtask it is, and how much of its own branch is done (§15.9) — because a
+ * board that cannot say that is a board where a subtask is indistinguishable
+ * from the work it belongs to.
  */
 final class BoardView implements JsonSerializable {
 
@@ -26,6 +31,7 @@ final class BoardView implements JsonSerializable {
 		public readonly CalendarRef $project,
 		public readonly StatusColumns $statuses,
 		public readonly array $cards,
+		public readonly CardTree $tree,
 	) {
 	}
 
@@ -49,7 +55,7 @@ final class BoardView implements JsonSerializable {
 				// not refuse the drop (§15.3).
 				'overWipLimit' => self::isOver($column, count($cards)),
 				'cards' => array_map(
-					static fn (Task $card): array => $card->jsonSerialize(),
+					fn (Task $card): array => $card->jsonSerialize() + $this->tree->factsFor($card->getUid()),
 					$cards,
 				),
 			];

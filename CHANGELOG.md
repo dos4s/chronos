@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-17
+
+The board had been treating a subtask as though it were nobody's: a card like any other, with nothing on it
+to say what it belonged to. Now it says so.
+
+### Added
+
+- **A subtask looks like a subtask.** One sitting under its parent is drawn as part of it, a step in from
+  the edge; one you have dragged somewhere else carries its parent's name instead, so no card on the board
+  is anonymous. A task that lives in a subproject says which sublist it is in — which is a different thing,
+  and used to be counted as a subtask of it.
+- **A card says how much of its own work is done.** *2 of 5 subtasks done*, counted over the whole branch
+  under it, with *done* meaning a final status — so cancelled counts as finished, and your workflow's own
+  final statuses count correctly.
+- **A column nobody has arranged reads as a tree:** each card followed by its subtasks. Arranging a column
+  by hand still wins — your arrangement is never silently undone — and a card that ends up away from its
+  parent is the one that names it.
+- **Roll subtasks up.** A tick beside *Show archived* folds every branch into the card at the top of it, so
+  a project of fifty tasks and two hundred subtasks is a board you can read again. A rolled-up card shows
+  how much of its branch is done and which columns the rest of it is sitting in.
+- **A parent can take its subtasks with it.** Drop a parent into a column like *Done* while unfinished
+  subtasks are elsewhere and the board asks whether they should come too; the same question is asked for
+  any drop in the rolled-up view, where the subtasks are not on the screen to be dragged. It moves the
+  whole branch in one request, leaves subtasks that are already finished alone, and undo puts all of it
+  back.
+
+### Changed
+
+- The board asks the server which cards it should show (`GET /board?subtasks=rolled`) rather than hiding
+  them in the browser, so the column counts and the WIP warnings always describe what is on the screen.
+- A drop's answer now carries every card it changed, including the parents whose progress it changed, so a
+  card's *2 of 5 done* is right without re-reading the board.
+- `scripts/live-check.php` checks all of it against a real calendar: a throwaway subtask of its throwaway
+  task, its parent's count, the roll-up, a cascading drop, and that a finished subtask is left alone.
+
 ## [0.4.1] - 2026-10-17
 
 Found by deploying 0.4.0 and running the live check on a list with fifty cards in one column — after fixing

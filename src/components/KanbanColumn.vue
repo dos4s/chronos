@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { BoardColumn, Task } from '../types/index.ts'
+import type { BoardCard, BoardColumn } from '../types/index.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import KanbanCard from './KanbanCard.vue'
+import { cardShapes } from '../utils/board.ts'
 
 /**
  * One column of the board, which is one status (AD7).
@@ -14,6 +15,10 @@ import KanbanCard from './KanbanCard.vue'
  * column they are already in, or a dimmed column if the workflow does not
  * allow the move — which is where transition rules finally become visible
  * (§15.3, D28).
+ *
+ * It also decides how each of its cards is drawn: a subtask directly under its
+ * parent is part of a group, and one that has been dragged away from it names
+ * its parent instead (§15.9).
  */
 const props = defineProps<{
 	column: BoardColumn
@@ -24,14 +29,17 @@ const props = defineProps<{
 	allowed: boolean
 	selection: string[]
 	readOnly: boolean
-	subtaskCounts: Record<string, number>
+	/** Column names, for a rolled-up card saying where its subtasks are. */
+	columnNames: Record<string, string>
+	/** Whether the subtasks are rolled up into their parents (§15.9). */
+	rolled: boolean
 }>()
 
 const emit = defineEmits<{
-	pick: [card: Task, event: PointerEvent]
-	grab: [card: Task, event: KeyboardEvent]
-	open: [card: Task]
-	select: [card: Task, additive: boolean]
+	pick: [card: BoardCard, event: PointerEvent]
+	grab: [card: BoardCard, event: KeyboardEvent]
+	open: [card: BoardCard]
+	select: [card: BoardCard, additive: boolean]
 	configure: []
 }>()
 
@@ -40,6 +48,8 @@ const dimmed = computed(() => isDragging.value && !props.allowed)
 
 /** The cards being dragged keep their place, faded, until the drop lands. */
 const cards = computed(() => props.column.cards)
+
+const shapes = computed(() => cardShapes(cards.value))
 
 const limitLabel = computed(() => {
 	const limit = props.column.wipLimit
@@ -98,7 +108,9 @@ const limitLabel = computed(() => {
 					:selected="selection.includes(card.uid)"
 					:dragging="dragging.includes(card.uid)"
 					:readOnly="readOnly"
-					:subtaskCount="subtaskCounts[card.uid] ?? 0"
+					:shape="shapes[card.uid]"
+					:columnNames="columnNames"
+					:rolled="rolled"
 					:data-card="card.uid"
 					@pick="emit('pick', card, $event)"
 					@grab="emit('grab', card, $event)"

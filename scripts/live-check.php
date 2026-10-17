@@ -15,7 +15,10 @@ declare(strict_types=1);
  * Since M3 it also checks the board: that its columns are the workflow's
  * statuses, that a drop writes the status and the card's place, that
  * reordering a column writes no status at all, that an undo puts the card
- * back, and that a drop the transition rules forbid is refused. Then it undoes
+ * back, that a drop the transition rules forbid is refused, and — since 0.4.2
+ * — that a subtask is a card that says whose it is, that rolling the board up
+ * folds it into its parent, and that a cascading drop takes the unfinished
+ * part of a branch along without reopening the finished part. Then it undoes
  * all of it.
  *
  * It found D31 and D32 the first time it ran. Run it after deploying, as
@@ -89,6 +92,7 @@ echo 'list: ' . $project->calendar->name() . ' (' . $ref . ')' . PHP_EOL;
 
 $workflow = null;
 $taskUid = null;
+$childUid = null;
 
 // The drops below give the cards in the columns they touch a place, which is
 // the first drop's job (§15.5) but would rearrange a board somebody has
@@ -347,7 +351,133 @@ try {
 	}
 	$workflows->setTransitions($user, $workflow->id(), []);
 
-	// 13. Whether the board is switched on at all. A module ships off, so this
+	// 13. Subtasks (§15.9). A subtask has a status of its own, so it is a card
+	// of its own — and the card has to say whose it is, because a board that
+	// cannot say that is the board 0.4.1 had.
+	$child = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — subtask',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		$taskUid,
+		null,
+		null,
+		null,
+	));
+	$childUid = $child->getUid();
+
+	$withChild = $board->board($user, $ref);
+	$childFacts = $withChild->tree->factsFor($childUid);
+	check(
+		'a subtask is a card of its own, and says whose it is',
+		($childFacts['parent']['uid'] ?? null) === $taskUid,
+		(string)($childFacts['parent']['summary'] ?? '(none)'),
+	);
+	check(
+		'the parent says how much of its branch is done',
+		($withChild->tree->factsFor($taskUid)['subtasks'] ?? null) === ['total' => 1, 'done' => 0, 'open' => ['todo' => 1]],
+		json_encode($withChild->tree->factsFor($taskUid)['subtasks']),
+	);
+
+	$rolledUp = $board->board($user, $ref, rolled: true);
+	$rolledUids = [];
+	foreach ($keys as $key) {
+		foreach ($rolledUp->column($key) as $rolledCard) {
+			$rolledUids[] = $rolledCard->getUid();
+		}
+	}
+	check(
+		'rolling the board up folds the subtask into its parent',
+		!in_array($childUid, $rolledUids, true) && in_array($taskUid, $rolledUids, true),
+		count($rolledUids) . ' cards rolled up, ' . count($onBoard) . ' + 1 unfolded',
+	);
+
+	// The subtask into another column, so a cascade has somewhere to take it
+	// from.
+	$childInDoing = $board->move($user, $ref, [['uid' => $childUid, 'etag' => $child->getEtag()]], 'doing');
+	$parentEtag = null;
+	foreach ($board->board($user, $ref)->column('done') as $parentCard) {
+		if ($parentCard->getUid() === $taskUid) {
+			$parentEtag = $parentCard->getEtag();
+		}
+	}
+
+	$cascaded = $board->move(
+		$user,
+		$ref,
+		[['uid' => $taskUid, 'etag' => $parentEtag]],
+		'todo',
+		null,
+		null,
+		null,
+		false,
+		true,
+	);
+	$cascadedUids = array_map(static fn (Task $moved): string => $moved->getUid(), $cascaded->cards);
+	check(
+		'a cascading drop takes the unfinished subtask with it',
+		in_array($childUid, $cascadedUids, true),
+		implode(', ', $cascadedUids),
+	);
+	check(
+		'the subtask lands behind its parent',
+		strcmp($cascaded->ranks[$taskUid] ?? '', $cascaded->ranks[$childUid] ?? '') < 0,
+		($cascaded->ranks[$taskUid] ?? '(none)') . ' → ' . ($cascaded->ranks[$childUid] ?? '(none)'),
+	);
+	check(
+		'the subtask says which column it came from, so an undo can put it back',
+		($cascaded->from[$childUid] ?? null) === 'doing',
+		(string)($cascaded->from[$childUid] ?? '(none)'),
+	);
+
+	// A finished subtask stays finished: dragging a parent must never reopen
+	// work that is done.
+	$childNow = null;
+	foreach ($board->board($user, $ref)->column('todo') as $inTodo) {
+		if ($inTodo->getUid() === $childUid) {
+			$childNow = $inTodo;
+		}
+	}
+	$finished = $board->move($user, $ref, [['uid' => $childUid, 'etag' => $childNow?->getEtag()]], 'done');
+	$parentNow = null;
+	foreach ($board->board($user, $ref)->column('todo') as $inTodo) {
+		if ($inTodo->getUid() === $taskUid) {
+			$parentNow = $inTodo;
+		}
+	}
+	$again = $board->move(
+		$user,
+		$ref,
+		[['uid' => $taskUid, 'etag' => $parentNow?->getEtag()]],
+		'doing',
+		null,
+		null,
+		null,
+		false,
+		true,
+	);
+	$stillDone = null;
+	foreach ($board->board($user, $ref)->column('done') as $inDone) {
+		if ($inDone->getUid() === $childUid) {
+			$stillDone = $inDone;
+		}
+	}
+	check(
+		'a cascade leaves a finished subtask finished',
+		$stillDone !== null && $stillDone->getEtag() === $finished->cards[0]->getEtag(),
+		$stillDone === null ? 'it was moved out of done' : 'etag unchanged in done',
+	);
+	check(
+		'a cascade with nothing to take moves only the card itself',
+		count($again->cards) === 1 && $again->cards[0]->getUid() === $taskUid,
+		implode(', ', array_map(static fn (Task $moved): string => $moved->getUid(), $again->cards)),
+	);
+
+	// 14. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
 	check(
 		'the kanban module is switched on for this user',
@@ -355,22 +485,23 @@ try {
 		'occ config:app:set chronos module_kanban --value 1 --type boolean',
 	);
 } finally {
-	// Undo everything, in reverse.
-	if ($taskUid !== null) {
+	// Undo everything, in reverse. The subtask goes first: a parent with a
+	// child left behind is exactly the mess this release is about.
+	foreach (array_filter([$childUid, $taskUid]) as $throwaway) {
 		try {
-			$tasks->delete($user, $taskUid);
-			echo '  cleaned up the throwaway task' . PHP_EOL;
+			$tasks->delete($user, $throwaway);
+			echo '  cleaned up the throwaway task ' . $throwaway . PHP_EOL;
 		} catch (\Throwable $e) {
 			echo '  COULD NOT DELETE THE TASK: ' . $e->getMessage() . PHP_EOL;
 		}
 		$db = Server::get(\OCP\IDBConnection::class);
 		$delete = $db->getQueryBuilder();
 		$delete->delete('chronos_status_history')
-			->where($delete->expr()->eq('task_uid', $delete->createNamedParameter($taskUid)));
+			->where($delete->expr()->eq('task_uid', $delete->createNamedParameter($throwaway)));
 		$delete->executeStatement();
 		$hard = $db->getQueryBuilder();
 		$hard->delete('chronos_tasks')
-			->where($hard->expr()->eq('uid', $hard->createNamedParameter($taskUid)));
+			->where($hard->expr()->eq('uid', $hard->createNamedParameter($throwaway)));
 		$hard->executeStatement();
 	}
 
