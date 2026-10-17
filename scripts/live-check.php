@@ -252,17 +252,36 @@ try {
 
 	// 9. A drop into another column: the status is written, and the card's
 	// place is recorded.
-	$dropped = $board->move($user, $ref, [['uid' => $taskUid, 'etag' => $done->getEtag()]], 'doing');
+	//
+	// The column chosen is the one with the most other cards in it, so that
+	// the reorder below has something to be reordered against — in a list
+	// whose tasks are nearly all open, that is the initial column, and the
+	// drop also makes the board rank every card already there (§15.5).
+	$busiest = 'doing';
+	$most = -1;
+	$beforeBoard = $board->board($user, $ref);
+	foreach ($keys as $key) {
+		$others = count(array_filter(
+			$beforeBoard->column($key),
+			static fn (Task $candidate): bool => $candidate->getUid() !== $taskUid,
+		));
+		if ($others > $most) {
+			$most = $others;
+			$busiest = $key;
+		}
+	}
+
+	$dropped = $board->move($user, $ref, [['uid' => $taskUid, 'etag' => $done->getEtag()]], $busiest);
 	$card = $dropped->cards[0];
-	check('a drop writes the new status', $workflow->statusById($card->getStatusId())?->getStatusKey() === 'doing', (string)$workflow->statusById($card->getStatusId())?->getStatusKey());
+	check('a drop writes the new status', $workflow->statusById($card->getStatusId())?->getStatusKey() === $busiest, (string)$workflow->statusById($card->getStatusId())?->getStatusKey());
 	check('a drop changes the card\'s etag, as any write does', $card->getEtag() !== $done->getEtag());
-	check('the card was given a place in the column', ($dropped->ranks[$taskUid] ?? '') !== '', $dropped->ranks[$taskUid] ?? '(none)');
+	check('the card was given a place in the column', ($dropped->ranks[$taskUid] ?? '') !== '', $busiest . ' at ' . ($dropped->ranks[$taskUid] ?? '(none)'));
 
 	// 10. Reordering within a column is the board's own business: no CalDAV
 	// write at all, so the etag stays exactly as it was.
-	$doingColumn = $board->board($user, $ref)->column('doing');
+	$column = $board->board($user, $ref)->column($busiest);
 	$neighbour = null;
-	foreach ($doingColumn as $other) {
+	foreach ($column as $other) {
 		if ($other->getUid() !== $taskUid) {
 			$neighbour = $other;
 			break;
@@ -270,26 +289,30 @@ try {
 	}
 
 	if ($neighbour === null) {
-		check('reordering a column writes no status', true, 'nothing else in the column to reorder against');
+		// Only in a list with one task in it; everything else would be a
+		// check that quietly tests nothing.
+		check('reordering a column writes no status', true, 'the list has no second card to reorder against');
+		check('reordering a column changes the card\'s place', true, 'skipped for the same reason');
 	} else {
 		$firstRank = $dropped->ranks[$taskUid] ?? '';
 		$reordered = $board->move(
 			$user,
 			$ref,
 			[['uid' => $taskUid, 'etag' => $card->getEtag()]],
-			'doing',
+			$busiest,
 			$neighbour->getUid(),
 			null,
 		);
-		check('reordering a column writes no status', $reordered->cards[0]->getEtag() === $card->getEtag(), 'etag unchanged');
+		check('reordering a column writes no status', $reordered->cards[0]->getEtag() === $card->getEtag(), 'etag unchanged, ' . $most . ' other cards in ' . $busiest);
 		check('reordering a column changes the card\'s place', ($reordered->ranks[$taskUid] ?? '') !== $firstRank, $firstRank . ' → ' . ($reordered->ranks[$taskUid] ?? '(none)'));
+		check('the cards already in the column were given places too', count($board->board($user, $ref)->column($busiest)) === $most + 1, ($most + 1) . ' cards in order');
 	}
 
 	// 11. Undo: the inverse drop puts the card back where it came from.
 	$currentEtag = null;
-	foreach ($board->board($user, $ref)->column('doing') as $inDoing) {
-		if ($inDoing->getUid() === $taskUid) {
-			$currentEtag = $inDoing->getEtag();
+	foreach ($board->board($user, $ref)->column($busiest) as $moved) {
+		if ($moved->getUid() === $taskUid) {
+			$currentEtag = $moved->getEtag();
 			break;
 		}
 	}
@@ -301,6 +324,8 @@ try {
 	$todo = $workflow->statusByKey('todo')?->getId() ?? 0;
 	$doingId = $workflow->statusByKey('doing')?->getId() ?? 0;
 	$workflows->setTransitions($user, $workflow->id(), [['from' => $todo, 'to' => $doingId]]);
+	// The card is back in the final column after the undo, and the only rule
+	// there is allows todo → doing, so any move it could make is forbidden.
 	try {
 		$board->move($user, $ref, [['uid' => $taskUid]], 'todo');
 		check('a drop the rules forbid is refused', false, 'it was accepted');
