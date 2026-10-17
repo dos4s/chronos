@@ -842,6 +842,13 @@ as long as there is something to undo, and `Ctrl+Z` does the same. It sends the 
 the cards came from and the cards they sat between — so an undo restores the position and not only the
 status. One drop can empty cards out of more than one column, and the undo is then one request per column.
 
+**The server fills in the other side of the gap.** The client names the cards above and below the drop, but
+it does not have to name both, and a card it named may have been moved away since — so the missing side is
+taken from the column, which is right there in front of the service. Naming the card above a drop means
+landing *directly* below it; naming neither means the end of the column. Reading one side as "and nothing
+below it" instead puts the card halfway down everything that follows, at a rank that can equal one already
+in the column — which is what 0.4.1 fixed (D35).
+
 **A move that needs a note asks for one first.** A transition with `requires_comment` would be refused by
 the server after the card had already moved on the screen, so the view asks for the note before it sends
 anything, and the drop waits in the browser until there is one.
@@ -873,11 +880,16 @@ D1–D5, D7–D11, D13–D16 shipped in v0.2.0 (M1).
 
 D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a real instance, D28–D29 are what
 M2 knowingly left for the milestone that can do them properly, D30–D32 came from the second real upgrade,
-and D33–D34 are what M3 knowingly left: the two places where the board does less than §15 asks. None of
+D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — and D35 came
+from the third real upgrade, found by the live check on a list with fifty cards in one column. None of
 them were in the original list. Three times now, checking against a real instance has found something no
-amount of CI could: D25 and D30 from the integration suite, and D31 and D32 from
-`scripts/live-check.php`, which exercises the parts that need an actual calendar. Four of them are why none of
-this had been caught earlier: the lint, analysis and test jobs either had no configuration to read or no
+amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
+`scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
+yet: the check that found it had been passing without testing anything, because the card it dropped was
+alone in its column — a check with an escape hatch is a check that will eventually take it.
+
+Four of them are why none of this had been caught earlier: the lint, analysis and test jobs either had no
+configuration to read or no
 workflow to run them, and all CI workflows trigger on `pull_request`, which a repository without pull
 requests never fires.
 
@@ -917,6 +929,7 @@ requests never fires.
 | D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
 | D33 | **Cards are not virtualised:** a column draws every card it has | `src/components/KanbanColumn.vue` | A project with thousands of open tasks in one column draws thousands of cards; §15.2 asks for virtualisation above a few hundred | Virtualise the column list; the drag engine already measures once, so only the measuring needs to follow the window | M4 | planned |
 | D34 | **A `412` is resolved by reloading, not by merging:** §15.6 says a write refused on its etag should re-apply itself when the other change touched different fields | `src/stores/board.ts`, `src/stores/tasks.ts` | Two people editing one task in different ways makes the second one re-do their change, instead of it merging silently | Fetch the current task, compare field by field, re-apply when the sets are disjoint and offer both versions when they are not | M4 | planned |
+| D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 

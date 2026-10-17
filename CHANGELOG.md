@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-17
+
+Found by deploying 0.4.0 and running the live check on a list with fifty cards in one column — after fixing
+the check itself, which had been reporting a pass without testing anything.
+
+### Fixed
+
+- **A card dropped below another could land halfway down the column.** A drop names the cards above and
+  below it, and when only one of them was named the other side was read as "the end of the column" rather
+  than being taken from the column itself. Dropping a card just below the first of fifty therefore put it
+  somewhere in the middle — at a rank another card could already have, which is two cards claiming one
+  position. The server now fills the missing side in from the column: the card above means directly below
+  it, and naming neither means the end of the column (D35).
+
+### Changed
+
+- `scripts/live-check.php` drops its card into the fullest column other than the one it is already in. Both
+  reorder checks had been taking an escape hatch — "nothing else in the column to reorder against" — and
+  passing without testing anything.
+
 ## [0.4.0] - 2026-10-17
 
 M3: the kanban board. Columns are your workflow's statuses, so moving a card changes the real status —
