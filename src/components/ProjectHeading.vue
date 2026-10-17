@@ -18,6 +18,9 @@ const projects = useProjectsStore()
 
 const current = computed(() => projects.currentProject)
 const others = computed(() => projects.inScope.filter((project) => project.uri !== current.value?.uri))
+
+/** The area it is in, asked for rather than cut back out of the label. */
+const area = computed(() => current.value === null ? null : projects.areaFor(current.value))
 </script>
 
 <template>
@@ -29,8 +32,8 @@ const others = computed(() => projects.inScope.filter((project) => project.uri !
 		<span :class="$style.name">
 			{{ current?.name ?? t('chronos', 'No project') }}
 		</span>
-		<span v-if="current && current.label !== current.name" :class="$style.area">
-			{{ current.label.replace(` / ${current.name}`, '') }}
+		<span v-if="area" :class="$style.area">
+			{{ area.name }}
 		</span>
 
 		<NcActions
