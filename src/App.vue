@@ -19,6 +19,16 @@ const modules = useModulesStore()
 
 const wide = computed(() => route.name !== 'timer')
 
+/**
+ * A plain click works in that project and looks at it; ctrl or ⌘ adds another
+ * for the views that can show several at once (analytics, the sessions, the
+ * roadmap). Shift does the same, because that is what a list of things usually
+ * means by it.
+ */
+function onProjectClick(event: MouseEvent, uri: string): void {
+	projects.toggle(uri, event.ctrlKey || event.metaKey || event.shiftKey)
+}
+
 onMounted(() => {
 	time.refresh()
 	projects.refresh()
@@ -140,20 +150,39 @@ onMounted(() => {
 					</NcAppNavigationItem>
 				</NcAppNavigationList>
 
-				<template v-if="projects.tracked.length">
+				<template v-if="projects.offered.length">
 					<NcAppNavigationCaption :name="t('chronos', 'Projects')" />
 					<NcAppNavigationList>
+						<!--
+							The one place a project is chosen (§14.2). Clicking
+							one works in it and looks at it; ctrl or ⌘ adds
+							another for the views that can show several at once.
+						-->
 						<NcAppNavigationItem
-							v-for="project in projects.tracked"
+							:name="t('chronos', 'All projects')"
+							:active="projects.selection.length === 0"
+							@click="projects.clearSelection()">
+							<template #icon>
+								<div :class="[$style.dot, projects.selection.length === 0 ? $style.dotAll : $style.dotOff]" />
+							</template>
+						</NcAppNavigationItem>
+						<NcAppNavigationItem
+							v-for="project in projects.offered"
 							:key="project.uri"
 							:name="project.name"
-							@click="projects.toggle(project.uri)">
+							:active="projects.isCurrent(project.uri) && projects.selection.length > 0"
+							:title="project.label"
+							@click="onProjectClick($event, project.uri)">
 							<template #icon>
 								<div
-									:class="[$style.dot, projects.isSelected(project.uri) ? $style.dotOn : $style.dotOff]"
+									:class="[$style.dot, {
+										[$style.dotOn]: projects.selection.includes(project.uri),
+										[$style.dotOff]: !projects.selection.includes(project.uri),
+										[$style.dotCurrent]: projects.isCurrent(project.uri),
+									}]"
 									:style="{ '--chronos-project-color': project.color || 'var(--color-primary-element)' }">
 									<svg
-										v-if="projects.isSelected(project.uri)"
+										v-if="projects.selection.includes(project.uri)"
 										viewBox="0 0 24 24"
 										width="12"
 										height="12"
@@ -165,6 +194,10 @@ onMounted(() => {
 							</template>
 						</NcAppNavigationItem>
 					</NcAppNavigationList>
+					<label :class="$style.archived">
+						<input v-model="projects.showArchived" type="checkbox">
+						{{ t('chronos', 'Show archived projects') }}
+					</label>
 				</template>
 			</template>
 		</NcAppNavigation>
@@ -214,5 +247,25 @@ onMounted(() => {
 
 .dotOff {
 	background-color: transparent;
+}
+
+/* Every project at once, which is what no selection means. */
+.dotAll {
+	background-color: var(--color-primary-element);
+	border-color: var(--color-primary-element);
+}
+
+/* The one the board, the timeline and the task list are showing. */
+.dotCurrent {
+	box-shadow: 0 0 0 2px var(--color-main-background), 0 0 0 4px var(--chronos-project-color, var(--color-primary-element));
+}
+
+.archived {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+	padding: 4px 12px 8px 14px;
 }
 </style>

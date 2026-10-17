@@ -2,7 +2,6 @@
 import type { UnixSeconds } from '../api/time.ts'
 import type { DragKind } from '../composables/useTimeDrag.ts'
 import type { PlanBar, PlanLink, PlanRow, TaskWritePayload } from '../types/index.ts'
-import type { LabelledProject } from '../utils/projects.ts'
 import type { Zoom } from '../utils/scale.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -12,11 +11,11 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import NcSelect from '@nextcloud/vue/components/NcSelect'
 import GanttBar from '../components/GanttBar.vue'
 import GanttLinks from '../components/GanttLinks.vue'
 import GanttScale from '../components/GanttScale.vue'
 import PlanSettingsDialog from '../components/PlanSettingsDialog.vue'
+import ProjectHeading from '../components/ProjectHeading.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { useNow } from '../composables/useNow.ts'
 import { useTimeDrag } from '../composables/useTimeDrag.ts'
@@ -46,8 +45,6 @@ const tasks = useTasksStore()
 const route = useRoute()
 const { now } = useNow()
 
-const project = ref<LabelledProject | null>(null)
-const showArchived = ref(false)
 const zoom = ref<Zoom>('month')
 const editing = ref<PlanRow | null>(null)
 const configuring = ref(false)
@@ -63,7 +60,8 @@ const ROW_HEIGHT = 32
 /** How many rows above and below the window to draw, so scrolling is calm. */
 const OVERSCAN = 6
 
-const options = computed(() => showArchived.value ? projects.all : projects.active)
+/** The project the sidebar is working in (§14.2). */
+const project = computed(() => projects.currentProject)
 const rows = computed(() => plan.rows)
 const readOnly = computed(() => plan.plan !== null && !plan.writable)
 
@@ -272,16 +270,7 @@ async function saveSettings(next: { mode: 'warn' | 'cascade', workingDays: numbe
 
 watch(project, (selected) => {
 	void plan.select(selected?.uri ?? null)
-})
-
-watch(options, (available) => {
-	const current = project.value
-	if (current === null) {
-		project.value = available[0] ?? null
-		return
-	}
-	project.value = available.find((candidate) => candidate.uri === current.uri) ?? available[0] ?? null
-})
+}, { immediate: true })
 
 watch(() => plan.plan, async (loaded) => {
 	if (loaded === null) {
@@ -304,13 +293,13 @@ onMounted(async () => {
 		await projects.refresh()
 	}
 
-	// A roadmap line opens the timeline it is about (§12.6).
+	// A roadmap line opens the timeline it is about (§12.6), which means
+	// working in that project — the sidebar follows, because it is the one
+	// place a project is chosen.
 	const asked = route.query.project
-	const wanted = typeof asked === 'string'
-		? options.value.find((candidate) => candidate.uri === asked)
-		: undefined
-
-	project.value = wanted ?? project.value ?? options.value[0] ?? null
+	if (typeof asked === 'string' && projects.find(asked) !== null) {
+		projects.choose(asked)
+	}
 })
 
 onBeforeUnmount(() => {
@@ -330,19 +319,7 @@ onBeforeUnmount(() => {
 		</div>
 
 		<div :class="$style.toolbar">
-			<NcSelect
-				v-model="project"
-				:class="$style.select"
-				:options="options"
-				label="label"
-				:reduce="(option: LabelledProject) => option"
-				:clearable="false"
-				:inputLabel="t('chronos', 'Project')"
-				:placeholder="t('chronos', 'Pick a project')" />
-			<label :class="$style.archived">
-				<input v-model="showArchived" type="checkbox">
-				{{ t('chronos', 'Show archived') }}
-			</label>
+			<ProjectHeading />
 
 			<div :class="$style.spacer" />
 
@@ -516,18 +493,6 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 12px;
 	flex-wrap: wrap;
-}
-
-.select {
-	flex: 0 1 360px;
-}
-
-.archived {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 13px;
-	color: var(--color-text-maxcontrast);
 }
 
 .spacer {

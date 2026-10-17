@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { DragTarget } from '../composables/useDrag.ts'
 import type { BoardCard, BoardColumn, TaskWritePayload } from '../types/index.ts'
-import type { LabelledProject } from '../utils/projects.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -10,10 +9,10 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import NcSelect from '@nextcloud/vue/components/NcSelect'
 import ColumnSettingsDialog from '../components/ColumnSettingsDialog.vue'
 import KanbanCard from '../components/KanbanCard.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
+import ProjectHeading from '../components/ProjectHeading.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { useDrag } from '../composables/useDrag.ts'
 import { useBoardStore } from '../stores/board.ts'
@@ -37,8 +36,6 @@ const projects = useProjectsStore()
 const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
-const project = ref<LabelledProject | null>(null)
-const showArchived = ref(false)
 const editing = ref<BoardCard | null>(null)
 const configuring = ref<BoardColumn | null>(null)
 
@@ -61,7 +58,8 @@ const cascading = ref<{
 
 const lanes = ref<HTMLElement | null>(null)
 
-const options = computed(() => showArchived.value ? projects.all : projects.active)
+/** The project the sidebar is working in (§14.2). */
+const project = computed(() => projects.currentProject)
 const columns = computed(() => board.columns)
 const readOnly = computed(() => board.board !== null && !board.writable)
 
@@ -277,16 +275,7 @@ function onKeyDown(event: KeyboardEvent): void {
 
 watch(project, (selected) => {
 	void board.select(selected?.uri ?? null)
-})
-
-watch(options, (available) => {
-	const current = project.value
-	if (current === null) {
-		project.value = available[0] ?? null
-		return
-	}
-	project.value = available.find((candidate) => candidate.uri === current.uri) ?? available[0] ?? null
-})
+}, { immediate: true })
 
 onMounted(async () => {
 	window.addEventListener('keydown', onKeyDown)
@@ -294,7 +283,6 @@ onMounted(async () => {
 	if (projects.projects.length === 0) {
 		await projects.refresh()
 	}
-	project.value ??= options.value[0] ?? null
 	// The column settings dialog edits the workflow, so its statuses have to
 	// be at hand before one is opened.
 	await workflows.ensureLoaded()
@@ -335,20 +323,8 @@ async function columnSaved(): Promise<void> {
 		</div>
 
 		<div :class="$style.picker">
-			<NcSelect
-				v-model="project"
-				:class="$style.select"
-				:options="options"
-				label="label"
-				:reduce="(option: LabelledProject) => option"
-				:clearable="false"
-				:inputLabel="t('chronos', 'Project')"
-				:placeholder="t('chronos', 'Pick a project')" />
-			<label :class="$style.archived">
-				<input v-model="showArchived" type="checkbox">
-				{{ t('chronos', 'Show archived') }}
-			</label>
-			<label :class="$style.archived">
+			<ProjectHeading />
+			<label :class="$style.toggle">
 				<input
 					type="checkbox"
 					:checked="rolled"
@@ -540,15 +516,11 @@ async function columnSaved(): Promise<void> {
 	flex-wrap: wrap;
 }
 
-.select {
-	flex: 0 1 420px;
-}
-
 .spacer {
 	flex: 1;
 }
 
-.archived {
+.toggle {
 	display: flex;
 	align-items: center;
 	gap: 6px;
