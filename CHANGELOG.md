@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-17
+
+### Changed
+
+- **One place to choose a project.** The sidebar's project list is now the whole of it: click a project to
+  work in it and look at it, ctrl- or ⌘-click to add another, and *All projects* to go back to everything.
+  The task list, the board and the timeline follow it instead of each carrying a picker of their own, and
+  they show the project's name with a switcher that appears only when more than one is in scope. The
+  analytics, the session list, the session editor and the roadmap keep working over the whole selection.
+  Before this, the sidebar filtered only the time views and did nothing at all for the other three, which
+  each had a second copy of the project list.
+- The sidebar lists **every project**, not only the ones with time logged against them — it had to, now
+  that the board and the timeline follow it.
+- The three *Show archived* checkboxes are one checkbox, under the sidebar's project list.
+- The check-in panel keeps its own picker, because which project a session belongs to is a different
+  question from which project is on screen — but it starts on the one you are working in.
+
 ## [0.5.2] - 2026-10-17
 
 ### Fixed

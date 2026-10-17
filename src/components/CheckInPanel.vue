@@ -3,7 +3,7 @@ import type { CheckInPayload } from '../types/index.ts'
 import type { LabelledProject } from '../utils/projects.ts'
 
 import { t } from '@nextcloud/l10n'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
@@ -14,7 +14,23 @@ const time = useTimeStore()
 const projects = useProjectsStore()
 
 const note = ref('')
-const selected = ref<LabelledProject | null>(null)
+/** True once the user has picked a project themselves. */
+const touched = ref(false)
+
+/**
+ * Which project this session is logged against. It is an input to an action,
+ * not a view's scope — so it stays a picker — but it starts on the project the
+ * sidebar is working in, which is nearly always the one you are about to work
+ * on, and it can still be cleared or changed (§14.2).
+ */
+const selected = ref<LabelledProject | null>(projects.currentProject)
+
+watch(() => projects.currentProject, (project) => {
+	// Follows the sidebar until the user has said otherwise themselves.
+	if (!touched.value) {
+		selected.value = project
+	}
+})
 
 async function checkIn() {
 	const payload: CheckInPayload = {}
@@ -43,13 +59,14 @@ async function checkIn() {
 		<div :class="$style.field">
 			<NcSelect
 				v-model="selected"
-				:options="projects.active"
+				:options="projects.offered"
 				label="label"
 				:reduce="(option: LabelledProject) => option"
 				:clearable="true"
 				:inputLabel="t('chronos', 'Project (optional)')"
 				:placeholder="t('chronos', 'No project')"
-				:disabled="time.loading" />
+				:disabled="time.loading"
+				@update:modelValue="touched = true" />
 		</div>
 		<input
 			v-model="note"

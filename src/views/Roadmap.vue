@@ -4,7 +4,7 @@ import type { Zoom } from '../utils/scale.ts'
 
 import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -13,6 +13,7 @@ import GanttScale from '../components/GanttScale.vue'
 import { messageFor } from '../api/client.ts'
 import { fetchRoadmap } from '../api/roadmap.ts'
 import { useNow } from '../composables/useNow.ts'
+import { useProjectsStore } from '../stores/projects.ts'
 import { formatDate } from '../utils/format.ts'
 import { createScale, windowFor } from '../utils/scale.ts'
 
@@ -28,11 +29,11 @@ import { createScale, windowFor } from '../utils/scale.ts'
  * there is drawn by the same arithmetic (§15.4).
  */
 const router = useRouter()
+const projects = useProjectsStore()
 const { now } = useNow()
 
 const roadmap = ref<Roadmap | null>(null)
 const loading = ref(false)
-const showArchived = ref(false)
 const zoom = ref<Zoom>('quarter')
 
 const chart = ref<HTMLElement | null>(null)
@@ -42,7 +43,12 @@ const scrollTop = ref(0)
 /** Every line is this tall, in the list and on the chart alike. */
 const ROW_HEIGHT = 34
 
-const rows = computed(() => roadmap.value?.rows ?? [])
+/**
+ * Every project the sidebar has in scope. With nothing selected that is all of
+ * them, which is the roadmap's usual case — it is the cross-project view — and
+ * with a selection it is those, because the sidebar scopes every view (§14.2).
+ */
+const rows = computed(() => (roadmap.value?.rows ?? []).filter((row) => projects.matches(row.ref)))
 
 const scale = computed(() => {
 	const window = windowFor(roadmap.value?.from ?? null, roadmap.value?.to ?? null, now.value, zoom.value)
@@ -90,6 +96,8 @@ function onScroll(): void {
 }
 
 function open(row: RoadmapRow): void {
+	// Opening a line means working in that project, so the sidebar follows.
+	projects.choose(row.ref)
 	void router.push({ name: 'timeline', query: { project: row.ref } })
 }
 
@@ -106,7 +114,7 @@ function label(row: RoadmapRow): string {
 async function load(): Promise<void> {
 	loading.value = true
 	try {
-		roadmap.value = await fetchRoadmap(showArchived.value)
+		roadmap.value = await fetchRoadmap(projects.showArchived)
 	} catch (error) {
 		showError(messageFor(error))
 	} finally {
@@ -114,10 +122,11 @@ async function load(): Promise<void> {
 	}
 }
 
-async function toggleArchived(): Promise<void> {
-	showArchived.value = !showArchived.value
-	await load()
-}
+// The sidebar decides whether the archived projects are in play (§14.2), and
+// that is a question for the server: it reads the lists either way.
+watch(() => projects.showArchived, () => {
+	void load()
+})
 
 onMounted(async () => {
 	window.addEventListener('resize', onScroll)
@@ -149,10 +158,6 @@ onBeforeUnmount(() => {
 		</div>
 
 		<div :class="$style.toolbar">
-			<label :class="$style.archived">
-				<input type="checkbox" :checked="showArchived" @change="toggleArchived">
-				{{ t('chronos', 'Show archived') }}
-			</label>
 			<div :class="$style.spacer" />
 			<div :class="$style.zooms" role="group" :aria-label="t('chronos', 'Zoom')">
 				<NcButton
@@ -267,14 +272,6 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 12px;
 	flex-wrap: wrap;
-}
-
-.archived {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 13px;
-	color: var(--color-text-maxcontrast);
 }
 
 .spacer {

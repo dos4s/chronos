@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Task, TaskWritePayload } from '../types/index.ts'
-import type { LabelledProject } from '../utils/projects.ts'
 import type { TaskNode } from '../utils/tasks.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -9,7 +8,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import NcSelect from '@nextcloud/vue/components/NcSelect'
+import ProjectHeading from '../components/ProjectHeading.vue'
 import ProjectSettingsDialog from '../components/ProjectSettingsDialog.vue'
 import PromoteDialog from '../components/PromoteDialog.vue'
 import TaskComposer from '../components/TaskComposer.vue'
@@ -25,43 +24,26 @@ const projects = useProjectsStore()
 const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
-const project = ref<LabelledProject | null>(null)
 const editing = ref<Task | null>(null)
 const subtaskParent = ref<TaskNode | null>(null)
 /** The subproject being turned into a list of its own (F2, §6). */
 const promoting = ref<TaskNode | null>(null)
-const showArchived = ref(false)
 const configuring = ref(false)
 
-/**
- * The archived projects stay out of the picker until asked for, which is the
- * whole point of archiving one.
- */
-const options = computed(() => showArchived.value ? projects.all : projects.active)
+/** The project the sidebar is working in (§14.2). */
+const project = computed(() => projects.currentProject)
 
 const readOnly = computed(() => project.value !== null && !project.value.writable)
 
 watch(project, (selected) => {
 	subtaskParent.value = null
 	tasks.select(selected?.uri ?? null)
-})
-
-// Settings are saved into the store, which replaces the project object; the
-// selection follows it rather than holding the version it was picked from.
-watch(options, (available) => {
-	const current = project.value
-	if (current === null) {
-		project.value = available[0] ?? null
-		return
-	}
-	project.value = available.find((candidate) => candidate.uri === current.uri) ?? available[0] ?? null
-})
+}, { immediate: true })
 
 onMounted(async () => {
 	if (projects.projects.length === 0) {
 		await projects.refresh()
 	}
-	project.value ??= options.value[0] ?? null
 	// Statuses are needed to draw a single row, so they are loaded with the
 	// view rather than when a dialog first asks for them.
 	await workflows.ensureLoaded()
@@ -110,15 +92,8 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 		</div>
 
 		<div :class="$style.picker">
-			<NcSelect
-				v-model="project"
-				:class="$style.select"
-				:options="options"
-				label="label"
-				:reduce="(option: LabelledProject) => option"
-				:clearable="false"
-				:inputLabel="t('chronos', 'Project')"
-				:placeholder="t('chronos', 'Pick a project')" />
+			<ProjectHeading />
+			<div :class="$style.spacer" />
 			<NcButton
 				v-if="project && (modules.projects || modules.workflow)"
 				variant="tertiary"
@@ -126,10 +101,6 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				@click="configuring = true">
 				{{ t('chronos', 'Settings') }}
 			</NcButton>
-			<label :class="$style.archived">
-				<input v-model="showArchived" type="checkbox">
-				{{ t('chronos', 'Show archived') }}
-			</label>
 		</div>
 
 		<NcNoteCard v-if="readOnly" type="info">
@@ -215,16 +186,8 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 	flex-wrap: wrap;
 }
 
-.select {
-	flex: 0 1 420px;
-}
-
-.archived {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 13px;
-	color: var(--color-text-maxcontrast);
+.spacer {
+	flex: 1;
 }
 
 .loading {

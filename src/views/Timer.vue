@@ -12,9 +12,9 @@ const projects = useProjectsStore()
 
 <template>
 	<div :class="$style.view">
-		<div v-if="projects.filters.length" :class="$style.filterNotice">
+		<div v-if="projects.selection.length" :class="$style.filterNotice">
 			{{ t('chronos', 'Filtering by project') }}:
-			<strong>{{ projects.filters.map((uri) => projects.nameFor(uri) ?? uri).join(', ') }}</strong>
+			<strong>{{ projects.selection.map((uri: string) => projects.nameFor(uri) ?? uri).join(', ') }}</strong>
 		</div>
 
 		<transition name="fade" mode="out-in">
