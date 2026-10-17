@@ -273,6 +273,101 @@ export interface BoardMoveResult {
 	counts: Record<string, number>
 }
 
+/**
+ * One bar on a timeline (§12.5).
+ *
+ * `endAt` is **exclusive** — the instant after the bar, which for an all-day
+ * task is the start of the day after its `DUE` date (§8.4). Keeping it that way
+ * is what makes every comparison in the scheduler a plain one.
+ */
+export interface PlanBar {
+	startAt: UnixSeconds
+	endAt: UnixSeconds
+	startIsDate: boolean
+	dueIsDate: boolean
+	/** One end is the plan's guess, not a date anybody set. */
+	inferred: boolean
+	isMilestone: boolean
+}
+
+/** One line of a timeline: a task, its depth in the tree, and its bar. */
+export type PlanRow = Task & {
+	depth: number
+	bar: PlanBar | null
+	/** The bar is the span of what is under it, so it is not dragged. */
+	isSummary: boolean
+	/** 0–100, from `PERCENT-COMPLETE` or from how much of a branch is done. */
+	progress: number | null
+}
+
+/** A dependency, always stored predecessor → successor (§7, RFC 9253). */
+export interface PlanLink {
+	id: number
+	predecessorUid: string
+	successorUid: string
+	reltype: string
+	gapSeconds: number
+	/** False for `DEPENDS-ON`, which is drawn and never scheduled. */
+	temporal: boolean
+}
+
+/** A dependency the dates do not satisfy (§15.3). */
+export interface PlanConflict {
+	kind: 'too_early' | 'cycle'
+	predecessorUid: string
+	successorUid: string
+	reltype: string
+	requiredAt: UnixSeconds
+	actualAt: UnixSeconds
+}
+
+/** What a project says about its own timeline (§10.2). */
+export interface PlanSettings {
+	mode: 'warn' | 'cascade'
+	/** ISO weekdays, 1 = Monday; empty means every day works. */
+	workingDays: number[]
+}
+
+export interface Plan {
+	project: {
+		uri: string
+		calendarUri: string
+		name: string
+		color: string | null
+		writable: boolean
+	}
+	/** The extent of everything that has a bar, or null when nothing has. */
+	from: UnixSeconds | null
+	to: UnixSeconds | null
+	rows: PlanRow[]
+	links: PlanLink[]
+	conflicts: PlanConflict[]
+	settings: PlanSettings
+}
+
+/** One bar, dragged or resized (§15.6). */
+export interface PlanMovePayload {
+	project: string
+	uid: string
+	startAt: UnixSeconds
+	dueAt: UnixSeconds
+	startIsDate: boolean
+	dueIsDate: boolean
+	etag?: string | null
+	/** The mode the drag previewed, so the ghosts the user saw are written. */
+	mode?: 'warn' | 'cascade'
+}
+
+/**
+ * What a drag changed: every row that was written — and the ancestors whose
+ * summary bars it stretched — plus the conflicts that are left (§15.6).
+ */
+export interface PlanMoveResult {
+	rows: PlanRow[]
+	conflicts: PlanConflict[]
+	cascaded: boolean
+}
+
 /** Which modules this instance offers and this user wants (§13). */
 export type ModuleState = Record<string, boolean>
 

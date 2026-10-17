@@ -776,6 +776,18 @@ drag is also a keyboard drag, from the same engine: space picks a card up, the a
 positions and columns (stepping over the columns the workflow will not take), space drops it, escape puts
 it back, and each step is written into a live region.
 
+**As built in M4 (the timeline).** A bar is dragged four ways and they are different enough to name:
+**move** takes the whole bar and keeps its length, **start** and **end** take one edge and keep the other,
+and **link** comes out of a handle on the bar's right and lands on another row, making a dependency rather
+than moving anything. All four are one composable (`composables/useTimeDrag`) with the board's manners —
+pointer capture, the 4 px threshold, the long press before a finger drags, escape to cancel, autoscroll at
+the edges — and all four work from the keyboard: space picks a bar up, the arrows move it by one snap step,
+**shift and the arrows stretch its end**, space drops it, escape puts it back. A double-click on a row that
+has no bar gives the task a day to live in, which is how a plan starts in a list where almost nothing has
+dates.
+
+It is a second gesture implementation beside the board's, which is one more than there should be (D41).
+
 ### 15.2 Smoothness
 - **No reactive state changes per pointer move.** During a drag only a lightweight preview moves, via
   `transform: translate3d()` updated in `requestAnimationFrame`. State changes once, on drop.
@@ -791,6 +803,15 @@ actually changes — crossing a card's midpoint or a column's edge — which is 
 and not once per pointer move. Lane rectangles and card midpoints are read once at drag start, and again
 only when autoscroll has moved them.
 
+**As built in M4.** The timeline goes further than measuring once: it never measures at all. A row's
+vertical position is its index times the row height and a bar's horizontal position comes from the scale
+(`utils/scale.ts`), so placing a thousand bars and a thousand dependency lines reads no layout whatsoever —
+and a drag's arithmetic is exact rather than inferred from a rectangle. Only the rows in view are drawn,
+about forty of them, so a project of two thousand tasks renders as fast as one of twenty; the chart is the
+only element that scrolls and the table and the header follow it by transform, which is what keeps them in
+step at any scroll position. The reactive position changes once per snap step — once a day's worth of
+dragging at week zoom — and at most once per frame when alt is held and nothing snaps.
+
 ### 15.3 Feedback while dragging
 - **Kanban:** placeholder at the exact drop position; columns the workflow doesn't allow are dimmed; WIP
   limit warning on the target column.
@@ -803,6 +824,14 @@ the workflow will not take the card from where it is is dimmed — which is what
 rule visible (D28). A column over its WIP limit says so in its header and above its cards, in warning
 colour, whether or not anything is being dragged. Dragging several cards at once shows the first one under
 the pointer and *and n more* beneath it.
+
+**As built in M4 (the timeline).** While a bar is in the air: a tooltip above it says the dates it would
+land on and how long it would be, the dependency lines follow it live, and every line the move would break
+turns red — before the drop, so the warning arrives while it can still be acted on. In cascade mode the
+dependents are drawn as **ghost bars** where they would follow, and the tooltip counts them (*3 tasks
+follow*). Dragging out of the link handle highlights the row the dependency would land on. A bar the plan
+only guessed at — one date rather than two — is drawn as a dashed outline, so a suggestion never looks like
+a decision.
 
 ### 15.4 Accuracy (Gantt and session editor)
 - **One scale function** converts pixels ↔ seconds for the current zoom; all drag math goes through it.
@@ -1025,8 +1054,9 @@ D17–D24 were found while implementing M1, D25–D27 by the first upgrade of a 
 M2 knowingly left for the milestone that can do them properly, D30–D32 came from the second real upgrade,
 D33–D34 are what M3 knowingly left — the two places where the board does less than §15 asks — D35 came
 from the third real upgrade, found by the live check on a list with fifty cards in one column, and D36–D38
-are what 0.4.2 left after giving the board its tree back (§15.9), and D39 was found while building M4 —
-a date's time zone, which nothing before a timeline wrote often enough to notice. None of
+are what 0.4.2 left after giving the board its tree back (§15.9), D39 and D40 were found while building M4 — a date's time zone and an all-day date's
+day, neither of which anything before a timeline handled often enough to notice — and D41 is what M4
+knowingly left. None of
 them were in the original list. Three times now, checking against a real instance has found something no
 amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
@@ -1077,6 +1107,8 @@ requests never fires.
 | D36 | **Undoing a cascade puts the subtasks back at the end of their old column**, not at the place they had: the page never saw where they were, and a rank is one row per card, so the old one is gone the moment the new one is written | `src/stores/board.ts`, `Board/Service/BoardService` | An undo restores every status exactly and one position approximately, which §15.6 promises to do exactly | Return the rank each card had as well as the column, and let the undo send it back as a position rather than an end | M4 | planned |
 | D37 | **A new subtask of an arranged parent appears at the end of its column**, not under its parent: a card with no rank sorts after the ranked ones (§15.5), and nesting only orders the unranked tail | `Board/CardOrder`, `Board/Service/BoardService` | On a board that has been arranged, a subtask created in the Tasks view turns up away from its parent — correctly labelled, but not where it belongs | Give a new card a rank beside its parent's when its parent has one, which is a write outside a drop and needs §15.5 to say so first | M4 | planned |
 | D38 | **The subtask view is not remembered:** rolling the board up lasts as long as the page does, like *Show archived* beside it | `src/views/Kanban.vue` | A preference that has to be set again on every visit | A per-user setting, with the other view preferences, when there is somewhere to put them | M5 | planned |
+| D40 | **An all-day date was shown as the day before, west of Greenwich:** the date chips formatted an all-day value in the reader's own zone, although §8.4 says such a value is midnight UTC and never an instant | `src/utils/format.ts`, the task and card chips | A task due the 30th read as the 29th for every user in a negative-offset zone. Invisible on the instance this was built against, which has no all-day tasks at all — and then unavoidable on a timeline, where all-day bars are the common case | `formatDate(at, isDate)` reads an all-day value in UTC; every caller says which kind it has | M4 | done |
+| D41 | **Two gesture implementations:** the board's `useDrag` (lanes and positions) and the timeline's `useTimeDrag` (an axis and deltas) each carry their own pointer capture, threshold, long press, autoscroll and keyboard handling | `src/composables/useDrag.ts`, `src/composables/useTimeDrag.ts` | The thing §15.8 set out to avoid: two copies of the input manners, which can drift apart | Extract the gesture mechanics into one primitive both sit on. Not done with M4 because the board is deployed and verified and there is no way to test pointer code in the node test environment — so the refactor would be unverifiable, which is a worse trade than the duplication | M5 | planned |
 | D39 | **Every timed date was rewritten as UTC:** the writer always wrote `DTSTART`/`DUE` as `…Z`, although §7 and §8.4 both say the value type and the `TZID` or floating form are preserved | `Core/Dav/VTodoWriter::setDate()` | The instant survived, so no time was lost, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z` — and a *floating* time, which means six o'clock wherever the reader is, came back pinned to an instant, which says something else. Found while building M4, where a drag writes dates constantly | Read the property that is there before replacing it: a `TZID` is written again as that `TZID`, a floating time stays floating, anything else stays UTC | M4 | done |
 | D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
 
@@ -1313,6 +1345,14 @@ task that declares them, and the same algorithm in the browser (`src/utils/sched
 `src/utils/planDates.ts`) so the ghost bars a drag shows are the write it will make (AD16). The `gantt`
 module is implemented and switchable. No migration: `chronos_task_links` has been there since M2 and
 `chronos_projects.settings` was made for exactly this.
+
+**Part 2 implemented** — the timeline itself: a tree table and a chart sharing one scroller, three zooms
+(months, weeks, days) with the snapping of §15.4, bars that move and resize and link by pointer or
+keyboard, ghost bars and red links before the drop, a tooltip with the dates and the length, summary bars
+for subprojects and parents, milestones as diamonds, progress from `PERCENT-COMPLETE` or the branch, the
+today line, non-working-day stripes, a double-click to give an undated task a day, and the project's
+timeline settings where they are visible. Positions are computed rather than measured and only the rows in
+view are drawn, which is what answers M4's performance criterion (§15.2).
 
 ### M5 — Time per task · v0.6.0
 - `task_uid` on sessions; start the timer from a task in any view.

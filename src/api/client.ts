@@ -60,7 +60,9 @@ export function get<T>(path: string, params?: Record<string, string | number>) {
 }
 export const post = <T>(path: string, data?: unknown) => request<T>('post', path, data)
 export const put = <T>(path: string, data?: unknown) => request<T>('put', path, data)
-export const del = <T>(path: string) => request<T>('delete', path)
+export function del<T>(path: string, params?: Record<string, string | number>) {
+	return request<T>('delete', path, undefined, params)
+}
 
 /**
  * A message for each error the API can return, so a failed action explains

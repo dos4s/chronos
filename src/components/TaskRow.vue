@@ -37,7 +37,7 @@ const dueLabel = computed(() => {
 		return null
 	}
 	if (task.value.dueIsDate) {
-		return dueToday.value ? t('chronos', 'Today') : formatDate(due)
+		return dueToday.value ? t('chronos', 'Today') : formatDate(due, true)
 	}
 	return dueToday.value ? formatTimeOfDay(due) : `${formatDate(due)} ${formatTimeOfDay(due)}`
 })
