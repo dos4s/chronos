@@ -667,6 +667,16 @@ satisfy one; a loop another client wrote is reported as a conflict and never fol
 ### 12.6 Roadmap (cross-project)
 One row per project/subproject grouped by area; milestones and spans over months/quarters; click → Gantt.
 
+**As built in M4.** `GET /roadmap` answers with every project the user can see in **one index query** —
+fifteen round trips to draw fifteen lines would be fifteen times the work for one screen (§16) — grouped by
+area, with the projects nobody has filed as the last group, because that is where a project starts and
+where most of them stay. A line is a project or a subproject inside one, spanning from the earliest thing
+in it to the latest, with the milestones in it marked on it: a diamond, hollow once it has been met,
+because a met milestone is history rather than a deadline. It shares the timeline's scale and header, with
+a **quarter** zoom of its own where a year fits on two screens, so a project read here and opened there is
+drawn by the same arithmetic. Nothing on it is draggable: a project's span is its tasks' dates, and those
+are the timeline's to change — clicking a line opens it (`/timeline?project=…`).
+
 ### 12.7 Sprints
 Per project or global; `sprint_id` mirrored to `X-CHRONOS-SPRINT`; burndown from status history; bands on
 the Gantt.
@@ -1170,7 +1180,15 @@ task: that a subtask is a card that names its parent, that its parent counts the
 board up folds it in, that a cascading drop takes it along and lands it behind its parent while telling the
 client which column it came from, and that a subtask already finished is left alone (§15.9). It keeps the
 card positions it found and puts them back afterwards, because arranging somebody's board is not a check's
-business. The last check is whether the `kanban` module
+business.
+
+Since 0.5.0 it also drags bars: that a plan has a row for every task in the list, that a drag writes both
+dates and writes an all-day one back as the day it is due, that a dependency Chronos created is readable in
+the VTODO itself with its `GAP` — the one acceptance criterion of M4 that only a real calendar can answer —
+that a link which would close a loop is refused, that warn mode moves one task and reports what it broke
+while cascade mode moves the dependent onto a working day, that removing a dependency takes it out of the
+VTODO as well, and that the roadmap has a line for the project. The timeline settings it writes are cleared
+afterwards, like everything else it touches. The last check is whether the `kanban` module
 is switched on for that user at all — a module ships off, and that is a reminder rather than a bug.
 
 ## 19. Risks
@@ -1353,6 +1371,14 @@ for subprojects and parents, milestones as diamonds, progress from `PERCENT-COMP
 today line, non-working-day stripes, a double-click to give an undated task a day, and the project's
 timeline settings where they are visible. Positions are computed rather than measured and only the rows in
 view are drawn, which is what answers M4's performance criterion (§15.2).
+
+**Part 3 implemented** — the roadmap: every project at once, grouped by area, spans and milestones over
+quarters, and a click through to the timeline of the one you are looking at. The `roadmap` module is
+implemented and switchable; it requires `gantt`, as it always did. The live check grew a timeline section
+too: a plan has a row per task, a drag writes both dates and writes an all-day one back as the day it is
+due, a dependency created in Chronos is **readable in the VTODO** — M4's acceptance criterion — a loop is
+refused, warn mode moves one task and reports the conflict, cascade mode moves the dependent onto a working
+day, and the roadmap has a line for the project (§18).
 
 ### M5 — Time per task · v0.6.0
 - `task_uid` on sessions; start the timer from a task in any view.

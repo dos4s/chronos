@@ -31,6 +31,11 @@ export default createRouter({
 			component: () => import('./views/Gantt.vue'),
 		},
 		{
+			path: '/roadmap',
+			name: 'roadmap',
+			component: () => import('./views/Roadmap.vue'),
+		},
+		{
 			path: '/analytics',
 			name: 'analytics',
 			component: () => import('./views/Analytics.vue'),

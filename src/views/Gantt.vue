@@ -7,6 +7,7 @@ import type { Zoom } from '../utils/scale.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -42,6 +43,7 @@ import { createScale, dayAfter, windowFor } from '../utils/scale.ts'
 const plan = usePlanStore()
 const projects = useProjectsStore()
 const tasks = useTasksStore()
+const route = useRoute()
 const { now } = useNow()
 
 const project = ref<LabelledProject | null>(null)
@@ -296,7 +298,14 @@ onMounted(async () => {
 	if (projects.projects.length === 0) {
 		await projects.refresh()
 	}
-	project.value ??= options.value[0] ?? null
+
+	// A roadmap line opens the timeline it is about (§12.6).
+	const asked = route.query.project
+	const wanted = typeof asked === 'string'
+		? options.value.find((candidate) => candidate.uri === asked)
+		: undefined
+
+	project.value = wanted ?? project.value ?? options.value[0] ?? null
 })
 
 onBeforeUnmount(() => {
