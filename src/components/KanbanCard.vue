@@ -55,7 +55,7 @@ const dueLabel = computed(() => {
 		return null
 	}
 	if (props.card.dueIsDate) {
-		return dueToday.value ? t('chronos', 'Today') : formatDate(due)
+		return dueToday.value ? t('chronos', 'Today') : formatDate(due, true)
 	}
 	return dueToday.value ? formatTimeOfDay(due) : `${formatDate(due)} ${formatTimeOfDay(due)}`
 })

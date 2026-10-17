@@ -1,4 +1,5 @@
 import type { UnixSeconds } from '../api/time.ts'
+import type { PlanConflict, PlanLink } from '../types/index.ts'
 import type { Bar } from './planDates.ts'
 
 import { endingAt, nextWorkingDay, sameBar, startingAt } from './planDates.ts'
@@ -18,24 +19,9 @@ import { endingAt, nextWorkingDay, sameBar, startingAt } from './planDates.ts'
 /** The relationships that decide dates (RFC 9253 §4). */
 export const TEMPORAL_RELTYPES = ['FINISHTOSTART', 'STARTTOSTART', 'FINISHTOFINISH', 'STARTTOFINISH']
 
-export interface Dependency {
-	id: number
-	predecessorUid: string
-	successorUid: string
-	reltype: string
-	gapSeconds: number
-	/** The server says so; a link built in the browser is asked below. */
-	temporal?: boolean
-}
+export type Dependency = Omit<PlanLink, 'temporal'> & { temporal?: boolean }
 
-export interface Conflict {
-	kind: 'too_early' | 'cycle'
-	predecessorUid: string
-	successorUid: string
-	reltype: string
-	requiredAt: UnixSeconds
-	actualAt: UnixSeconds
-}
+export type Conflict = PlanConflict
 
 export interface Rescheduling {
 	/** Every bar that ends up somewhere new, the dragged one included. */

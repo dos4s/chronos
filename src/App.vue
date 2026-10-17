@@ -77,6 +77,22 @@ onMounted(() => {
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem
+						v-if="modules.gantt"
+						id="view-timeline"
+						:name="t('chronos', 'Timeline')"
+						:to="{ name: 'timeline' }">
+						<template #icon>
+							<svg
+								viewBox="0 0 24 24"
+								aria-hidden="true"
+								fill="currentColor"
+								width="16"
+								height="16">
+								<path d="M2 4h2v16H2V4m4 2h8v3H6V6m3 5h9v3H9v-3m-3 5h7v3H6v-3Z" />
+							</svg>
+						</template>
+					</NcAppNavigationItem>
+					<NcAppNavigationItem
 						id="view-analytics"
 						:name="t('chronos', 'Analytics')"
 						:to="{ name: 'analytics' }">

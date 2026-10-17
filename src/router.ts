@@ -26,6 +26,11 @@ export default createRouter({
 			component: () => import('./views/Kanban.vue'),
 		},
 		{
+			path: '/timeline',
+			name: 'timeline',
+			component: () => import('./views/Gantt.vue'),
+		},
+		{
 			path: '/analytics',
 			name: 'analytics',
 			component: () => import('./views/Analytics.vue'),

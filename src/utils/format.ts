@@ -39,10 +39,40 @@ export function formatTimeOfDay(at: UnixSeconds): string {
 	return toDate(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export function formatDate(at: UnixSeconds): string {
-	return toDate(at).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })
+/**
+ * A date, in words.
+ *
+ * `isDate` says which kind of date it is, and it matters (§8.4): an all-day
+ * date is stored as midnight **UTC** and is not an instant, so formatting one
+ * in the reader's own zone shows the day before for everybody west of
+ * Greenwich. A task due the 30th read in New York was showing the 29th (D40).
+ */
+export function formatDate(at: UnixSeconds, isDate = false): string {
+	return toDate(at).toLocaleDateString([], {
+		day: '2-digit',
+		month: 'short',
+		year: 'numeric',
+		...(isDate ? { timeZone: 'UTC' } : {}),
+	})
 }
 
-export function formatWeekday(at: UnixSeconds): string {
-	return toDate(at).toLocaleDateString([], { weekday: 'short' })
+export function formatWeekday(at: UnixSeconds, isDate = false): string {
+	return toDate(at).toLocaleDateString([], {
+		weekday: 'short',
+		...(isDate ? { timeZone: 'UTC' } : {}),
+	})
+}
+
+/** A day and month, for a timeline's scale. */
+export function formatDayMonth(at: UnixSeconds, isDate = false): string {
+	return toDate(at).toLocaleDateString([], {
+		day: 'numeric',
+		month: 'short',
+		...(isDate ? { timeZone: 'UTC' } : {}),
+	})
+}
+
+/** A month and year, for the band above it. */
+export function formatMonth(at: UnixSeconds): string {
+	return toDate(at).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }

@@ -1,4 +1,5 @@
 import type { UnixSeconds } from '../api/time.ts'
+import type { PlanBar } from '../types/index.ts'
 
 import { addDays, addDaysUtc, asSeconds } from '../api/time.ts'
 
@@ -18,16 +19,7 @@ import { addDays, addDaysUtc, asSeconds } from '../api/time.ts'
  */
 
 /** One bar on the timeline, as the server sends it and the drag moves it. */
-export interface Bar {
-	startAt: UnixSeconds
-	/** Exclusive: the instant after the bar, not the last one in it. */
-	endAt: UnixSeconds
-	startIsDate: boolean
-	dueIsDate: boolean
-	/** One end is the plan's guess, not a date anybody set. */
-	inferred: boolean
-	isMilestone: boolean
-}
+export type Bar = PlanBar
 
 export function isAllDay(bar: Bar): boolean {
 	return bar.startIsDate && bar.dueIsDate
