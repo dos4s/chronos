@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-18
+
+Four things the app needed and nobody had asked for, from reading it with fresh eyes.
+
 ### Added
 
 - **One place to learn the keyboard.** Press `?` anywhere, or the `?` button in the board, the timeline or
