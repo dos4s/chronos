@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { Task } from '../types/index.ts'
+import type { BoardCard } from '../types/index.ts'
+import type { CardShape } from '../utils/board.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
@@ -14,13 +15,26 @@ import { isDueToday, isOverdue } from '../utils/tasks.ts'
  * it — a finger on a card drags the card, a finger beside one scrolls the
  * column (§15.1). It is also focusable, because every drag has to work from
  * the keyboard (§15.7).
+ *
+ * A card also says where it sits in the tree the board flattened (§15.9). A
+ * subtask directly under its parent is drawn as part of it and needs no label;
+ * one that has been dragged away from its parent names it instead, because a
+ * card nobody can place is the thing the board got wrong before. A card with
+ * subtasks of its own says how much of that branch is done, and — when the
+ * board is rolled up and they are not on the screen at all — which columns the
+ * rest of it is sitting in.
  */
 const props = defineProps<{
-	card: Task
+	card: BoardCard
 	selected: boolean
 	dragging: boolean
 	readOnly: boolean
-	subtaskCount?: number
+	/** How the column decided to draw it; the drag preview has no column. */
+	shape?: CardShape
+	/** Column names, for saying where a rolled-up card's subtasks are. */
+	columnNames?: Record<string, string>
+	/** Whether the subtasks are rolled up into this card (§15.9). */
+	rolled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -49,6 +63,58 @@ const dueLabel = computed(() => {
 /** `PRIORITY` 1–4 is high in iCalendar; 5 is normal (§7). */
 const highPriority = computed(() => props.card.priority > 0 && props.card.priority <= 4)
 
+const indented = computed(() => props.shape?.indented === true)
+
+/** The line above the summary: whose subtask this is, or which sublist it is in. */
+const belongsTo = computed(() => {
+	const parent = props.card.parent
+	if (parent === null || props.shape?.showsParent !== true) {
+		return null
+	}
+
+	const name = parent.summary ?? t('chronos', 'Untitled task')
+
+	return parent.type === 'subproject'
+		? { name, label: t('chronos', 'In {parent}', { parent: name }), sublist: true }
+		: { name, label: t('chronos', 'Subtask of {parent}', { parent: name }), sublist: false }
+})
+
+/** How much of this card's own branch is finished (§15.9). */
+const progress = computed(() => {
+	const subtasks = props.card.subtasks
+	if (subtasks === null) {
+		return null
+	}
+
+	return subtasks.done > 0
+		? t('chronos', '{done} of {total} subtasks done', { done: subtasks.done, total: subtasks.total })
+		: n('chronos', '%n subtask', '%n subtasks', subtasks.total)
+})
+
+/**
+ * Where the unfinished part of the branch is sitting. Only worth saying when
+ * the board is rolled up: with the subtasks on the screen as cards, the board
+ * is already showing it.
+ */
+const openElsewhere = computed(() => {
+	const open = props.card.subtasks?.open ?? {}
+	if (props.rolled !== true) {
+		return []
+	}
+
+	return Object.entries(open).map(([key, count]) => t('chronos', '{count} in {column}', {
+		count,
+		column: props.columnNames?.[key] ?? key,
+	}))
+})
+
+const hasMeta = computed(() => dueLabel.value !== null
+	|| highPriority.value
+	|| props.card.assignee !== null
+	|| (props.card.percent !== null && props.card.percent > 0)
+	|| progress.value !== null
+	|| openElsewhere.value.length > 0)
+
 function onPointerDown(event: PointerEvent): void {
 	emit('select', event.shiftKey || event.ctrlKey || event.metaKey)
 	if (!props.readOnly) {
@@ -63,20 +129,28 @@ function onPointerDown(event: PointerEvent): void {
 			[$style.selected]: selected,
 			[$style.ghost]: dragging,
 			[$style.overdue]: overdue,
+			[$style.indented]: indented,
 		}]"
 		:tabindex="readOnly ? -1 : 0"
 		role="listitem"
 		:aria-grabbed="dragging ? 'true' : 'false'"
-		:aria-label="card.summary || t('chronos', 'Untitled task')"
+		:aria-label="belongsTo
+			? `${card.summary || t('chronos', 'Untitled task')} — ${belongsTo.label}`
+			: (card.summary || t('chronos', 'Untitled task'))"
 		@pointerdown="onPointerDown"
 		@keydown.space="emit('grab', $event)"
 		@keydown.enter.exact="emit('open')"
 		@dblclick="emit('open')">
+		<div v-if="belongsTo" :class="$style.belongs" :title="belongsTo.label">
+			<span aria-hidden="true">{{ belongsTo.sublist ? '▤' : '↳' }}</span>
+			{{ belongsTo.name }}
+		</div>
+
 		<div :class="$style.summary">
 			{{ card.summary || t('chronos', 'Untitled task') }}
 		</div>
 
-		<div v-if="dueLabel || highPriority || card.assignee || card.percent !== null || subtaskCount" :class="$style.meta">
+		<div v-if="hasMeta" :class="$style.meta">
 			<span v-if="dueLabel" :class="[$style.chip, overdue ? $style.late : '']">
 				{{ dueLabel }}
 			</span>
@@ -86,8 +160,14 @@ function onPointerDown(event: PointerEvent): void {
 			<span v-if="card.percent !== null && card.percent > 0" :class="$style.chip">
 				{{ card.percent }}%
 			</span>
-			<span v-if="subtaskCount" :class="$style.chip">
-				{{ n('chronos', '%n subtask', '%n subtasks', subtaskCount) }}
+			<span v-if="progress" :class="[$style.chip, $style.branch]">
+				{{ progress }}
+			</span>
+			<span
+				v-for="where in openElsewhere"
+				:key="where"
+				:class="[$style.chip, $style.branch]">
+				{{ where }}
 			</span>
 			<span v-if="card.assignee" :class="$style.chip" :title="card.assignee">
 				{{ card.assignee }}
@@ -117,6 +197,17 @@ function onPointerDown(event: PointerEvent): void {
 	outline-offset: 2px;
 }
 
+/*
+ * A subtask sitting directly under its parent is drawn as part of it: a step
+ * in from the edge, and a line down the side joining the group (§15.9).
+ */
+.indented {
+	margin-inline-start: 16px;
+	border-inline-start: 2px solid var(--color-border-dark);
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
+}
+
 .selected {
 	border-color: var(--color-primary-element);
 	box-shadow: inset 0 0 0 1px var(--color-primary-element);
@@ -129,6 +220,18 @@ function onPointerDown(event: PointerEvent): void {
 
 .overdue {
 	border-inline-start: 3px solid var(--color-error);
+}
+
+/* Whose subtask this is, for a card that is not sitting under its parent. */
+.belongs {
+	font-size: 11px;
+	color: var(--color-text-maxcontrast);
+	display: flex;
+	gap: 4px;
+	align-items: baseline;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .summary {
@@ -161,5 +264,11 @@ function onPointerDown(event: PointerEvent): void {
 
 .priority {
 	color: var(--color-warning-text);
+}
+
+/* What is under this card, as opposed to what the card itself is. */
+.branch {
+	border: 1px solid var(--color-border);
+	background: transparent;
 }
 </style>

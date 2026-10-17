@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DragTarget } from '../composables/useDrag.ts'
-import type { BoardColumn, Task, TaskWritePayload } from '../types/index.ts'
+import type { BoardCard, BoardColumn, TaskWritePayload } from '../types/index.ts'
 import type { LabelledProject } from '../utils/projects.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -20,7 +20,7 @@ import { useBoardStore } from '../stores/board.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
-import { allowsMove, cardByUid, columnOf, needsComment } from '../utils/board.ts'
+import { allowsMove, cardByUid, columnOf, needsComment, openSubtasksElsewhere } from '../utils/board.ts'
 
 /**
  * The board (§15).
@@ -28,9 +28,9 @@ import { allowsMove, cardByUid, columnOf, needsComment } from '../utils/board.ts
  * Columns are the project's statuses, and moving a card changes the real
  * status — in the Tasks app and on the phone too (AD7). Everything about how
  * a drag behaves lives in `useDrag`; everything about what a drop *means*
- * lives in the board store. This view is the wiring, plus the two questions
- * only it can ask: the note a transition requires, and which cards are
- * selected.
+ * lives in the board store. This view is the wiring, plus the three questions
+ * only it can ask: the note a transition requires, whether a parent's
+ * unfinished subtasks should come along (§15.9), and which cards are selected.
  */
 const board = useBoardStore()
 const projects = useProjectsStore()
@@ -39,12 +39,25 @@ const workflows = useWorkflowsStore()
 
 const project = ref<LabelledProject | null>(null)
 const showArchived = ref(false)
-const editing = ref<Task | null>(null)
+const editing = ref<BoardCard | null>(null)
 const configuring = ref<BoardColumn | null>(null)
 
 /** A drop that needs a note waits here until there is one (§12.1). */
-const pending = ref<{ uids: string[], column: string, index: number } | null>(null)
+const pending = ref<{ uids: string[], column: string, index: number, cascade: boolean } | null>(null)
 const note = ref('')
+
+/**
+ * A drop that has unfinished subtasks to decide about waits here (§15.9).
+ * It is asked before the note, because the answer changes what is moving.
+ */
+const cascading = ref<{
+	uids: string[]
+	column: string
+	index: number
+	count: number
+	/** The card the question is about, when it is about one card. */
+	name: string | null
+} | null>(null)
 
 const lanes = ref<HTMLElement | null>(null)
 
@@ -52,18 +65,13 @@ const options = computed(() => showArchived.value ? projects.all : projects.acti
 const columns = computed(() => board.columns)
 const readOnly = computed(() => board.board !== null && !board.writable)
 
-/** Subtasks are not cards of their own; a card says how many it has. */
-const subtaskCounts = computed(() => {
-	const counts: Record<string, number> = {}
-	for (const column of columns.value) {
-		for (const card of column.cards) {
-			if (card.parentUid !== null) {
-				counts[card.parentUid] = (counts[card.parentUid] ?? 0) + 1
-			}
-		}
-	}
-	return counts
-})
+/** Whether the board is showing branches rather than every task (§15.9). */
+const rolled = computed(() => board.view === 'rolled')
+
+/** For a rolled-up card saying which columns its subtasks are sitting in. */
+const columnNames = computed(() => Object.fromEntries(columns.value.map((column) => [column.key, column.name])))
+
+const columnName = (key: string) => columnNames.value[key] ?? key
 
 const drag = useDrag({
 	container: () => lanes.value,
@@ -144,26 +152,93 @@ function cardElements(lane: string): { id: string, element: HTMLElement }[] {
 }
 
 /**
- * A drop, once the engine has said where. If the workflow asks for a note on
- * that move, the drop waits for one rather than being refused by the server
- * after the card has already moved on the screen.
+ * A drop, once the engine has said where.
+ *
+ * Two questions can come first, in this order, because each one changes what
+ * the next is about: whether the unfinished subtasks are coming along, and
+ * then the note the workflow wants for the move.
  */
 async function dropped(uids: string[], target: DragTarget): Promise<void> {
+	const question = subtaskQuestion(uids, target.lane)
+	if (question !== null) {
+		cascading.value = { uids, column: target.lane, index: target.index, ...question }
+		return
+	}
+
+	await send(uids, target.lane, target.index, false)
+}
+
+/**
+ * Whether this drop should ask about the cards' unfinished subtasks (§15.9).
+ *
+ * It asks in the two cases where leaving them behind is a surprise: a parent
+ * dropped into a final column, where a finished card with unfinished work
+ * under it is a contradiction, and a rolled-up board, where the subtasks are
+ * not on the screen to be dragged at all. Anywhere else the subtasks are cards
+ * in plain sight with statuses of their own, and a drag means what it says.
+ */
+function subtaskQuestion(uids: string[], columnKey: string): { count: number, name: string | null } | null {
+	const current = board.board
+	const target = columns.value.find((column) => column.key === columnKey)
+	if (current === null || target === undefined || !(target.isFinal || rolled.value)) {
+		return null
+	}
+
+	let count = 0
+	const names: string[] = []
+
+	for (const uid of uids) {
+		const card = cardByUid(current, uid)
+		if (card === null || columnOf(current, uid)?.key === columnKey) {
+			continue
+		}
+
+		const open = openSubtasksElsewhere(card, columnKey)
+		if (open > 0) {
+			count += open
+			names.push(card.summary || t('chronos', 'Untitled task'))
+		}
+	}
+
+	return count === 0 ? null : { count, name: names.length === 1 ? names[0] : null }
+}
+
+/**
+ * The answer to that question, which the drop was waiting for. Closing the
+ * dialog instead answers neither and leaves the card where it was, exactly as
+ * closing the note dialog does.
+ */
+async function answerSubtasks(cascade: boolean): Promise<void> {
+	const waiting = cascading.value
+	if (waiting === null) {
+		return
+	}
+
+	cascading.value = null
+	await send(waiting.uids, waiting.column, waiting.index, cascade)
+}
+
+/**
+ * The drop itself, unless the workflow wants a note for the move: that is
+ * asked for here rather than being refused by the server once the card has
+ * already moved on the screen.
+ */
+async function send(uids: string[], columnKey: string, index: number, cascade: boolean): Promise<void> {
 	const current = board.board
 	if (current === null) {
 		return
 	}
 
-	const asksForNote = dragOrigins().some((from) => needsComment(current, from, target.lane))
-		|| uids.some((uid) => needsComment(current, columnOf(current, uid)?.key ?? '', target.lane))
+	const asksForNote = dragOrigins().some((from) => needsComment(current, from, columnKey))
+		|| uids.some((uid) => needsComment(current, columnOf(current, uid)?.key ?? '', columnKey))
 
 	if (asksForNote) {
-		pending.value = { uids, column: target.lane, index: target.index }
+		pending.value = { uids, column: columnKey, index, cascade }
 		note.value = ''
 		return
 	}
 
-	await board.drop(uids, target.lane, target.index)
+	await board.drop(uids, columnKey, index, null, cascade)
 }
 
 async function dropWithNote(): Promise<void> {
@@ -178,7 +253,13 @@ async function dropWithNote(): Promise<void> {
 	}
 
 	pending.value = null
-	await board.drop(waiting.uids, waiting.column, waiting.index, comment)
+	await board.drop(waiting.uids, waiting.column, waiting.index, comment, waiting.cascade)
+}
+
+/** Rolling the subtasks up, or unfolding them, re-reads the board (§15.9). */
+async function onRolled(event: Event): Promise<void> {
+	const checked = (event.target as HTMLInputElement).checked
+	await board.setView(checked ? 'rolled' : 'cards')
 }
 
 function placeholderFor(column: BoardColumn): number | null {
@@ -267,6 +348,14 @@ async function columnSaved(): Promise<void> {
 				<input v-model="showArchived" type="checkbox">
 				{{ t('chronos', 'Show archived') }}
 			</label>
+			<label :class="$style.archived">
+				<input
+					type="checkbox"
+					:checked="rolled"
+					:disabled="board.saving"
+					@change="onRolled">
+				{{ t('chronos', 'Roll subtasks up') }}
+			</label>
 			<div :class="$style.spacer" />
 			<NcButton
 				v-if="board.undoable"
@@ -299,7 +388,8 @@ async function columnSaved(): Promise<void> {
 				:allowed="canDrop(column.key)"
 				:selection="board.selection"
 				:readOnly="readOnly"
-				:subtaskCounts="subtaskCounts"
+				:columnNames="columnNames"
+				:rolled="rolled"
 				@pick="(card, event) => drag.pointerDown(event, card.uid, board.selection)"
 				@grab="(card, event) => drag.keyDown(event, card.uid, board.selection)"
 				@open="editing = $event"
@@ -323,6 +413,10 @@ async function columnSaved(): Promise<void> {
 			{{ n('chronos', '%n card selected — dragging one moves them all', '%n cards selected — dragging one moves them all', board.selection.length) }}
 		</p>
 
+		<p v-else-if="rolled" :class="$style.hint">
+			{{ t('chronos', 'Subtasks are rolled up: a card stands for the work under it, and moving one asks whether its unfinished subtasks should come too. Untick to see every task as a card of its own.') }}
+		</p>
+
 		<p v-else :class="$style.hint">
 			{{ t('chronos', 'Drag a card, or focus one and press space: the arrow keys move it, space drops it, escape puts it back. Ctrl or shift picks more than one card.') }}
 		</p>
@@ -341,7 +435,8 @@ async function columnSaved(): Promise<void> {
 				:selected="false"
 				:dragging="false"
 				:readOnly="true"
-				:subtaskCount="subtaskCounts[previewCard.uid] ?? 0" />
+				:columnNames="columnNames"
+				:rolled="rolled" />
 			<li v-if="drag.dragging.value.length > 1" :class="$style.stacked">
 				{{ n('chronos', 'and %n more', 'and %n more', drag.dragging.value.length - 1) }}
 			</li>
@@ -351,6 +446,41 @@ async function columnSaved(): Promise<void> {
 		<div :class="$style.live" aria-live="polite" role="status">
 			{{ drag.announcement.value }}
 		</div>
+
+		<NcModal
+			v-if="cascading"
+			:name="t('chronos', 'Bring the subtasks along?')"
+			@close="cascading = null">
+			<div :class="$style.noteBody">
+				<p :class="$style.question">
+					<template v-if="cascading.name">
+						{{ n('chronos',
+							'“{card}” has %n unfinished subtask that is not in {column}.',
+							'“{card}” has %n unfinished subtasks that are not in {column}.',
+							cascading.count,
+							{ card: cascading.name, column: columnName(cascading.column) }) }}
+					</template>
+					<template v-else>
+						{{ n('chronos',
+							'The cards you moved have %n unfinished subtask that is not in {column}.',
+							'The cards you moved have %n unfinished subtasks that are not in {column}.',
+							cascading.count,
+							{ column: columnName(cascading.column) }) }}
+					</template>
+				</p>
+				<p :class="$style.hint">
+					{{ t('chronos', 'Moving them as well keeps the branch together. Subtasks that are already finished stay finished either way, and undo puts the whole move back. Closing this leaves the card where it was.') }}
+				</p>
+				<div :class="$style.actions">
+					<NcButton variant="tertiary" @click="answerSubtasks(false)">
+						{{ t('chronos', 'Leave them where they are') }}
+					</NcButton>
+					<NcButton variant="primary" @click="answerSubtasks(true)">
+						{{ t('chronos', 'Move the subtasks too') }}
+					</NcButton>
+				</div>
+			</div>
+		</NcModal>
 
 		<NcModal
 			v-if="pending"
@@ -494,6 +624,11 @@ async function columnSaved(): Promise<void> {
 .label {
 	font-size: 13px;
 	font-weight: 600;
+}
+
+.question {
+	margin: 0;
+	font-size: 14px;
 }
 
 .actions {

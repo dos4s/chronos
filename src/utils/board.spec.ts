@@ -1,31 +1,35 @@
-import type { Board, BoardColumn, Task } from '../types/index.ts'
+import type { Board, BoardCard, BoardColumn, CardSubtasks } from '../types/index.ts'
 
 import { describe, expect, it } from 'vitest'
 import { asSeconds } from '../api/time.ts'
 import {
 	allowsMove,
 	applyDrop,
+	cardShapes,
 	columnOf,
 	editsFor,
 	effectiveRules,
 	indexForPointer,
 	inverseDrops,
+	inverseOfCascade,
 	isUnrestricted,
 	needsComment,
 	neighboursAt,
+	openSubtasksElsewhere,
 	ruleFor,
 	rulesAfterEdit,
 } from './board.ts'
 
-function card(uid: string): Task {
+function card(uid: string, parentUid: string | null = null, subtasks: CardSubtasks | null = null): BoardCard {
 	return {
+		parent: parentUid === null ? null : { uid: parentUid, summary: parentUid, type: 'task', column: 'todo' },
+		subtasks,
 		id: 1,
 		calendarUri: 'work',
 		objectUri: `${uid}.ics`,
 		etag: `etag-${uid}`,
 		uid,
 		type: 'task',
-		parentUid: null,
 		summary: uid,
 		vtodoStatus: 'NEEDS-ACTION',
 		priority: 0,
@@ -39,6 +43,7 @@ function card(uid: string): Task {
 		statusId: null,
 		sprintId: null,
 		updatedAt: asSeconds(0),
+		parentUid,
 	}
 }
 
@@ -54,7 +59,7 @@ function column(key: string, uids: string[], wipLimit: number | null = null): Bo
 		wipLimit,
 		count: uids.length,
 		overWipLimit: wipLimit !== null && uids.length > wipLimit,
-		cards: uids.map(card),
+		cards: uids.map((uid) => card(uid)),
 	}
 }
 
@@ -345,5 +350,114 @@ describe('transition rule editing', () => {
 			{ to: 'done', allowed: true, requiresComment: false },
 		])
 		expect(isUnrestricted(board(columns), noted)).toBe(false)
+	})
+})
+
+/**
+ * How a flat board tells the truth about a tree (§15.9): a subtask sitting
+ * under its parent is drawn as part of it, and one that has been dragged away
+ * from its parent names it instead.
+ */
+describe('how a card is drawn', () => {
+	it('draws a subtask under its parent as part of it', () => {
+		const shapes = cardShapes([card('parent'), card('child', 'parent')])
+
+		expect(shapes.parent).toEqual({ indented: false, showsParent: false })
+		expect(shapes.child).toEqual({ indented: true, showsParent: false })
+	})
+
+	it('keeps a run of siblings in the group', () => {
+		const shapes = cardShapes([
+			card('parent'),
+			card('one', 'parent'),
+			card('two', 'parent'),
+			card('after'),
+		])
+
+		expect(shapes.one.indented).toBe(true)
+		expect(shapes.two.indented).toBe(true)
+		expect(shapes.after.indented).toBe(false)
+	})
+
+	/**
+	 * The ranks are the user's arrangement and nesting never overrides them,
+	 * so a subtask can be sitting anywhere in its column — and then the only
+	 * thing that can say whose it is is the card itself.
+	 */
+	it('makes a subtask away from its parent name it', () => {
+		const shapes = cardShapes([card('child', 'parent'), card('other'), card('parent')])
+
+		expect(shapes.child).toEqual({ indented: false, showsParent: true })
+	})
+
+	it('does not carry the group across a card from somewhere else', () => {
+		const shapes = cardShapes([
+			card('parent'),
+			card('one', 'parent'),
+			card('stranger'),
+			card('two', 'parent'),
+		])
+
+		expect(shapes.one.indented).toBe(true)
+		expect(shapes.two).toEqual({ indented: false, showsParent: true })
+	})
+
+	/**
+	 * A task in a subproject is not a subtask of it (§6): it is one of the
+	 * project's own cards that happens to live in a sublist, so it says where
+	 * it lives and is never drawn as part of anything.
+	 */
+	it('says which sublist a card lives in, without indenting it', () => {
+		const inside = card('inside')
+		inside.parentUid = 'container'
+		inside.parent = { uid: 'container', summary: 'Phase one', type: 'subproject', column: null }
+
+		expect(cardShapes([inside]).inside).toEqual({ indented: false, showsParent: true })
+	})
+
+	it('has nothing to say about a card with no parent', () => {
+		expect(cardShapes([card('alone')]).alone).toEqual({ indented: false, showsParent: false })
+	})
+})
+
+describe('the subtasks a drop would leave behind', () => {
+	const parent = card('parent', null, { total: 4, done: 1, open: { todo: 2, doing: 1 } })
+
+	it('counts the unfinished ones that are not already in the target column', () => {
+		expect(openSubtasksElsewhere(parent, 'done')).toBe(3)
+		expect(openSubtasksElsewhere(parent, 'doing')).toBe(2)
+	})
+
+	it('counts none for a card with no subtasks', () => {
+		expect(openSubtasksElsewhere(card('alone'), 'done')).toBe(0)
+	})
+})
+
+/**
+ * Undoing a cascade: the page never dragged the subtasks, so the only thing it
+ * knows about where they were is what the server told it (§15.9).
+ */
+describe('the inverse of a cascade', () => {
+	it('sends each card the page did not drag back to the column it came from', () => {
+		const moved: BoardCard[] = [
+			{ ...card('parent'), fromColumn: 'todo' },
+			{ ...card('one', 'parent'), fromColumn: 'todo' },
+			{ ...card('two', 'parent'), fromColumn: 'doing' },
+		]
+
+		expect(inverseOfCascade(moved, ['parent'])).toEqual([
+			{ column: 'todo', uids: ['one'], afterUid: null, beforeUid: null },
+			{ column: 'doing', uids: ['two'], afterUid: null, beforeUid: null },
+		])
+	})
+
+	/** A parent sent back because its progress changed has not moved at all. */
+	it('ignores a card that did not change column', () => {
+		const moved: BoardCard[] = [
+			{ ...card('child', 'parent'), fromColumn: 'todo' },
+			{ ...card('parent'), fromColumn: null },
+		]
+
+		expect(inverseOfCascade(moved, ['child'])).toEqual([])
 	})
 })

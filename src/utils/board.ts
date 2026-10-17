@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BoardRule, Task } from '../types/index.ts'
+import type { Board, BoardCard, BoardColumn, BoardRule } from '../types/index.ts'
 
 /**
  * The board's own arithmetic, kept out of the components (§15.6).
@@ -27,7 +27,7 @@ export function columnOf(board: Board, uid: string): BoardColumn | null {
 	return board.columns.find((column) => column.cards.some((card) => card.uid === uid)) ?? null
 }
 
-export function cardByUid(board: Board, uid: string): Task | null {
+export function cardByUid(board: Board, uid: string): BoardCard | null {
 	for (const column of board.columns) {
 		const card = column.cards.find((candidate) => candidate.uid === uid)
 		if (card !== undefined) {
@@ -66,7 +66,7 @@ export function needsComment(board: Board, from: string, to: string): boolean {
  * meantime changes what position 3 means, but not what "under this card"
  * means (§15.6).
  */
-export function neighboursAt(cards: Task[], index: number, movedUids: string[] = []): {
+export function neighboursAt(cards: BoardCard[], index: number, movedUids: string[] = []): {
 	afterUid: string | null
 	beforeUid: string | null
 } {
@@ -89,7 +89,7 @@ export function neighboursAt(cards: Task[], index: number, movedUids: string[] =
 export function applyDrop(board: Board, uids: string[], columnKey: string, index: number): Board {
 	const moving = uids
 		.map((uid) => cardByUid(board, uid))
-		.filter((card): card is Task => card !== null)
+		.filter((card): card is BoardCard => card !== null)
 
 	if (moving.length === 0) {
 		return board
@@ -138,6 +138,99 @@ export function inverseDrops(board: Board, uids: string[]): DropSpec[] {
 }
 
 /**
+ * How a card is drawn, now that a board has a tree in it (§15.9).
+ */
+export interface CardShape {
+	/** Drawn as part of its parent's group, which is directly above it. */
+	indented: boolean
+	/** Says whose subtask it is, because its parent is not above it. */
+	showsParent: boolean
+}
+
+/**
+ * Which cards of a column are drawn as part of a group, and which have to say
+ * whose they are.
+ *
+ * A column nobody has arranged comes from the server as a tree, so a subtask
+ * is usually sitting right under its parent and an indent says everything. A
+ * column somebody has arranged may have put it anywhere — the ranks are the
+ * user's arrangement and nesting never overrides them (§15.9) — and a card
+ * away from its parent is anonymous unless it carries its parent's name.
+ *
+ * So the rule is local: a subtask is indented when the card above it is its
+ * parent, or a sibling that is itself indented. Otherwise it names its parent.
+ */
+export function cardShapes(cards: BoardCard[]): Record<string, CardShape> {
+	const shapes: Record<string, CardShape> = {}
+
+	cards.forEach((card, index) => {
+		const parent = card.parent
+		if (parent === null) {
+			shapes[card.uid] = { indented: false, showsParent: false }
+			return
+		}
+
+		// A task inside a subproject is not a subtask of it (§6): it is one of
+		// the project's own cards, which happens to live in a sublist.
+		if (parent.type === 'subproject') {
+			shapes[card.uid] = { indented: false, showsParent: true }
+			return
+		}
+
+		const above = cards[index - 1]
+		const indented = above !== undefined && (
+			above.uid === parent.uid
+			|| (above.parent?.uid === parent.uid && shapes[above.uid]?.indented === true)
+		)
+
+		shapes[card.uid] = { indented, showsParent: !indented }
+	})
+
+	return shapes
+}
+
+/**
+ * How many unfinished subtasks a card has somewhere other than the column it
+ * is being dropped into — which is the question behind the cascade (§15.9).
+ */
+export function openSubtasksElsewhere(card: BoardCard, columnKey: string): number {
+	const open = card.subtasks?.open ?? {}
+
+	return Object.entries(open).reduce(
+		(total, [key, count]) => key === columnKey ? total : total + count,
+		0,
+	)
+}
+
+/**
+ * The inverse drops for the cards a move took along that the page never
+ * dragged: the subtasks of a cascade (§15.9).
+ *
+ * Each one goes back to the column the server says it came from. It goes to
+ * the *end* of that column rather than to the place it had, because the page
+ * never saw where that was — which is the one way an undo is less exact than
+ * the drop it undoes.
+ */
+export function inverseOfCascade(moved: BoardCard[], dragged: string[]): DropSpec[] {
+	const byColumn = new Map<string, string[]>()
+
+	for (const card of moved) {
+		const from = card.fromColumn
+		if (from === null || from === undefined || dragged.includes(card.uid)) {
+			continue
+		}
+		byColumn.set(from, [...byColumn.get(from) ?? [], card.uid])
+	}
+
+	return [...byColumn].map(([column, uids]) => ({
+		column,
+		uids,
+		afterUid: null,
+		beforeUid: null,
+	}))
+}
+
+/**
  * The position a pointer at `y` means, given the cards' vertical midpoints.
  *
  * Measured once at drag start (§15.2), so a drag does no layout reads per
@@ -159,7 +252,7 @@ export function isStandardColumn(column: BoardColumn): boolean {
 	return column.statusId === null
 }
 
-function moved(cards: Task[], target: BoardColumn | null): Task[] {
+function moved(cards: BoardCard[], target: BoardColumn | null): BoardCard[] {
 	if (target === null) {
 		return cards
 	}
@@ -173,7 +266,7 @@ function moved(cards: Task[], target: BoardColumn | null): Task[] {
 	}))
 }
 
-function withCards(column: BoardColumn, cards: Task[]): BoardColumn {
+function withCards(column: BoardColumn, cards: BoardCard[]): BoardColumn {
 	return {
 		...column,
 		cards,

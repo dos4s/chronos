@@ -164,6 +164,50 @@ export interface StatusChange {
  * when the project has no workflow (§12.1). Kanban columns *are* the statuses
  * — there is no column model (AD7).
  */
+/**
+ * The task or subproject a card hangs under, as the board sends it (§15.9).
+ *
+ * A parent in another list, or one the user cannot see, is no parent at all
+ * here — the same choice the task tree makes. `column` is null when the parent
+ * is a subproject, because a subproject is a container for work rather than a
+ * piece of it, and is therefore never a card (§6).
+ */
+export interface CardParent {
+	uid: string
+	summary: string | null
+	type: TaskType
+	column: string | null
+}
+
+/**
+ * How much of the branch under a card is finished, and where the rest of it is
+ * (§15.9). Counted over the whole branch rather than the direct children,
+ * because that is what a card stands for when the board is rolled up.
+ */
+export interface CardSubtasks {
+	total: number
+	done: number
+	/** Column key → how many unfinished subtasks are sitting in it. */
+	open: Record<string, number>
+}
+
+/**
+ * A card on the board: a task, plus what the tree it came out of says about it.
+ *
+ * `rank` and `fromColumn` are only on the cards a move sends back: the place
+ * it was given, and the column it came from, which is how an undo puts back a
+ * card the page never dragged.
+ */
+export type BoardCard = Task & {
+	parent: CardParent | null
+	subtasks: CardSubtasks | null
+	rank?: string | null
+	fromColumn?: string | null
+}
+
+/** Which cards a board shows: every task, or only the top of each branch. */
+export type SubtaskView = 'cards' | 'rolled'
+
 export interface BoardColumn {
 	/** Null for a standard status, which is not a row in any table. */
 	statusId: number | null
@@ -178,7 +222,7 @@ export interface BoardColumn {
 	count: number
 	/** Advisory: the board says so, the server still accepts the drop. */
 	overWipLimit: boolean
-	cards: Task[]
+	cards: BoardCard[]
 }
 
 /** A move the workflow allows, named by column keys; none means any move. */
@@ -211,14 +255,21 @@ export interface BoardMovePayload {
 	/** The card it landed above; null is the bottom. */
 	beforeUid?: string | null
 	comment?: string | null
+	/** The view it was dropped on: a rolled-up board counts what it shows. */
+	subtasks?: SubtaskView
+	/** Take each card's unfinished subtasks along with it (§15.9). */
+	cascade?: boolean
 }
 
 /**
  * What a drop changed: the cards as they now are — above all their new etags —
  * and the size of every column, for the WIP warnings.
+ *
+ * Some of those cards are ones the page never dragged: the parents whose
+ * progress the drop changed, and the subtasks a cascade took with it (§15.9).
  */
 export interface BoardMoveResult {
-	cards: (Task & { rank: string | null })[]
+	cards: BoardCard[]
 	counts: Record<string, number>
 }
 

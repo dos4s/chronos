@@ -25,6 +25,9 @@ went. Nothing is duplicated: the lists and tasks are the ones your other CalDAV 
   other clients too. Drag one card or several, from the mouse, a finger or the keyboard; undo the last move
   with a button or `Ctrl+Z`; set how many cards belong in a column and which moves are allowed. A project
   without a workflow gets a board of the four standard statuses
+- **Subtasks on the board**: a subtask is a card of its own — it has a status of its own — but it says
+  whose it is, and a card says how much of the work under it is done. Roll the subtasks up when a board has
+  too many of them, and a parent dropped into *Done* can take its unfinished subtasks along
 
 Projects, workflows and the kanban board are modules: an administrator chooses what the instance offers under
 *Administration settings → Additional settings*, and each user chooses what they see under *Personal

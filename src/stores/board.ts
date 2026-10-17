@@ -1,4 +1,4 @@
-import type { Board, Task } from '../types/index.ts'
+import type { Board, BoardCard, SubtaskView } from '../types/index.ts'
 import type { DropSpec } from '../utils/board.ts'
 
 import { showError } from '@nextcloud/dialogs'
@@ -6,7 +6,15 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as api from '../api/board.ts'
 import { ApiError, messageFor } from '../api/client.ts'
-import { applyDrop, cardByUid, columnByKey, columnOf, inverseDrops, neighboursAt } from '../utils/board.ts'
+import {
+	applyDrop,
+	cardByUid,
+	columnByKey,
+	columnOf,
+	inverseDrops,
+	inverseOfCascade,
+	neighboursAt,
+} from '../utils/board.ts'
 
 /** HTTP 412: the card changed since the page last read it (§15.6). */
 const PRECONDITION_FAILED = 412
@@ -35,6 +43,13 @@ export const useBoardStore = defineStore('board', () => {
 	/** The inverse of the last drop, while it is still worth offering. */
 	const undoable = ref<DropSpec[] | null>(null)
 
+	/**
+	 * Which cards the board shows: every task, or only the top of each branch
+	 * (§15.9). The server is asked for one or the other, because it also
+	 * counts the columns and a count has to describe what is on the screen.
+	 */
+	const view = ref<SubtaskView>('cards')
+
 	const columns = computed(() => board.value?.columns ?? [])
 	const writable = computed(() => board.value?.project.writable ?? false)
 	const cardCount = computed(() => columns.value.reduce((total, column) => total + column.cards.length, 0))
@@ -61,10 +76,22 @@ export const useBoardStore = defineStore('board', () => {
 		}
 
 		try {
-			board.value = await api.fetchBoard(ref)
+			board.value = await api.fetchBoard(ref, view.value)
 		} catch (error) {
 			showError(messageFor(error))
 		}
+	}
+
+	/** Rolls the subtasks up into their parents, or unfolds them again. */
+	async function setView(next: SubtaskView): Promise<void> {
+		if (next === view.value) {
+			return
+		}
+
+		view.value = next
+		undoable.value = null
+		selection.value = []
+		await refresh()
 	}
 
 	/**
@@ -72,8 +99,18 @@ export const useBoardStore = defineStore('board', () => {
 	 *
 	 * The position counts the column without the cards being moved, which is
 	 * how the engine reports it and what the server's two neighbours mean.
+	 *
+	 * `cascade` takes each card's unfinished subtasks along with it (§15.9).
+	 * Which cards those are is the server's to work out — in a rolled-up board
+	 * the page is not even showing them — so the drop only asks for it.
 	 */
-	async function drop(uids: string[], columnKey: string, index: number, comment: string | null = null): Promise<boolean> {
+	async function drop(
+		uids: string[],
+		columnKey: string,
+		index: number,
+		comment: string | null = null,
+		cascade = false,
+	): Promise<boolean> {
 		const current = board.value
 		const ref = projectRef.value
 		if (current === null || ref === null || uids.length === 0) {
@@ -86,7 +123,7 @@ export const useBoardStore = defineStore('board', () => {
 		}
 
 		const { afterUid, beforeUid } = neighboursAt(target.cards, index, uids)
-		if (isWhereItAlreadyIs(current, uids, columnKey, afterUid, beforeUid)) {
+		if (!cascade && isWhereItAlreadyIs(current, uids, columnKey, afterUid, beforeUid)) {
 			return true
 		}
 
@@ -105,10 +142,21 @@ export const useBoardStore = defineStore('board', () => {
 				afterUid,
 				beforeUid,
 				comment,
+				subtasks: view.value,
+				cascade,
 			})
 
 			reconcile(result.cards, result.counts)
-			undoable.value = inverse
+			// A cascade moved cards the page never dragged, and reconciling
+			// only replaces a card where it already sits — so the board is
+			// read again rather than left showing subtasks in the column they
+			// have just left (§15.9).
+			const cascaded = inverseOfCascade(result.cards, uids)
+			if (cascaded.length > 0) {
+				await refresh()
+			}
+
+			undoable.value = [...inverse, ...cascaded]
 			selection.value = []
 			return true
 		} catch (error) {
@@ -196,8 +244,12 @@ export const useBoardStore = defineStore('board', () => {
 	 * The cards as the server wrote them — above all their new etags, without
 	 * which the next write of the same card would be refused — and the column
 	 * sizes it counted, for the WIP warnings.
+	 *
+	 * Some of them did not move: a drop changes how much of its parent's
+	 * branch is done, so the parent comes back with it and its progress is
+	 * right without reading the board again (§15.9).
 	 */
-	function reconcile(cards: Task[], counts: Record<string, number>): void {
+	function reconcile(cards: BoardCard[], counts: Record<string, number>): void {
 		const current = board.value
 		if (current === null) {
 			return
@@ -244,11 +296,13 @@ export const useBoardStore = defineStore('board', () => {
 		saving,
 		selection,
 		undoable,
+		view,
 		columns,
 		writable,
 		cardCount,
 		select,
 		refresh,
+		setView,
 		drop,
 		undo,
 		forgetUndo,

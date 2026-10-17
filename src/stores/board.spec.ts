@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BoardMoveResult, Task } from '../types/index.ts'
+import type { Board, BoardCard, BoardColumn, BoardMoveResult, CardSubtasks } from '../types/index.ts'
 
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,7 @@ const fetchBoard = vi.fn()
 const moveCards = vi.fn()
 
 vi.mock('../api/board.ts', () => ({
-	fetchBoard: (project: string) => fetchBoard(project),
+	fetchBoard: (project: string, subtasks: string) => fetchBoard(project, subtasks),
 	moveCards: (payload: unknown) => moveCards(payload),
 }))
 
@@ -44,15 +44,17 @@ vi.mock('../api/client.ts', () => {
 const { useBoardStore } = await import('./board.ts')
 const { ApiError } = await import('../api/client.ts')
 
-function card(uid: string): Task {
+function card(uid: string, parentUid: string | null = null, subtasks: CardSubtasks | null = null): BoardCard {
 	return {
+		parent: parentUid === null ? null : { uid: parentUid, summary: parentUid, type: 'task', column: 'todo' },
+		subtasks,
 		id: 1,
 		calendarUri: 'work',
 		objectUri: `${uid}.ics`,
 		etag: `etag-${uid}`,
 		uid,
 		type: 'task',
-		parentUid: null,
+		parentUid,
 		summary: uid,
 		vtodoStatus: 'NEEDS-ACTION',
 		priority: 0,
@@ -81,7 +83,7 @@ function column(key: string, uids: string[], statusId: number): BoardColumn {
 		wipLimit: null,
 		count: uids.length,
 		overWipLimit: false,
-		cards: uids.map(card),
+		cards: uids.map((uid) => card(uid)),
 	}
 }
 
@@ -124,7 +126,7 @@ describe('selecting a project', () => {
 	it('reads its board', async () => {
 		const store = await loaded()
 
-		expect(fetchBoard).toHaveBeenCalledWith('principals/users/alice/work')
+		expect(fetchBoard).toHaveBeenCalledWith('principals/users/alice/work', 'cards')
 		expect(store.columns.map((it) => it.key)).toEqual(['todo', 'doing'])
 		expect(store.cardCount).toBe(3)
 	})
@@ -152,6 +154,8 @@ describe('a drop', () => {
 			afterUid: 'c',
 			beforeUid: null,
 			comment: null,
+			subtasks: 'cards',
+			cascade: false,
 		})
 	})
 
@@ -338,5 +342,100 @@ describe('selection', () => {
 		await store.drop(['a', 'b'], 'doing', 0)
 
 		expect(store.selection).toEqual([])
+	})
+})
+
+/**
+ * Subtasks on the board (§15.9): which cards it shows is the server's
+ * business, because the server also counts the columns, and a cascade moves
+ * cards the page never dragged.
+ */
+describe('subtasks', () => {
+	it('reads the board again in the view it is asked for', async () => {
+		const store = await loaded()
+		fetchBoard.mockClear()
+
+		await store.setView('rolled')
+
+		expect(fetchBoard).toHaveBeenCalledWith('principals/users/alice/work', 'rolled')
+		expect(store.view).toBe('rolled')
+	})
+
+	it('does not re-read the board for the view it is already showing', async () => {
+		const store = await loaded()
+		fetchBoard.mockClear()
+
+		await store.setView('cards')
+
+		expect(fetchBoard).not.toHaveBeenCalled()
+	})
+
+	it('asks the server to bring the subtasks along', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue(moved('a', 2))
+
+		await store.drop(['a'], 'doing', 0, null, true)
+
+		expect(moveCards.mock.calls[0][0].cascade).toBe(true)
+	})
+
+	/**
+	 * Reconciling replaces a card where it already sits, so a subtask that has
+	 * just changed column would be left under its old heading: the board is
+	 * read again instead.
+	 */
+	it('reads the board again when the server moved a card the page did not drag', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue({
+			cards: [
+				{ ...card('a'), statusId: 2, etag: 'etag-written', fromColumn: 'todo' },
+				{ ...card('child', 'a'), statusId: 2, etag: 'etag-child', fromColumn: 'todo' },
+			],
+			counts: { todo: 1, doing: 3 },
+		})
+		fetchBoard.mockClear()
+		fetchBoard.mockResolvedValue(board())
+
+		await store.drop(['a'], 'doing', 0, null, true)
+
+		expect(fetchBoard).toHaveBeenCalledTimes(1)
+	})
+
+	/**
+	 * An undo has to put the subtasks back too. It knows where they came from
+	 * only because the server said so, and not where in that column they were
+	 * — so they go back to the end of it, which is the one way an undo is less
+	 * exact than the drop it undoes.
+	 */
+	it('undoes the subtasks a cascade moved as well', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue({
+			cards: [
+				{ ...card('a'), statusId: 2, etag: 'etag-written', fromColumn: 'todo' },
+				{ ...card('child', 'a'), statusId: 2, etag: 'etag-child', fromColumn: 'doing' },
+			],
+			counts: {},
+		})
+		fetchBoard.mockResolvedValue(board())
+
+		await store.drop(['a'], 'doing', 0, null, true)
+
+		expect(store.undoable).toEqual([
+			{ column: 'todo', uids: ['a'], afterUid: null, beforeUid: 'b' },
+			{ column: 'doing', uids: ['child'], afterUid: null, beforeUid: null },
+		])
+	})
+
+	it('keeps what a card says about its branch when a drop comes back', async () => {
+		const store = await loaded()
+		moveCards.mockResolvedValue({
+			cards: [{ ...card('a', null, { total: 2, done: 1, open: { todo: 1 } }), statusId: 2 }],
+			counts: {},
+		})
+
+		await store.drop(['a'], 'doing', 0)
+
+		const after = store.columns[1].cards.find((it) => it.uid === 'a')
+		expect(after?.subtasks).toEqual({ total: 2, done: 1, open: { todo: 1 } })
 	})
 })

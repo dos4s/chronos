@@ -132,6 +132,8 @@ export function messageFor(error: unknown): string {
 			return t('chronos', 'That card could not be moved')
 		case 'too_many_cards':
 			return t('chronos', 'That is too many cards to move at once')
+		case 'unknown_view':
+			return t('chronos', 'This page is out of date — please reload')
 		case 'comment_required':
 			return t('chronos', 'This change needs a note')
 		case 'comment_too_long':
