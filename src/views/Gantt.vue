@@ -537,13 +537,18 @@ onBeforeUnmount(() => {
  */
 .grid {
 	display: grid;
-	grid-template-columns: 320px 1fr;
+	/*
+	 * The table takes a third of a narrow window and 320px of a wide one, so
+	 * the chart always has most of the room — on a phone it had none (§14.2).
+	 */
+	grid-template-columns: clamp(120px, 34vw, 320px) 1fr;
 	grid-template-rows: 44px 1fr;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
 	min-height: 320px;
-	max-height: calc(100vh - 340px);
+	/* Never shorter than a few rows, however short the window is. */
+	max-height: max(260px, calc(100vh - 340px));
 }
 
 .cell {
@@ -640,6 +645,17 @@ onBeforeUnmount(() => {
 	height: 32px;
 	border-block-end: 1px solid var(--color-border-dark);
 	box-sizing: border-box;
+}
+
+/* Narrow: the dates in the table have nowhere to go, and the name matters more. */
+@media (max-width: 700px) {
+	.when {
+		display: none;
+	}
+
+	.row {
+		justify-content: center;
+	}
 }
 
 /* The row a dependency is being dragged onto (§15.3). */

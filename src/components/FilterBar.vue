@@ -47,7 +47,8 @@ const showCompleted = computed({
 			</svg>
 			<input
 				v-model="query"
-				type="search"
+				type="text"
+				inputmode="search"
 				:class="$style.input"
 				:placeholder="placeholder ?? t('chronos', 'Find a task…')"
 				:aria-label="placeholder ?? t('chronos', 'Find a task')">
@@ -83,7 +84,10 @@ const showCompleted = computed({
 	position: relative;
 	display: flex;
 	align-items: center;
-	flex: 0 1 280px;
+	/* Shrinks with the toolbar rather than pushing it apart. */
+	flex: 1 1 180px;
+	max-width: 280px;
+	min-width: 0;
 }
 
 .icon {

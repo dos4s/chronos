@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **It works on a narrow window.** The board, the timeline, the roadmap and the session editor had fixed
+  widths that left a phone with a table and a sliver of chart; they now size themselves against the window,
+  a board column fills most of a small screen with the next one peeking past it, the secondary line in each
+  table gives way to the name below 700 px, and the page stops spending 28 px of a phone on side padding.
 - **The running timer follows you.** While a session is running it sits at the top of the navigation — the
   time, the project, and buttons to pause or check out — and in the browser tab's title, which is where a
   timer left running overnight is actually noticed. Before this it was only on the Timer view.

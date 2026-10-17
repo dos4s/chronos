@@ -500,13 +500,13 @@ onBeforeUnmount(() => {
  */
 .grid {
 	display: grid;
-	grid-template-columns: 140px 1fr;
+	grid-template-columns: clamp(86px, 22vw, 140px) 1fr;
 	grid-template-rows: 28px 1fr;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
 	min-height: 240px;
-	max-height: calc(100vh - 300px);
+	max-height: max(240px, calc(100vh - 300px));
 }
 
 .cell {
@@ -570,6 +570,17 @@ onBeforeUnmount(() => {
 .date {
 	font-size: 10px;
 	color: var(--color-text-maxcontrast);
+}
+
+/* Narrow: the weekday is enough to know which row you are on. */
+@media (max-width: 700px) {
+	.date {
+		display: none;
+	}
+
+	.day {
+		justify-content: center;
+	}
 }
 
 .chart {

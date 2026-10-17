@@ -589,7 +589,7 @@ async function columnSaved(): Promise<void> {
 	overflow-y: hidden;
 	padding-bottom: 8px;
 	min-height: 320px;
-	max-height: calc(100vh - 320px);
+	max-height: max(300px, calc(100vh - 320px));
 }
 
 .empty {

@@ -72,6 +72,26 @@ body.app-chronos .app-navigation {
 	display: inline-block;
 }
 
+/*
+ * Narrow windows and phones (§14.2). The panels are built for a desktop and
+ * the padding is what costs the most room on a small screen; the views' own
+ * grids clamp themselves.
+ */
+@media (max-width: 700px) {
+	.chronos-panel {
+		padding: 20px 16px;
+	}
+
+	.chronos-card {
+		padding: 16px;
+	}
+
+	.chronos-header {
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+}
+
 /* Transitions */
 
 .fade-enter-active,

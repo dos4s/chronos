@@ -295,13 +295,13 @@ onBeforeUnmount(() => {
 
 .grid {
 	display: grid;
-	grid-template-columns: 300px 1fr;
+	grid-template-columns: clamp(130px, 32vw, 300px) 1fr;
 	grid-template-rows: 44px 1fr;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
 	min-height: 280px;
-	max-height: calc(100vh - 300px);
+	max-height: max(240px, calc(100vh - 300px));
 }
 
 .cell {
@@ -381,6 +381,17 @@ onBeforeUnmount(() => {
 .meta {
 	font-size: 10px;
 	color: var(--color-text-maxcontrast);
+}
+
+/* Narrow: the project's name is what the line is for. */
+@media (max-width: 700px) {
+	.meta {
+		display: none;
+	}
+
+	.project {
+		justify-content: center;
+	}
 }
 
 .lane {

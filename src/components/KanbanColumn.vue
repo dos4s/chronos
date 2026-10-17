@@ -131,7 +131,11 @@ const limitLabel = computed(() => {
 
 <style module>
 .column {
-	flex: 0 0 300px;
+	/*
+	 * A column fills most of a phone and the next one peeks past it, which is
+	 * how a reader knows the board goes on (§14.2).
+	 */
+	flex: 0 0 clamp(240px, 78vw, 300px);
 	display: flex;
 	flex-direction: column;
 	gap: 8px;

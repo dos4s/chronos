@@ -775,6 +775,16 @@ src/
 - Views are lazy-loaded (`() => import('./views/Gantt.vue')`); logic lives in composables and stores.
 - All strings via `t('chronos', …)`.
 
+**It works narrow.** There was one media query in the whole app, in the analytics charts, while the board's
+columns were a fixed 300 px, the timeline was `320px + 1fr` inside `calc(100vh - 340px)`, and the editor's
+day column was 140 px — so on a phone or a half-screen window the timeline was a table with a sliver of
+chart beside it. Every one of those fixed widths is now a `clamp()` against the viewport: the table takes a
+third of a narrow window and 320 px of a wide one, a board column fills most of a phone with the next one
+peeking past it, and every `max-height: calc(100vh - …)` has a floor so a short window still shows rows.
+Below 700 px the secondary line in each table — the dates, the project's counts, the day's date — gives way
+to the name it belongs to, and the panels and the page lose the padding a desktop can afford. N8 asks for
+keyboard and contrast; nothing asked for this, which is how it went unnoticed for four milestones.
+
 **The running session is visible from everywhere.** It used to be on the Timer view and nowhere else, so a
 session you had forgotten was discoverable only by navigating to it — in a *time tracker*, where it is the
 one piece of state that should never leave the screen. It now sits at the top of the navigation while it
