@@ -137,8 +137,8 @@ const drawn = computed<Drawn[]>(() => props.links.flatMap((link) => {
 }
 
 .broken {
-	stroke: var(--color-error);
-	fill: var(--color-error);
+	stroke: var(--color-error-text);
+	fill: var(--color-error-text);
 }
 
 .head {

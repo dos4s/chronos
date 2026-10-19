@@ -57,11 +57,22 @@ body.app-chronos .app-navigation {
 	font-weight: 600;
 }
 
-.chronos-header {
+.chronos-header,
+.chronos-view-head {
 	display: flex;
 	justify-content: space-between;
 	align-items: baseline;
 	padding: 0 4px;
+}
+
+/*
+ * A view's own first line. Nextcloud floats the navigation toggle over the
+ * top-left corner of the content area, so a title that starts at the content's
+ * edge is drawn underneath it; the indent is that button and a gap.
+ */
+.chronos-view-head {
+	padding-inline-start: 48px;
+	min-height: 34px;
 }
 
 .chronos-dot {
@@ -86,7 +97,8 @@ body.app-chronos .app-navigation {
 		padding: 16px;
 	}
 
-	.chronos-header {
+	.chronos-header,
+	.chronos-view-head {
 		flex-wrap: wrap;
 		gap: 4px;
 	}

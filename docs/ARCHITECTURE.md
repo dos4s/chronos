@@ -1178,6 +1178,37 @@ card's position exactly. The subtasks go back to the column they came from but t
 the page never saw where they were and a rank is one row per card: the old one is gone the moment the new
 one is written. That is the one way an undo is less exact than the drop it undoes (D36).
 
+### 15.10 Living inside Nextcloud's own CSS
+0.5.7 went looking at the app with a browser for the first time, and most of what looked wrong was one
+mistake made in eight places: **the server's stylesheet is more specific than ours.**
+
+**A bespoke button is styled `button.thing`, not `.thing`.** Nextcloud paints every plain button as a
+filled pill through `button:not(.button-vue, [class^="vs__"])` — a selector with one element and one class,
+which outranks a component's own single class. So a task's name, the line at the foot of a column, a
+roadmap row's label and its milestone diamonds were all drawn as green boxes with 130px widths and a 34px
+floor, however carefully the component had said `background: none`. Qualifying the rule with the element
+puts it on equal footing, and the component's file is loaded after the server's, so it wins. The same
+applies to `input`, `select` and `textarea`, which the same stylesheet gives `width: 130px`.
+
+**`--color-warning`, `--color-error` and `--color-success` are background tints, not ink.** In Nextcloud 33
+they resolve to pale washes (`#FFEEC5`, `#FFE7E7`, `#D8F3DA`); the readable colours are
+`--color-*-text`. Chronos used the tints as ink in a dozen places, so the timeline's today line was a hint
+of pink, a milestone was a cream smudge on a blue bar, the dashboard's delete button was white text on pale
+pink, and overdue text was pale pink on white. The rule now: **a mark takes the `-text` colour and the glow
+or surface around it takes the tint.**
+
+**The navigation toggle floats over the content.** Nextcloud absolutely positions it at the top-left corner
+of the content area, so a view whose first line starts at the edge is drawn underneath it. `.chronos-view-head`
+indents past it; `.chronos-header` stays as it was for the headers *inside* a view.
+
+**And a chart is as tall as its rows.** Both charts used to take at least a fixed slab of the window —
+the timeline's canvas was `max(window, rows)`, which made the window its own floor — so a ten-row plan was
+drawn into half a screen of empty lanes. They now size to their content and cap at the window.
+
+None of this was visible from the tests: Vitest runs without a DOM (§14.2), and CI never loads a page. It
+was found by logging into the instance with a headless Chromium as a throwaway account, which is the only
+way anyone has looked at this app from the outside.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.
@@ -1295,6 +1326,7 @@ requests never fires.
 | Integration | scripted CalDAV round trip against a test Nextcloud | X-property and RFC 9253 survival through DAVx5/Tasks.org and NC Tasks (M2 spike); listener and reconcile |
 | Performance | seeded data sets (500 cards, 2,000 tasks) | budgets N2–N5 |
 | Manual | checklist per milestone | keyboard drag, touch drag, dark theme, phone sync |
+| Looking at it | headless Chromium against the instance | what CI cannot see: specificity, colour, layout, a title under a button (§15.10) |
 
 Time-dependent tests always mock `ITimeFactory` (server) or the clock (Vitest fake timers).
 

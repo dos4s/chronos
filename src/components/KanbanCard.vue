@@ -253,7 +253,7 @@ function onPointerDown(event: PointerEvent): void {
 }
 
 .overdue {
-	border-inline-start: 3px solid var(--color-error);
+	border-inline-start: 3px solid var(--color-error-text);
 }
 
 /* Whose subtask this is, for a card that is not sitting under its parent. */

@@ -164,7 +164,7 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 }
 
 .conflict {
-	outline: 2px solid var(--color-error);
+	outline: 2px solid var(--color-error-text);
 	outline-offset: 1px;
 }
 
@@ -229,7 +229,7 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	width: 14px;
 	height: 14px;
 	margin-inline-start: -7px;
-	background: var(--color-warning);
+	background: var(--color-warning-text);
 	transform: rotate(45deg);
 	cursor: grab;
 	touch-action: none;

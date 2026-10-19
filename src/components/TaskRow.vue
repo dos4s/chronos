@@ -209,11 +209,21 @@ async function commit() {
 	gap: 2px;
 }
 
-.summary {
-	background: none;
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.summary {
+	background: transparent;
 	border: none;
+	border-radius: 0;
 	padding: 0;
 	margin: 0;
+	min-height: 0;
+	width: auto;
+	max-width: 100%;
 	font-size: 14px;
 	font-weight: 500;
 	color: var(--color-main-text);
@@ -263,7 +273,7 @@ async function commit() {
 }
 
 .overdue {
-	color: var(--color-error);
+	color: var(--color-error-text);
 	font-weight: 600;
 }
 
