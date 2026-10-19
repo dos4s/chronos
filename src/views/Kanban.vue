@@ -11,6 +11,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import ColumnSettingsDialog from '../components/ColumnSettingsDialog.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import KanbanCard from '../components/KanbanCard.vue'
 import KanbanColumn from '../components/KanbanColumn.vue'
@@ -23,6 +24,7 @@ import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
 import { allowsMove, cardByUid, columnOf, needsComment, openSubtasksElsewhere } from '../utils/board.ts'
+import { cardIn } from '../utils/compose.ts'
 import { passes } from '../utils/filter.ts'
 
 /**
@@ -34,6 +36,10 @@ import { passes } from '../utils/filter.ts'
  * lives in the board store. This view is the wiring, plus the three questions
  * only it can ask: the note a transition requires, whether a parent's
  * unfinished subtasks should come along (§15.9), and which cards are selected.
+ *
+ * Cards are also *made* here, in the column they belong in, and deleted here —
+ * the board was a view of work done elsewhere for two releases, and a board
+ * you cannot add to is a board you keep leaving (§14.3).
  */
 const board = useBoardStore()
 const projects = useProjectsStore()
@@ -41,6 +47,8 @@ const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
 const editing = ref<BoardCard | null>(null)
+/** The card a *Delete* is waiting on an answer about (§14.3). */
+const deleting = ref<BoardCard | null>(null)
 
 /**
  * Finding a card. There is no *show completed* here: a final column is where
@@ -348,6 +356,40 @@ async function saveDetails(changes: Partial<TaskWritePayload>): Promise<void> {
 	}
 }
 
+/**
+ * A card added to a column, which is created *in* that column: the status is
+ * the column's, so the card appears where the box was rather than in the
+ * initial status for the user to drag across (§14.3).
+ */
+async function addCard(column: BoardColumn, summary: string, parentUid: string | null): Promise<void> {
+	const into = project.value
+	if (into === null) {
+		return
+	}
+
+	const underWorkflow = board.board !== null && board.board.workflowId !== null
+	const written = await tasks.add(into.uri, summary, { ...cardIn(column, underWorkflow), parentUid })
+
+	if (written !== null) {
+		await board.refresh()
+	}
+}
+
+async function confirmDelete(): Promise<void> {
+	const card = deleting.value
+	if (card === null) {
+		return
+	}
+
+	if (await tasks.remove(card)) {
+		deleting.value = null
+		if (editing.value?.uid === card.uid) {
+			editing.value = null
+		}
+		await board.refresh()
+	}
+}
+
 async function columnSaved(): Promise<void> {
 	configuring.value = null
 	await board.refresh()
@@ -426,14 +468,16 @@ async function columnSaved(): Promise<void> {
 				@grab="(card, event) => drag.keyDown(event, card.uid, board.selection)"
 				@open="editing = $event"
 				@select="(card, additive) => board.toggleSelection(card.uid, additive)"
-				@configure="configuring = column" />
+				@configure="configuring = column"
+				@add="(summary, parentUid) => addCard(column, summary, parentUid)"
+				@remove="deleting = $event" />
 		</div>
 
 		<NcEmptyContent
 			v-else-if="project"
 			:class="$style.empty"
 			:name="t('chronos', 'Nothing to show on the board')"
-			:description="t('chronos', 'Add a task in the Tasks view, and it becomes a card here.')" />
+			:description="t('chronos', 'This project has no statuses to make columns out of. Give it a workflow in the project settings.')" />
 
 		<NcEmptyContent
 			v-else
@@ -450,7 +494,7 @@ async function columnSaved(): Promise<void> {
 		</p>
 
 		<p v-else :class="$style.hint">
-			{{ t('chronos', 'Drag a card between columns, or press space on one to move it from the keyboard.') }}
+			{{ t('chronos', 'Drag a card between columns, or press space on one to move it from the keyboard. Add one with the + at the top of a column, and use a card’s own menu to edit or delete it.') }}
 		</p>
 
 		<!--
@@ -541,8 +585,18 @@ async function columnSaved(): Promise<void> {
 		<TaskDetailDialog
 			v-if="editing"
 			:task="editing"
+			:deletable="!readOnly"
 			@close="editing = null"
-			@save="saveDetails" />
+			@save="saveDetails"
+			@remove="deleting = editing" />
+
+		<ConfirmDialog
+			v-if="deleting"
+			:name="t('chronos', 'Delete this card?')"
+			:message="t('chronos', '“{name}” will be deleted from this list, and from the Tasks app and your phone with it. This cannot be undone.', { name: deleting.summary || t('chronos', 'Untitled task') })"
+			:busy="tasks.loading"
+			@close="deleting = null"
+			@confirm="confirmDelete" />
 
 		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 

@@ -2,9 +2,10 @@
 import type { BoardCard, BoardColumn } from '../types/index.ts'
 
 import { n, t } from '@nextcloud/l10n'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import KanbanCard from './KanbanCard.vue'
+import TaskComposer from './TaskComposer.vue'
 import { cardShapes } from '../utils/board.ts'
 
 /**
@@ -19,6 +20,12 @@ import { cardShapes } from '../utils/board.ts'
  * It also decides how each of its cards is drawn: a subtask directly under its
  * parent is part of a group, and one that has been dragged away from it names
  * its parent instead (§15.9).
+ *
+ * A column is where cards are *made*, not only where they land: the composer
+ * at its foot adds a card in this column's status, which is the whole point of
+ * adding it here rather than in the list. It sits at the foot because that is
+ * where an unranked card appears — a new card goes after the arranged ones, in
+ * the list's own order (§15.5) — so the card turns up where the box was.
  */
 const props = defineProps<{
 	column: BoardColumn
@@ -41,7 +48,36 @@ const emit = defineEmits<{
 	open: [card: BoardCard]
 	select: [card: BoardCard, additive: boolean]
 	configure: []
+	add: [summary: string, parentUid: string | null]
+	remove: [card: BoardCard]
 }>()
+
+/** Whether the composer is open, and what it is adding under, if anything. */
+const adding = ref(false)
+const parent = ref<BoardCard | null>(null)
+
+function startAdding(under: BoardCard | null = null): void {
+	parent.value = under
+	adding.value = true
+}
+
+function stopAdding(): void {
+	adding.value = false
+	parent.value = null
+}
+
+/**
+ * Adding leaves the composer open: a column is filled in one sitting, and
+ * closing it after every card would make that four clicks a task. A subtask,
+ * though, is added under one named parent, so that one closes.
+ */
+function added(summary: string): void {
+	const under = parent.value
+	emit('add', summary, under?.uid ?? null)
+	if (under !== null) {
+		stopAdding()
+	}
+}
 
 const isDragging = computed(() => props.dragging.length > 0)
 const dimmed = computed(() => isDragging.value && !props.allowed)
@@ -76,6 +112,23 @@ const limitLabel = computed(() => {
 			<span :class="[$style.count, column.overWipLimit ? $style.countOver : '']">
 				{{ limitLabel ?? column.cards.length }}
 			</span>
+			<NcButton
+				v-if="!readOnly"
+				variant="tertiary"
+				:aria-label="t('chronos', 'Add a card to {column}', { column: column.name })"
+				:title="t('chronos', 'Add a card to {column}', { column: column.name })"
+				@click="startAdding()">
+				<template #icon>
+					<svg
+						viewBox="0 0 24 24"
+						width="18"
+						height="18"
+						fill="currentColor"
+						aria-hidden="true">
+						<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z" />
+					</svg>
+				</template>
+			</NcButton>
 			<NcButton
 				variant="tertiary"
 				:aria-label="t('chronos', 'Column settings')"
@@ -115,17 +168,38 @@ const limitLabel = computed(() => {
 					@pick="emit('pick', card, $event)"
 					@grab="emit('grab', card, $event)"
 					@open="emit('open', card)"
-					@select="emit('select', card, $event)" />
+					@select="emit('select', card, $event)"
+					@addSubtask="startAdding(card)"
+					@remove="emit('remove', card)" />
 				<li
 					v-if="placeholder === index + 1"
 					:class="$style.placeholder"
 					aria-hidden="true" />
 			</template>
 
-			<li v-if="cards.length === 0 && placeholder === null" :class="$style.empty">
+			<li v-if="cards.length === 0 && placeholder === null && !adding" :class="$style.empty">
 				{{ t('chronos', 'Nothing here') }}
 			</li>
+
+			<li v-if="adding" :class="$style.adding">
+				<span v-if="parent" :class="$style.under">
+					{{ t('chronos', 'Subtask of “{parent}”', { parent: parent.summary || t('chronos', 'Untitled task') }) }}
+				</span>
+				<TaskComposer
+					compact
+					autofocus
+					:placeholder="parent ? t('chronos', 'Add a subtask…') : t('chronos', 'Add a card…')"
+					@submit="added"
+					@cancel="stopAdding" />
+			</li>
 		</ul>
+
+		<button
+			v-if="!readOnly && !adding"
+			:class="$style.addRow"
+			@click="startAdding()">
+			{{ t('chronos', '+ Add a card') }}
+		</button>
 	</section>
 </template>
 
@@ -221,5 +295,41 @@ const limitLabel = computed(() => {
 	color: var(--color-text-maxcontrast);
 	text-align: center;
 	padding: 12px 0;
+}
+
+.adding {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.under {
+	font-size: 11px;
+	color: var(--color-text-maxcontrast);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * Quiet until it is wanted: a dashed line that reads as the place a card
+ * would go, not as a fifth button in the header.
+ */
+.addRow {
+	background: transparent;
+	border: 1px dashed var(--color-border-dark);
+	border-radius: var(--border-radius-large);
+	color: var(--color-text-maxcontrast);
+	cursor: pointer;
+	font-size: 13px;
+	padding: 6px;
+	text-align: start;
+	padding-inline-start: 12px;
+}
+
+.addRow:hover {
+	background: var(--color-background-hover);
+	color: var(--color-main-text);
 }
 </style>
