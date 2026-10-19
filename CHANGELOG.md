@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-10-19
+
+Two more gaps from `docs/REFERENCES.md`, one on the board and one on the roadmap — and in both cases the
+data was already there and only the view was silent.
+
+### Added
+
+- **A card says what it is waiting for.** Every other board marks blocked work with a flag somebody sets by
+  hand and forgets to clear; Chronos already stores the dependencies in the VTODO, so `Board/CardBlocks`
+  names the unfinished predecessors of every card from the same read. *Blocked by 1 task* on the card, with
+  the task named in the tooltip. What counts as blocked follows the relationship, the same reading the
+  scheduler uses: a finish-to-start or finish-to-finish successor waits for its predecessor to **finish**, a
+  start-to-start or start-to-finish one only for it to **start**. A finished card is never blocked, and a
+  predecessor in another list is left alone — it is not on this board and its status is not in this read.
+- **A roadmap line shows how far along the project is**, filled from its own start. It counts tasks rather
+  than days, because a line two thirds through its dates with nothing finished is the thing a roadmap exists
+  to show.
+- **A project with work in it and no dates says so** — *No dates yet*, beside today — instead of drawing an
+  empty lane that reads as a bug.
+- `scripts/live-check.php` proves the board's answer changes: two fresh tasks and one dependency, the
+  successor must name the predecessor, and finishing the predecessor must stop it waiting.
+
 ## [0.5.8] - 2026-10-19
 
 The first of the gaps `docs/REFERENCES.md` found: a board that cannot say how long anything has been sitting

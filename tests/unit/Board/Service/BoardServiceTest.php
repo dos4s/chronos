@@ -13,6 +13,7 @@ use OCA\Chronos\Core\Dav\ParsedTask;
 use OCA\Chronos\Core\Error\ForbiddenException;
 use OCA\Chronos\Core\Error\ValidationFailedException;
 use OCA\Chronos\Core\Index\Task;
+use OCA\Chronos\Core\Index\TaskLinkMapper;
 use OCA\Chronos\Core\Index\TaskMapper;
 use OCA\Chronos\Core\Task\StatusColumn;
 use OCA\Chronos\Core\Task\StatusColumns;
@@ -42,6 +43,7 @@ class BoardServiceTest extends TestCase {
 	private StatusGateway&MockObject $statuses;
 	private TaskService&MockObject $taskService;
 	private StatusChangeMapper&MockObject $history;
+	private TaskLinkMapper&MockObject $linkMapper;
 	private BoardService $board;
 
 	/** @var list<Task> */
@@ -74,6 +76,8 @@ class BoardServiceTest extends TestCase {
 
 		$this->history = $this->createMock(StatusChangeMapper::class);
 		$this->history->method('findArrivals')->willReturn([]);
+		$this->linkMapper = $this->createMock(TaskLinkMapper::class);
+		$this->linkMapper->method('findForCalendar')->willReturn([]);
 
 		$this->board = new BoardService(
 			$this->calendars,
@@ -82,6 +86,7 @@ class BoardServiceTest extends TestCase {
 			$this->statuses,
 			$this->taskService,
 			$this->history,
+			$this->linkMapper,
 			$this->createMock(IDBConnection::class),
 		);
 	}
@@ -185,6 +190,7 @@ class BoardServiceTest extends TestCase {
 			$this->statuses,
 			$this->taskService,
 			$this->history,
+			$this->linkMapper,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -214,6 +220,7 @@ class BoardServiceTest extends TestCase {
 			$this->statuses,
 			$this->taskService,
 			$this->history,
+			$this->linkMapper,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -255,6 +262,7 @@ class BoardServiceTest extends TestCase {
 			$this->statuses,
 			$this->taskService,
 			$this->history,
+			$this->linkMapper,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -585,6 +593,7 @@ class BoardServiceTest extends TestCase {
 			$this->statuses,
 			$this->taskService,
 			$this->history,
+			$this->linkMapper,
 			$this->createMock(IDBConnection::class),
 		);
 

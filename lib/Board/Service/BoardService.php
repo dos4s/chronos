@@ -6,6 +6,7 @@ namespace OCA\Chronos\Board\Service;
 
 use OCA\Chronos\Board\BoardView;
 use OCA\Chronos\Board\CardAges;
+use OCA\Chronos\Board\CardBlocks;
 use OCA\Chronos\Board\CardOrder;
 use OCA\Chronos\Board\CardTree;
 use OCA\Chronos\Board\Db\BoardRankMapper;
@@ -18,6 +19,7 @@ use OCA\Chronos\Core\Error\ForbiddenException;
 use OCA\Chronos\Core\Error\NotFoundException;
 use OCA\Chronos\Core\Error\ValidationFailedException;
 use OCA\Chronos\Core\Index\Task;
+use OCA\Chronos\Core\Index\TaskLinkMapper;
 use OCA\Chronos\Core\Index\TaskMapper;
 use OCA\Chronos\Core\Task\StatusColumn;
 use OCA\Chronos\Core\Task\StatusColumns;
@@ -60,6 +62,7 @@ class BoardService {
 		private StatusGateway $statuses,
 		private TaskService $taskService,
 		private StatusChangeMapper $history,
+		private TaskLinkMapper $links,
 		private IDBConnection $db,
 	) {
 	}
@@ -110,15 +113,16 @@ class BoardService {
 			$grouped[$key] = CardOrder::sort($tree->nest($cards), $ranks, $key);
 		}
 
-		// How long each card has been where it is (§12.9), in one more query
-		// for the whole board.
+		// How long each card has been where it is (§12.9), and what each one is
+		// waiting for (§12.1) — one more query each, for the whole board.
 		$ages = CardAges::from(
 			$onBoard,
 			$columnOf,
 			$this->history->findArrivals(array_keys($columnOf)),
 		);
+		$blocks = CardBlocks::from($all, $this->links->findForCalendar($calendar->id));
 
-		return new BoardView($calendar, $columns, $grouped, $tree, $ages);
+		return new BoardView($calendar, $columns, $grouped, $tree, $ages, $blocks);
 	}
 
 	/**

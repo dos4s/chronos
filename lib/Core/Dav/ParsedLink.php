@@ -18,12 +18,17 @@ final class ParsedLink {
 	public const RELTYPE_PARENT = 'PARENT';
 	public const RELTYPE_DEPENDS_ON = 'DEPENDS-ON';
 
+	public const RELTYPE_FINISH_TO_START = 'FINISHTOSTART';
+	public const RELTYPE_START_TO_START = 'STARTTOSTART';
+	public const RELTYPE_FINISH_TO_FINISH = 'FINISHTOFINISH';
+	public const RELTYPE_START_TO_FINISH = 'STARTTOFINISH';
+
 	/** The temporal relationships Chronos schedules with (RFC 9253 §4). */
 	public const TEMPORAL_RELTYPES = [
-		'FINISHTOSTART',
-		'STARTTOSTART',
-		'FINISHTOFINISH',
-		'STARTTOFINISH',
+		self::RELTYPE_FINISH_TO_START,
+		self::RELTYPE_START_TO_START,
+		self::RELTYPE_FINISH_TO_FINISH,
+		self::RELTYPE_START_TO_FINISH,
 	];
 
 	public function __construct(

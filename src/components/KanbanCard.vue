@@ -74,6 +74,25 @@ const dueLabel = computed(() => {
 const highPriority = computed(() => props.card.priority > 0 && props.card.priority <= 4)
 
 /**
+ * What this card is waiting for: the unfinished predecessors the timeline's
+ * dependencies name (§12.1). Chronos is the one board that does not have to be
+ * told — nobody ticks a "blocked" box, the dependency says it.
+ */
+const waitingOn = computed(() => props.card.waitingOn ?? [])
+const blockedBy = computed(() => {
+	if (waitingOn.value.length === 0) {
+		return null
+	}
+
+	const names = waitingOn.value.map((task) => task.summary ?? t('chronos', 'Untitled task'))
+
+	return {
+		label: n('chronos', 'Blocked by %n task', 'Blocked by %n tasks', names.length),
+		title: t('chronos', 'Waiting for: {tasks}', { tasks: names.join(', ') }),
+	}
+})
+
+/**
  * How long this card has sat in this column (§12.9). Below the first threshold
  * it says nothing: a badge on every card is a badge that means nothing.
  */
@@ -133,6 +152,7 @@ const openElsewhere = computed(() => {
 })
 
 const hasMeta = computed(() => dueLabel.value !== null
+	|| blockedBy.value !== null
 	|| age.value !== null
 	|| highPriority.value
 	|| props.card.assignee !== null
@@ -203,6 +223,13 @@ function onPointerDown(event: PointerEvent): void {
 		<div v-if="hasMeta" :class="$style.meta">
 			<span v-if="dueLabel" :class="[$style.chip, overdue ? $style.late : '']">
 				{{ dueLabel }}
+			</span>
+			<span
+				v-if="blockedBy"
+				:class="[$style.chip, $style.blocked]"
+				:title="blockedBy.title"
+				:aria-label="blockedBy.title">
+				{{ blockedBy.label }}
 			</span>
 			<span
 				v-if="age"
@@ -374,6 +401,16 @@ function onPointerDown(event: PointerEvent): void {
 .ageMid {
 	color: var(--color-warning-text);
 	background: var(--color-warning);
+}
+
+/*
+ * Waiting for something that is not finished (§12.1). Said in the error colour
+ * because it is the one chip that means *do not start this*, and spelled out in
+ * the title: which task, by name.
+ */
+.blocked {
+	color: var(--color-error-text);
+	background: var(--color-error);
 }
 
 .ageHigh {
