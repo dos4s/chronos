@@ -4,6 +4,8 @@ import type { CardShape } from '../utils/board.ts'
 
 import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import { useNow } from '../composables/useNow.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isDueToday, isOverdue } from '../utils/tasks.ts'
@@ -23,6 +25,10 @@ import { isDueToday, isOverdue } from '../utils/tasks.ts'
  * subtasks of its own says how much of that branch is done, and — when the
  * board is rolled up and they are not on the screen at all — which columns the
  * rest of it is sitting in.
+ *
+ * The menu is how a card is worked on rather than moved: opened, given a
+ * subtask, deleted. It swallows its own pointer events, because the card
+ * underneath it is a drag handle (§14.3).
  */
 const props = defineProps<{
 	card: BoardCard
@@ -42,6 +48,8 @@ const emit = defineEmits<{
 	grab: [event: KeyboardEvent]
 	open: []
 	select: [additive: boolean]
+	addSubtask: []
+	remove: []
 }>()
 
 const { now } = useNow()
@@ -146,8 +154,32 @@ function onPointerDown(event: PointerEvent): void {
 			{{ belongsTo.name }}
 		</div>
 
-		<div :class="$style.summary">
-			{{ card.summary || t('chronos', 'Untitled task') }}
+		<div :class="$style.line">
+			<div :class="$style.summary">
+				{{ card.summary || t('chronos', 'Untitled task') }}
+			</div>
+
+			<!--
+				`.stop` on the wrapper: the card under this menu is the drag
+				handle, and reaching for the menu is not a drag (§15.1).
+			-->
+			<div
+				v-if="!readOnly"
+				:class="$style.menu"
+				@pointerdown.stop
+				@dblclick.stop>
+				<NcActions :aria-label="t('chronos', 'Card actions')">
+					<NcActionButton @click="emit('open')">
+						{{ t('chronos', 'Edit details') }}
+					</NcActionButton>
+					<NcActionButton @click="emit('addSubtask')">
+						{{ t('chronos', 'Add subtask') }}
+					</NcActionButton>
+					<NcActionButton @click="emit('remove')">
+						{{ t('chronos', 'Delete') }}
+					</NcActionButton>
+				</NcActions>
+			</div>
 		</div>
 
 		<div v-if="hasMeta" :class="$style.meta">
@@ -234,7 +266,39 @@ function onPointerDown(event: PointerEvent): void {
 	white-space: nowrap;
 }
 
+.line {
+	display: flex;
+	align-items: flex-start;
+	gap: 4px;
+}
+
+/*
+ * The menu is quiet until the card is pointed at or focused, so a column of
+ * cards reads as a column of names rather than a column of buttons.
+ */
+.menu {
+	flex-shrink: 0;
+	margin-block-start: -4px;
+	margin-inline-end: -6px;
+	opacity: 0;
+	transition: opacity 0.1s ease;
+}
+
+.card:hover .menu,
+.card:focus-within .menu {
+	opacity: 1;
+}
+
+/* A touch screen has no hover, so there the menu is simply there. */
+@media (hover: none) {
+	.menu {
+		opacity: 1;
+	}
+}
+
 .summary {
+	flex: 1;
+	min-width: 0;
 	font-size: 14px;
 	line-height: 1.35;
 	overflow-wrap: anywhere;

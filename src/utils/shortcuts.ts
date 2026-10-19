@@ -48,6 +48,8 @@ export function shortcutGroups(): ShortcutGroup[] {
 				{ keys: t('chronos', 'Ctrl, ⌘ or shift and click'), what: t('chronos', 'Pick more than one card; dragging one moves them all') },
 				{ keys: 'Ctrl + Z', what: t('chronos', 'Undo the last move, status and position') },
 				{ keys: t('chronos', 'Double-click a card'), what: t('chronos', 'Open its details') },
+				{ keys: t('chronos', 'The + above a column'), what: t('chronos', 'Add a card in that column’s status') },
+				{ keys: t('chronos', 'A card’s own menu'), what: t('chronos', 'Edit it, give it a subtask, or delete it') },
 			],
 		},
 		{
@@ -85,6 +87,8 @@ export function shortcutGroups(): ShortcutGroup[] {
 			shortcuts: [
 				{ keys: t('chronos', 'Double-click a row'), what: t('chronos', 'Open its details') },
 				{ keys: t('chronos', 'The tick box'), what: t('chronos', 'Complete a task, or reopen it') },
+				{ keys: t('chronos', 'Click the name'), what: t('chronos', 'Rename it where it is') },
+				{ keys: t('chronos', 'A row’s own menu'), what: t('chronos', 'Add a subtask, promote a subproject, or delete') },
 			],
 		},
 	]
