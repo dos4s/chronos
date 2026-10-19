@@ -2,7 +2,7 @@ import type { UnixSeconds } from '../api/time.ts'
 import type { BoardColumn, TaskWritePayload } from '../types/index.ts'
 
 /**
- * What a task is made of when it is made somewhere other than the list (§14.3).
+ * What a task is made of when it is made somewhere other than the list (§14.2).
  *
  * The board and the roadmap each know something the composer does not — which
  * column a card was added to, which day a diamond was dropped on — and that

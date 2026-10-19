@@ -49,7 +49,7 @@ import { createScale, dayAfter, windowFor } from '../utils/scale.ts'
  * A plan is also *made* here: a task added from the toolbar arrives with no
  * dates, as a row waiting for a bar, and a double-click on its lane gives it
  * one. Before this the timeline could only arrange tasks that had been written
- * somewhere else (§14.3).
+ * somewhere else (§14.2).
  */
 const plan = usePlanStore()
 const projects = useProjectsStore()
@@ -61,7 +61,7 @@ const zoom = ref<Zoom>('month')
 const editing = ref<PlanRow | null>(null)
 const configuring = ref(false)
 const shortcuts = ref(false)
-/** Whether the composer is open, and what it is adding under (§14.3). */
+/** Whether the composer is open, and what it is adding under (§14.2). */
 const adding = ref(false)
 const parent = ref<PlanRow | null>(null)
 /** The task a *Delete* is waiting on an answer about. */
@@ -569,7 +569,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task. Double-click an empty row to give that task a day; a row’s own menu edits, adds and deletes.') }}
+			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task. Press ? for the rest.') }}
 		</p>
 
 		<!-- What a screen reader hears while a bar is in the air (§15.7). -->

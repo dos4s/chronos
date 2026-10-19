@@ -28,7 +28,7 @@ import { isDueToday, isOverdue } from '../utils/tasks.ts'
  *
  * The menu is how a card is worked on rather than moved: opened, given a
  * subtask, deleted. It swallows its own pointer events, because the card
- * underneath it is a drag handle (§14.3).
+ * underneath it is a drag handle (§14.2).
  */
 const props = defineProps<{
 	card: BoardCard
