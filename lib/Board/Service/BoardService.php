@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Chronos\Board\Service;
 
 use OCA\Chronos\Board\BoardView;
+use OCA\Chronos\Board\CardAges;
 use OCA\Chronos\Board\CardOrder;
 use OCA\Chronos\Board\CardTree;
 use OCA\Chronos\Board\Db\BoardRankMapper;
@@ -23,6 +24,7 @@ use OCA\Chronos\Core\Task\StatusColumns;
 use OCA\Chronos\Core\Task\StatusGateway;
 use OCA\Chronos\Core\Task\TaskService;
 use OCA\Chronos\Core\Task\TaskWrite;
+use OCA\Chronos\Workflow\Db\StatusChangeMapper;
 use OCP\IDBConnection;
 use Throwable;
 
@@ -57,6 +59,7 @@ class BoardService {
 		private BoardRankMapper $ranks,
 		private StatusGateway $statuses,
 		private TaskService $taskService,
+		private StatusChangeMapper $history,
 		private IDBConnection $db,
 	) {
 	}
@@ -87,12 +90,16 @@ class BoardService {
 			$grouped[$column->key] = [];
 		}
 
+		$columnOf = [];
+		$onBoard = [];
 		foreach ($this->cards($all, $tree, $rolled) as $card) {
 			$column = $columns->columnFor($card);
 			if ($column === null) {
 				continue;
 			}
 			$grouped[$column->key][] = $card;
+			$columnOf[$card->getUid()] = $column;
+			$onBoard[] = $card;
 		}
 
 		foreach ($grouped as $key => $cards) {
@@ -103,7 +110,15 @@ class BoardService {
 			$grouped[$key] = CardOrder::sort($tree->nest($cards), $ranks, $key);
 		}
 
-		return new BoardView($calendar, $columns, $grouped, $tree);
+		// How long each card has been where it is (§12.9), in one more query
+		// for the whole board.
+		$ages = CardAges::from(
+			$onBoard,
+			$columnOf,
+			$this->history->findArrivals(array_keys($columnOf)),
+		);
+
+		return new BoardView($calendar, $columns, $grouped, $tree, $ages);
 	}
 
 	/**

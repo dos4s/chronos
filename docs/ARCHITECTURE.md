@@ -622,6 +622,8 @@ That is also what lets the Chronos checkbox keep working under a workflow.
   pause and is not recorded. The cached `paused_seconds` always equals the sum of the pause rows.
 
 ### 12.3 Assignment, time-in-state, SLA
+*What the board measures from these rows today is §12.9; this is where SLA takes them in M6.*
+
 - Assignee in `ATTENDEE`; changes logged in status history.
 - Time-in-state per status and per assignee = intervals between consecutive history rows.
 - The SLA policy is the first match on `conditions` (priority, type, category, custom field).
@@ -702,6 +704,44 @@ the Gantt.
 ### 12.8 Eisenhower matrix
 Important = impact field (or `PRIORITY` ≤ threshold); urgent = urgency field, or due within N days (user
 setting); dragging between quadrants updates those fields.
+
+### 12.9 Flow: what the board measures
+[The Kanban Guide](https://kanbanguides.org/english/) makes four measures mandatory for a board — **WIP**
+(items started and not finished), **throughput** (items finished per unit of time), **work item age**
+(elapsed time since an unfinished item started) and **cycle time** (start to finish) — and names "stop items
+ageing unnecessarily" as one of three practices. Until 0.5.8 Chronos had none of them: a column showed a
+count and nothing about time (`docs/REFERENCES.md` §1).
+
+**The recorder had to be fixed before anything could measure.** `StatusHistoryListener` wrote a row only
+when the *workflow* status moved, which is never on a project without a workflow — the common case, and
+every project on the instance this is developed against. So nothing was recorded, and *time in a state
+cannot be worked out afterwards*: the argument that put history in M2 in the first place applies again, with
+interest. Since 0.5.8:
+
+- a row is written when **either** status moves — the workflow's, or the VTODO's own `STATUS`;
+- `from_standard`/`to_standard` record the second one, nullable because rows written earlier have no answer;
+- the standard status is recorded **whether or not the workflow module is on**, because it is not the
+  workflow's data: a column is a status with or without one (AD7). An assignee change stays behind the
+  module gate, where it belongs.
+
+**Work item age is the one measure that belongs on the card.** It is the time since the card entered *the
+column it is in* — not since it was created, which would make a task opened in January and started yesterday
+look stale. `Board/CardAges` reads it out of history: the most recent row that moved the card into this
+column, matched **by status key where there is a workflow** (two columns can share `IN-PROCESS` — "In
+progress" and "Review" — and a move between them is a move) and by standard status where there is not. A
+card with no matching row has **no age at all** rather than a guessed one, which is every card whose last
+move predates 0.5.8; a blank is obviously a blank, where an age measured from the wrong moment reads as
+fact. The board asks for it once per read, for every card at once (§16).
+
+The thresholds are the convention the board tools settled on — quiet for a week, noticeable at two, wrong at
+three (7/14/21 days, `utils/age.ts`) — and under the first one the card says nothing, because a badge on
+every card is a badge that means nothing. Making them a per-project setting is the obvious next step and is
+not built.
+
+**What is not built yet**, in the order it is worth doing: cycle time and throughput per column (the same
+rows, grouped by the move into a final status), a cumulative flow diagram in Analytics (one band per state
+per day; a widening band is a bottleneck), and the service level expectation the Guide asks for, which is
+the 85th percentile of recent cycle times and the honest version of a "due date" for work in progress.
 
 ## 13. Feature toggles
 

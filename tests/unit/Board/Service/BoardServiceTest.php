@@ -18,6 +18,7 @@ use OCA\Chronos\Core\Task\StatusColumn;
 use OCA\Chronos\Core\Task\StatusColumns;
 use OCA\Chronos\Core\Task\StatusGateway;
 use OCA\Chronos\Core\Task\TaskService;
+use OCA\Chronos\Workflow\Db\StatusChangeMapper;
 use OCP\IDBConnection;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -40,6 +41,7 @@ class BoardServiceTest extends TestCase {
 	private BoardRankMapper&MockObject $ranks;
 	private StatusGateway&MockObject $statuses;
 	private TaskService&MockObject $taskService;
+	private StatusChangeMapper&MockObject $history;
 	private BoardService $board;
 
 	/** @var list<Task> */
@@ -70,12 +72,16 @@ class BoardServiceTest extends TestCase {
 			},
 		);
 
+		$this->history = $this->createMock(StatusChangeMapper::class);
+		$this->history->method('findArrivals')->willReturn([]);
+
 		$this->board = new BoardService(
 			$this->calendars,
 			$this->tasks,
 			$this->ranks,
 			$this->statuses,
 			$this->taskService,
+			$this->history,
 			$this->createMock(IDBConnection::class),
 		);
 	}
@@ -178,6 +184,7 @@ class BoardServiceTest extends TestCase {
 			$this->ranks,
 			$this->statuses,
 			$this->taskService,
+			$this->history,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -206,6 +213,7 @@ class BoardServiceTest extends TestCase {
 			$this->ranks,
 			$this->statuses,
 			$this->taskService,
+			$this->history,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -246,6 +254,7 @@ class BoardServiceTest extends TestCase {
 			$this->ranks,
 			$this->statuses,
 			$this->taskService,
+			$this->history,
 			$this->createMock(IDBConnection::class),
 		);
 
@@ -575,6 +584,7 @@ class BoardServiceTest extends TestCase {
 			$this->ranks,
 			$this->statuses,
 			$this->taskService,
+			$this->history,
 			$this->createMock(IDBConnection::class),
 		);
 

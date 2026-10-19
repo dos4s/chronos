@@ -7,6 +7,7 @@ import { computed } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import { useNow } from '../composables/useNow.ts'
+import { ageInDays, ageLabel, ageLevel, ageTitle } from '../utils/age.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isDueToday, isOverdue } from '../utils/tasks.ts'
 
@@ -72,6 +73,20 @@ const dueLabel = computed(() => {
 /** `PRIORITY` 1–4 is high in iCalendar; 5 is normal (§7). */
 const highPriority = computed(() => props.card.priority > 0 && props.card.priority <= 4)
 
+/**
+ * How long this card has sat in this column (§12.9). Below the first threshold
+ * it says nothing: a badge on every card is a badge that means nothing.
+ */
+const ageDays = computed(() => ageInDays(props.card.enteredColumnAt, now.value))
+const age = computed(() => {
+	const level = ageLevel(ageDays.value)
+	if (level === 0) {
+		return null
+	}
+
+	return { level, label: ageLabel(ageDays.value), title: ageTitle(ageDays.value) }
+})
+
 const indented = computed(() => props.shape?.indented === true)
 
 /** The line above the summary: whose subtask this is, or which sublist it is in. */
@@ -118,6 +133,7 @@ const openElsewhere = computed(() => {
 })
 
 const hasMeta = computed(() => dueLabel.value !== null
+	|| age.value !== null
 	|| highPriority.value
 	|| props.card.assignee !== null
 	|| (props.card.percent !== null && props.card.percent > 0)
@@ -187,6 +203,13 @@ function onPointerDown(event: PointerEvent): void {
 		<div v-if="hasMeta" :class="$style.meta">
 			<span v-if="dueLabel" :class="[$style.chip, overdue ? $style.late : '']">
 				{{ dueLabel }}
+			</span>
+			<span
+				v-if="age"
+				:class="[$style.chip, $style.age, age.level >= 3 ? $style.ageHigh : age.level === 2 ? $style.ageMid : '']"
+				:title="age.title ?? undefined"
+				:aria-label="age.title ?? undefined">
+				{{ age.label }}
 			</span>
 			<span v-if="highPriority" :class="[$style.chip, $style.priority]">
 				{{ t('chronos', 'High') }}
@@ -336,5 +359,25 @@ function onPointerDown(event: PointerEvent): void {
 .branch {
 	border: 1px solid var(--color-border);
 	background: transparent;
+}
+
+/*
+ * How long the card has been in this column (§12.9). It only appears once a
+ * card has sat for a week, and it darkens at a fortnight and at three, which is
+ * the convention the board tools settled on: quiet, then noticeable, then
+ * wrong.
+ */
+.age {
+	font-variant-numeric: tabular-nums;
+}
+
+.ageMid {
+	color: var(--color-warning-text);
+	background: var(--color-warning);
+}
+
+.ageHigh {
+	color: var(--color-error-text);
+	background: var(--color-error);
 }
 </style>

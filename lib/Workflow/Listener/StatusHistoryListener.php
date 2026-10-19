@@ -24,6 +24,16 @@ use OCP\IUserSession;
  * cannot be worked out afterwards, and a change made on a phone three days ago
  * is only ever seen once, when it reaches the server.
  *
+ * **Both statuses, not only the workflow's (§12.9).** A task has a workflow
+ * status only where a workflow is attached, and the VTODO's own `STATUS`
+ * everywhere; until 0.5.8 this listener wrote a row only when the first of
+ * those moved, so a project without a workflow — the common case, and every
+ * project on the instance this is developed against — recorded nothing at all
+ * and could never be measured. A row is written when *either* status moves,
+ * and the standard one is recorded whether or not the workflow module is
+ * available, because it is not the workflow's data: a column on a board is a
+ * status with or without one (AD7).
+ *
  * @template-implements IEventListener<Event>
  */
 class StatusHistoryListener implements IEventListener {
@@ -39,30 +49,34 @@ class StatusHistoryListener implements IEventListener {
 	}
 
 	public function handle(Event $event): void {
-		if (!$this->toggles->isAvailable(FeatureToggles::MODULE_WORKFLOW)) {
-			// A switched-off module records nothing (§13).
-			return;
-		}
-
 		if ($event instanceof TaskStatusChangedEvent) {
 			$this->recordStatus($event);
 			return;
 		}
 
-		if ($event instanceof TaskAssignedEvent) {
+		// An assignee is the workflow module's concern, so a switched-off
+		// module records nothing of it (§13).
+		if ($event instanceof TaskAssignedEvent && $this->workflowAvailable()) {
 			$this->recordAssignee($event);
 		}
 	}
 
+	private function workflowAvailable(): bool {
+		return $this->toggles->isAvailable(FeatureToggles::MODULE_WORKFLOW);
+	}
+
 	private function recordStatus(TaskStatusChangedEvent $event): void {
 		$task = $event->getTask();
-		$from = $event->getPreviousStatusId();
-		$to = $task->getStatusId();
+		$workflow = $this->workflowAvailable();
 
-		if ($from === $to) {
-			// The standard status moved but the workflow status did not, which
-			// happens when a project has no workflow at all: there is no
-			// workflow transition to record.
+		$from = $workflow ? $event->getPreviousStatusId() : null;
+		$to = $workflow ? $task->getStatusId() : null;
+		$fromStandard = $event->getPreviousStatus();
+		$toStandard = $task->getVtodoStatus();
+
+		if ($from === $to && $fromStandard === $toStandard) {
+			// Neither status moved: the event carries something else about the
+			// task, and history has nothing to say about it.
 			return;
 		}
 
@@ -71,6 +85,8 @@ class StatusHistoryListener implements IEventListener {
 		$change->setToStatusId($to);
 		$change->setFromKey($this->keyOf($from));
 		$change->setToKey($this->keyOf($to));
+		$change->setFromStandard($fromStandard);
+		$change->setToStandard($toStandard);
 		$change->setFromAssignee($task->getAssignee());
 		$change->setToAssignee($task->getAssignee());
 		$change->setComment($this->gateway->takeNote($task->getUid()));
@@ -90,6 +106,8 @@ class StatusHistoryListener implements IEventListener {
 		$change->setToStatusId($status);
 		$change->setFromKey($this->keyOf($status));
 		$change->setToKey($this->keyOf($status));
+		$change->setFromStandard($task->getVtodoStatus());
+		$change->setToStandard($task->getVtodoStatus());
 		$change->setFromAssignee($event->getPreviousAssignee());
 		$change->setToAssignee($task->getAssignee());
 

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-10-19
+
+The first of the gaps `docs/REFERENCES.md` found: a board that cannot say how long anything has been sitting
+in a column. The Kanban Guide makes four measures mandatory — WIP, throughput, cycle time and **work item
+age** — and Chronos had none of them.
+
+### Fixed
+
+- **A status change on a project without a workflow is recorded at all.** `StatusHistoryListener` wrote a
+  row only when the *workflow* status moved, and returned early when it had not — which is every change on
+  a project that has no workflow, which is most of them. So nothing was recorded, and time in a state cannot
+  be reconstructed afterwards: every day without this was a day that can never be measured. A row is now
+  written when either status moves, the VTODO's own `STATUS` is recorded beside the workflow's
+  (`from_standard`/`to_standard`, migration `Version6001`), and the standard one is recorded whether or not
+  the workflow module is switched on — a column is a status with or without a workflow (AD7).
+
+### Added
+
+- **How long a card has been where it is**, on the card. `Board/CardAges` reads the arrival out of status
+  history — the latest row that moved the card into this column, matched by status key where there is a
+  workflow (two columns can share `IN-PROCESS`) and by standard status where there is not — and the board
+  read carries it as `enteredColumnAt`. The badge appears after a week, darkens at a fortnight and again at
+  three weeks, and says nothing below that: a badge on every card is a badge that means nothing.
+- A card whose arrival nothing recorded has **no age at all** rather than a guessed one, which is every card
+  whose last move predates this release.
+- `scripts/live-check.php` grew a step for the case that was broken: with the workflow taken off, a plain
+  status move must still write a row naming the standard status on both sides, and the board must read the
+  card's arrival back out of it.
+
 ### Added
 
 - `docs/REFERENCES.md` — what the other tools (OpenProject, Jira, GitHub Projects, Linear, Vikunja, Deck)

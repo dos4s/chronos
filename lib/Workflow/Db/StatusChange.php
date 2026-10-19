@@ -26,6 +26,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setFromKey(?string $fromKey)
  * @method string|null getToKey()
  * @method void setToKey(?string $toKey)
+ * @method string|null getFromStandard()
+ * @method void setFromStandard(?string $fromStandard)
+ * @method string|null getToStandard()
+ * @method void setToStandard(?string $toStandard)
  * @method string|null getFromAssignee()
  * @method void setFromAssignee(?string $fromAssignee)
  * @method string|null getToAssignee()
@@ -46,6 +50,9 @@ class StatusChange extends Entity implements JsonSerializable {
 	protected ?int $toStatusId = null;
 	protected ?string $fromKey = null;
 	protected ?string $toKey = null;
+	/** The VTODO's own `STATUS`, which exists with or without a workflow. */
+	protected ?string $fromStandard = null;
+	protected ?string $toStandard = null;
 	protected ?string $fromAssignee = null;
 	protected ?string $toAssignee = null;
 	protected string $changedBy = '';
@@ -71,6 +78,8 @@ class StatusChange extends Entity implements JsonSerializable {
 			'toStatusId' => $this->toStatusId,
 			'fromKey' => $this->fromKey,
 			'toKey' => $this->toKey,
+			'fromStandard' => $this->fromStandard,
+			'toStandard' => $this->toStandard,
 			'fromAssignee' => $this->fromAssignee,
 			'toAssignee' => $this->toAssignee,
 			'changedBy' => $this->changedBy,
