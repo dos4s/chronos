@@ -61,7 +61,12 @@ const dates = computed(() => {
 			<span :class="$style.when">{{ dates }}</span>
 		</div>
 
-		<div v-if="!readOnly" :class="$style.menu">
+		<!-- The row answers a double-click; reaching for its menu is not one. -->
+		<div
+			v-if="!readOnly"
+			:class="$style.menu"
+			@dblclick.stop
+			@keydown.stop>
 			<NcActions :aria-label="t('chronos', 'Task actions')">
 				<NcActionButton @click="emit('open')">
 					{{ t('chronos', 'Edit details') }}

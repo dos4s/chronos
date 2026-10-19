@@ -27,8 +27,9 @@ import { isDueToday, isOverdue } from '../utils/tasks.ts'
  * rest of it is sitting in.
  *
  * The menu is how a card is worked on rather than moved: opened, given a
- * subtask, deleted. It swallows its own pointer events, because the card
- * underneath it is a drag handle (§14.2).
+ * subtask, deleted. It swallows its own pointer *and* key events, because the
+ * card underneath it is a drag handle that answers space, enter and a
+ * double-click — and opening a menu is none of those (§14.2).
  */
 const props = defineProps<{
 	card: BoardCard
@@ -167,7 +168,8 @@ function onPointerDown(event: PointerEvent): void {
 				v-if="!readOnly"
 				:class="$style.menu"
 				@pointerdown.stop
-				@dblclick.stop>
+				@dblclick.stop
+				@keydown.stop>
 				<NcActions :aria-label="t('chronos', 'Card actions')">
 					<NcActionButton @click="emit('open')">
 						{{ t('chronos', 'Edit details') }}
