@@ -147,7 +147,7 @@ function scaleFor(dayStart: UnixSeconds) {
 
 const scale = computed(() => scaleFor(days.value[0] ?? startOfDay(asSeconds(Date.now() / 1000))))
 const width = computed(() => scale.value.width)
-const height = computed(() => Math.max(ROW_HEIGHT * 2, days.value.length * ROW_HEIGHT))
+const height = computed(() => days.value.length * ROW_HEIGHT)
 
 const drag = useTimeDrag({
 	container: () => chart.value,
@@ -517,7 +517,7 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
-	min-height: 240px;
+	/* As tall as the days it has, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));
 }
 

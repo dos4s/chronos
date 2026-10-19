@@ -1,6 +1,9 @@
 import { createApp } from 'vue'
 import DashboardWidget from './DashboardWidget.vue'
 
+/* The widget reports failures as toasts too (§15.10). */
+import '@nextcloud/dialogs/style.css'
+
 declare global {
 	interface Window {
 		OCA: {
