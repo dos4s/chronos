@@ -33,6 +33,7 @@ final class BoardView implements JsonSerializable {
 		public readonly array $cards,
 		public readonly CardTree $tree,
 		public readonly ?CardAges $ages = null,
+		public readonly ?CardBlocks $blocks = null,
 	) {
 	}
 
@@ -59,8 +60,11 @@ final class BoardView implements JsonSerializable {
 					fn (Task $card): array => $card->jsonSerialize()
 						+ $this->tree->factsFor($card->getUid())
 						// When it arrived in this column, or null where history
-						// cannot say (§12.9).
-						+ ['enteredColumnAt' => $this->ages?->enteredAt($card->getUid())],
+						// cannot say (§12.9), and what it is waiting for (§12.1).
+						+ [
+							'enteredColumnAt' => $this->ages?->enteredAt($card->getUid()),
+							'waitingOn' => $this->blocks?->waitingOn($card->getUid()) ?? [],
+						],
 					$cards,
 				),
 			];

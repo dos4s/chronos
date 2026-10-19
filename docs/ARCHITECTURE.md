@@ -548,6 +548,15 @@ reads their existing lists in the background.
   transition rules.
 - **Kanban columns are the statuses.** No separate column model.
 
+**A card says what it is waiting for (0.5.9).** Every board tool marks blocked work with a flag somebody
+sets by hand and forgets to clear. Chronos does not have to ask: the timeline already stores the
+dependencies in the VTODO itself (§12.5), so `Board/CardBlocks` can name the unfinished predecessors of
+every card from the same read. What counts as blocked follows the relationship rather than one rule — the
+same reading the scheduler uses: a `FINISHTOSTART` or `FINISHTOFINISH` successor waits for its predecessor
+to *finish*, a `STARTTOSTART` or `STARTTOFINISH` one only for it to *start*, and a bare `DEPENDS-ON` waits
+for the finish. A finished card is never blocked whatever it depends on, and a predecessor in another list
+is real but not something this board can speak for: it is not on it, and its status is not in this read.
+
 **Support**, the GLPI-shaped one:
 
 | Status | VTODO `STATUS` | Flags |
@@ -696,6 +705,14 @@ because a met milestone is history rather than a deadline. It shares the timelin
 a **quarter** zoom of its own where a year fits on two screens, so a project read here and opened there is
 drawn by the same arithmetic. Nothing on it is draggable: a project's span is its tasks' dates, and those
 are the timeline's to change — clicking a line opens it (`/timeline?project=…`).
+
+**What 0.5.9 added, both from `docs/REFERENCES.md` §3.** A span now shows **how much of the project is
+done**, filled from its own start: every tool that draws a project line draws this, and Chronos was printing
+the numbers in the left-hand column while the bar said nothing. It counts tasks rather than days, because a
+line two thirds through its dates with nothing finished is the thing a roadmap exists to show. And a project
+with work in it but **no dates on any of it** says *No dates yet* beside today instead of drawing an empty
+lane that reads as a bug — the smallest honest answer to the one thing a dated roadmap cannot express
+(ProdPad's *Later*), without inventing a second data model for it.
 
 ### 12.7 Sprints
 Per project or global; `sprint_id` mirrored to `X-CHRONOS-SPRINT`; burndown from status history; bands on

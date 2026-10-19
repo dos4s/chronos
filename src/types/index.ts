@@ -209,6 +209,11 @@ export type BoardCard = Task & {
 	 * predates 0.5.8 (§12.9).
 	 */
 	enteredColumnAt?: number | null
+	/**
+	 * The unfinished tasks this card is waiting for, from the dependencies the
+	 * timeline stores (§12.1). Empty is the normal case.
+	 */
+	waitingOn?: { uid: string, summary: string | null }[]
 }
 
 /** Which cards a board shows: every task, or only the top of each branch. */

@@ -909,6 +909,80 @@ try {
 	$tasks->delete($user, $plainUid);
 	$plainUid = null;
 
+	// 20. What a card is waiting for (§12.1). Two fresh tasks and one
+	// dependency, because the board's answer has to change when the
+	// predecessor is finished — and that is the half a unit test cannot prove
+	// about a real index.
+	$aheadTask = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — ahead',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+	));
+	$aheadUid = $aheadTask->getUid();
+	$everythingMade[] = $aheadUid;
+	$behindTask = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — behind',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+	));
+	$behindUid = $behindTask->getUid();
+	$everythingMade[] = $behindUid;
+	$planService->link($user, $ref, $aheadUid, $behindUid, 'FINISHTOSTART');
+
+	$blockedBoard = $board->board($user, $ref);
+	check(
+		'the board says which unfinished task a card is waiting for',
+		array_column($blockedBoard->blocks?->waitingOn($behindUid) ?? [], 'uid') === [$aheadUid],
+		implode(', ', array_column($blockedBoard->blocks?->waitingOn($behindUid) ?? [], 'uid')) ?: 'nothing',
+	);
+	check(
+		'and that the one ahead of it is waiting for nothing',
+		($blockedBoard->blocks?->waitingOn($aheadUid) ?? []) === [],
+		'nothing',
+	);
+
+	$tasks->update($user, $aheadUid, TaskWrite::fromParams(
+		'Chronos live check — ahead',
+		'COMPLETED',
+		null,
+		null,
+		null,
+		null,
+		null,
+		100,
+		null,
+		null,
+		null,
+		null,
+	), $aheadTask->getEtag());
+	check(
+		'finishing it stops the other card waiting',
+		($board->board($user, $ref)->blocks?->waitingOn($behindUid) ?? []) === [],
+		'nothing',
+	);
+
+	foreach ([$behindUid, $aheadUid] as $throwaway) {
+		$tasks->delete($user, $throwaway);
+	}
+
 	// 19. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
 	check(

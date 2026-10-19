@@ -194,6 +194,22 @@ function open(row: RoadmapRow): void {
 	void router.push({ name: 'timeline', query: { project: row.ref } })
 }
 
+/**
+ * How much of a project is finished, as a fraction of its bar (§12.6). Every
+ * tool that draws a project line draws this; Chronos printed the numbers in the
+ * left-hand column and left the bar saying nothing about progress.
+ *
+ * It counts tasks, not days: a line two thirds through its dates with nothing
+ * done is the thing a roadmap exists to show.
+ */
+function doneFraction(row: RoadmapRow): number {
+	if (row.tasks === 0) {
+		return 0
+	}
+
+	return Math.max(0, Math.min(1, (row.tasks - row.open) / row.tasks))
+}
+
 function label(row: RoadmapRow): string {
 	if (row.tasks === 0) {
 		return t('chronos', 'Nothing in it yet')
@@ -331,7 +347,19 @@ onBeforeUnmount(() => {
 									width: `${placeOf(line.row)!.width}px`,
 									background: line.row.color || 'var(--color-primary-element)',
 								}"
-								:title="line.row.name" />
+								:title="`${line.row.name} — ${label(line.row)}`">
+								<span
+									v-if="doneFraction(line.row) > 0"
+									:class="$style.done"
+									:style="{ width: `${doneFraction(line.row) * 100}%` }"
+									aria-hidden="true" />
+							</span>
+							<span
+								v-else-if="line.row.tasks > 0"
+								:class="$style.undated"
+								:style="{ insetInlineStart: `${todayX}px` }">
+								{{ t('chronos', 'No dates yet') }}
+							</span>
 							<button
 								v-for="milestone in line.row.milestones"
 								:key="milestone.uid"
@@ -543,6 +571,34 @@ button.project {
 	height: 10px;
 	border-radius: 5px;
 	opacity: 0.85;
+	overflow: hidden;
+}
+
+/*
+ * The finished part of a project, drawn inside its own bar (§12.6). Darker
+ * rather than another colour, so a line reads as one thing with a filled end
+ * instead of two bars that happen to touch.
+ */
+.done {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	background: color-mix(in srgb, var(--color-main-text) 45%, transparent);
+}
+
+/*
+ * A project with work in it and no dates on any of it has nothing to draw, and
+ * an empty lane looks like a bug. It says so instead, beside today — which is
+ * where the eye already is.
+ */
+.undated {
+	position: absolute;
+	inset-block-start: 9px;
+	font-size: 11px;
+	color: var(--color-text-maxcontrast);
+	white-space: nowrap;
+	padding-inline-start: 8px;
+	pointer-events: none;
 }
 
 /*
