@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `docs/REFERENCES.md` — what the other tools (OpenProject, Jira, GitHub Projects, Linear, Vikunja, Deck)
+  and the one real standard (The Kanban Guide, the W3C's treegrid pattern, Nextcloud's own design
+  guidelines) do with a board, a timeline and a roadmap, measured against what Chronos has, with a ranked
+  list of what is worth closing.
+
 ## [0.5.7] - 2026-10-19
 
 The first release written while looking at the app. A headless browser logged into the instance as a

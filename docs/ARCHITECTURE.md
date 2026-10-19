@@ -889,6 +889,10 @@ words.
 Kanban cards, Gantt bars and links, matrix cards, roadmap rows and the session editor all drag. They share
 **one drag engine** (`composables/useDrag`) so behaviour is identical everywhere.
 
+What the established tools put in these three views, what the Kanban Guide and the W3C actually require, and
+where Chronos's gaps are — with the ranked list of what is worth closing — is in
+[`docs/REFERENCES.md`](REFERENCES.md). Argue with that file before redesigning one of these views.
+
 ### 15.1 Input
 - **Pointer Events** (`pointerdown/move/up` with `setPointerCapture`): one code path for mouse, touch and pen.
 - A **drag threshold** of about 4 px before a drag starts, so clicks stay clicks.
