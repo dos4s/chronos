@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Roadmap, RoadmapRow } from '../types/index.ts'
+import type { Roadmap, RoadmapMilestone, RoadmapRow, Task, TaskWritePayload } from '../types/index.ts'
 import type { Zoom } from '../utils/scale.ts'
 
 import { showError } from '@nextcloud/dialogs'
@@ -9,11 +9,17 @@ import { useRouter } from 'vue-router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GanttScale from '../components/GanttScale.vue'
+import ShortcutsDialog from '../components/ShortcutsDialog.vue'
+import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { messageFor } from '../api/client.ts'
 import { fetchRoadmap } from '../api/roadmap.ts'
+import { fetchTasks } from '../api/tasks.ts'
 import { useNow } from '../composables/useNow.ts'
 import { useProjectsStore } from '../stores/projects.ts'
+import { useTasksStore } from '../stores/tasks.ts'
+import { milestoneOn } from '../utils/compose.ts'
 import { formatDate } from '../utils/format.ts'
 import { createScale, windowFor } from '../utils/scale.ts'
 
@@ -27,14 +33,26 @@ import { createScale, windowFor } from '../utils/scale.ts'
  *
  * It shares the timeline's scale and header, so a project read here and opened
  * there is drawn by the same arithmetic (§15.4).
+ *
+ * The one thing it writes is the one thing it is about: a milestone is a date
+ * something has to be true by, and this is the screen where those dates are
+ * decided. Double-clicking a project's lane puts one there and opens it to be
+ * named; clicking a diamond opens it again, to move, rename or delete (§14.3).
  */
 const router = useRouter()
 const projects = useProjectsStore()
+const tasks = useTasksStore()
 const { now } = useNow()
 
 const roadmap = ref<Roadmap | null>(null)
 const loading = ref(false)
 const zoom = ref<Zoom>('quarter')
+const shortcuts = ref(false)
+
+/** The milestone being edited, which is a task like any other (§6). */
+const editing = ref<Task | null>(null)
+/** The one a *Delete* is waiting on an answer about. */
+const deleting = ref<Task | null>(null)
 
 const chart = ref<HTMLElement | null>(null)
 const scrollLeft = ref(0)
@@ -93,6 +111,75 @@ function onScroll(): void {
 	}
 	scrollLeft.value = element.scrollLeft
 	scrollTop.value = element.scrollTop
+}
+
+/** Whether this project's list can be written to; a shared one may not be. */
+function canWrite(row: RoadmapRow): boolean {
+	return projects.find(row.ref)?.writable === true
+}
+
+/**
+ * A milestone put on a lane at the date it was dropped on.
+ *
+ * It is created named *New milestone* and opened straight away, because the
+ * date is the half the gesture knows and the name is the half it does not. On
+ * a subproject's line it belongs to that subproject, which is the line that
+ * was pointed at (§12.6).
+ */
+async function addMilestone(event: MouseEvent, row: RoadmapRow): Promise<void> {
+	const element = chart.value
+	if (element === null || !canWrite(row)) {
+		return
+	}
+
+	const x = event.clientX - element.getBoundingClientRect().left + element.scrollLeft
+	const written = await tasks.add(row.ref, t('chronos', 'New milestone'), {
+		...milestoneOn(scale.value.atOf(x, true)),
+		parentUid: row.parentUid,
+	})
+
+	if (written !== null) {
+		await load()
+		editing.value = written
+	}
+}
+
+/**
+ * Opening a diamond. The roadmap carries a milestone's date and name but not
+ * the task behind it — it reads every project at once, and sending every
+ * field of every task for a screen of diamonds would be a waste — so the one
+ * that was clicked is read from its own list.
+ */
+async function openMilestone(milestone: RoadmapMilestone, row: RoadmapRow): Promise<void> {
+	try {
+		const found = (await fetchTasks(row.ref)).find((task) => task.uid === milestone.uid)
+		if (found !== undefined) {
+			editing.value = found
+		}
+	} catch (error) {
+		showError(messageFor(error))
+	}
+}
+
+async function saveMilestone(changes: Partial<TaskWritePayload>): Promise<void> {
+	const task = editing.value
+	if (task !== null && await tasks.save(task, changes)) {
+		editing.value = null
+		await load()
+	}
+}
+
+async function confirmDelete(): Promise<void> {
+	const task = deleting.value
+	if (task === null) {
+		return
+	}
+
+	if (await tasks.remove(task)) {
+		deleting.value = null
+		editing.value = null
+		await load()
+	}
 }
 
 function open(row: RoadmapRow): void {
@@ -159,6 +246,13 @@ onBeforeUnmount(() => {
 
 		<div :class="$style.toolbar">
 			<div :class="$style.spacer" />
+			<NcButton
+				variant="tertiary"
+				:aria-label="t('chronos', 'Keyboard and gestures')"
+				:title="t('chronos', 'Keyboard and gestures')"
+				@click="shortcuts = true">
+				?
+			</NcButton>
 			<div :class="$style.zooms" role="group" :aria-label="t('chronos', 'Zoom')">
 				<NcButton
 					v-for="level in (['quarter', 'month', 'week'] as Zoom[])"
@@ -220,7 +314,8 @@ onBeforeUnmount(() => {
 						v-for="(line, index) in lines"
 						:key="index"
 						:class="$style.lane"
-						:style="{ insetBlockStart: `${index * ROW_HEIGHT}px` }">
+						:style="{ insetBlockStart: `${index * ROW_HEIGHT}px` }"
+						@dblclick="line.kind === 'row' && addMilestone($event, line.row)">
 						<template v-if="line.kind === 'row'">
 							<span
 								v-if="placeOf(line.row)"
@@ -231,12 +326,18 @@ onBeforeUnmount(() => {
 									background: line.row.color || 'var(--color-primary-element)',
 								}"
 								:title="line.row.name" />
-							<span
+							<button
 								v-for="milestone in line.row.milestones"
 								:key="milestone.uid"
 								:class="[$style.milestone, { [$style.met]: milestone.done }]"
 								:style="{ insetInlineStart: `${scale.xOf(milestone.at, milestone.isDate)}px` }"
-								:title="`${milestone.summary || t('chronos', 'Milestone')} — ${formatDate(milestone.at, milestone.isDate)}`" />
+								:title="`${milestone.summary || t('chronos', 'Milestone')} — ${formatDate(milestone.at, milestone.isDate)}`"
+								:aria-label="t('chronos', 'Milestone {name} on {date}', {
+									name: milestone.summary || t('chronos', 'Untitled'),
+									date: formatDate(milestone.at, milestone.isDate),
+								})"
+								@click.stop="openMilestone(milestone, line.row)"
+								@dblclick.stop />
 						</template>
 					</div>
 				</div>
@@ -250,8 +351,26 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Click a line to open its timeline.') }}
+			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Click a line’s name to open its timeline, double-click a lane to put a milestone there, and click a diamond to change or remove it.') }}
 		</p>
+
+		<TaskDetailDialog
+			v-if="editing"
+			:task="editing"
+			deletable
+			@close="editing = null"
+			@save="saveMilestone"
+			@remove="deleting = editing" />
+
+		<ConfirmDialog
+			v-if="deleting"
+			:name="t('chronos', 'Delete this milestone?')"
+			:message="t('chronos', '“{name}” will be deleted from its list, and from the Tasks app and your phone with it. This cannot be undone.', { name: deleting.summary || t('chronos', 'Untitled task') })"
+			:busy="tasks.loading"
+			@close="deleting = null"
+			@confirm="confirmDelete" />
+
+		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 	</div>
 </template>
 
