@@ -18,6 +18,7 @@ const emit = defineEmits<{
 	edit: [node: FilteredNode]
 	addSubtask: [node: FilteredNode]
 	promote: [node: FilteredNode]
+	remove: [node: FilteredNode]
 }>()
 
 const tasks = useTasksStore()
@@ -142,7 +143,7 @@ async function commit() {
 					@click="emit('promote', node)">
 					{{ t('chronos', 'Promote to a list') }}
 				</NcActionButton>
-				<NcActionButton @click="tasks.remove(task)">
+				<NcActionButton @click="emit('remove', node)">
 					{{ t('chronos', 'Delete') }}
 				</NcActionButton>
 			</NcActions>
@@ -157,7 +158,8 @@ async function commit() {
 				:readOnly="readOnly"
 				@edit="emit('edit', $event)"
 				@addSubtask="emit('addSubtask', $event)"
-				@promote="emit('promote', $event)" />
+				@promote="emit('promote', $event)"
+				@remove="emit('remove', $event)" />
 		</ul>
 	</li>
 </template>
