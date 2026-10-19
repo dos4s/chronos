@@ -12,13 +12,16 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import GanttBar from '../components/GanttBar.vue'
 import GanttLinks from '../components/GanttLinks.vue'
+import GanttRow from '../components/GanttRow.vue'
 import GanttScale from '../components/GanttScale.vue'
 import PlanSettingsDialog from '../components/PlanSettingsDialog.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
 import ShortcutsDialog from '../components/ShortcutsDialog.vue'
+import TaskComposer from '../components/TaskComposer.vue'
 import TaskDetailDialog from '../components/TaskDetailDialog.vue'
 import { useNow } from '../composables/useNow.ts'
 import { useTimeDrag } from '../composables/useTimeDrag.ts'
@@ -42,6 +45,11 @@ import { createScale, dayAfter, windowFor } from '../utils/scale.ts'
  *
  * Only the rows in view are drawn, which is the other half of that: a project
  * with two thousand tasks renders about forty of them.
+ *
+ * A plan is also *made* here: a task added from the toolbar arrives with no
+ * dates, as a row waiting for a bar, and a double-click on its lane gives it
+ * one. Before this the timeline could only arrange tasks that had been written
+ * somewhere else (§14.3).
  */
 const plan = usePlanStore()
 const projects = useProjectsStore()
@@ -53,6 +61,11 @@ const zoom = ref<Zoom>('month')
 const editing = ref<PlanRow | null>(null)
 const configuring = ref(false)
 const shortcuts = ref(false)
+/** Whether the composer is open, and what it is adding under (§14.3). */
+const adding = ref(false)
+const parent = ref<PlanRow | null>(null)
+/** The task a *Delete* is waiting on an answer about. */
+const deleting = ref<PlanRow | null>(null)
 
 const chart = ref<HTMLElement | null>(null)
 const scrollLeft = ref(0)
@@ -75,6 +88,7 @@ const project = computed(() => projects.currentProject)
 const filter = ref<TaskFilter>({ ...NO_FILTER })
 
 const rows = computed(() => filterRows(plan.rows, filter.value))
+const searching = computed(() => filter.value.query.trim() !== '')
 const hidden = computed(() => Math.max(0, plan.rows.length - rows.value.length))
 const readOnly = computed(() => plan.plan !== null && !plan.writable)
 
@@ -202,21 +216,6 @@ function when(at: UnixSeconds, isDate: boolean): string {
 	return isDate ? formatDate(at, true) : `${formatDate(at)} ${formatTimeOfDay(at)}`
 }
 
-/** The dates a row shows in the table, in the frame they belong to (§8.4). */
-function dates(row: PlanRow): string {
-	const bar = row.bar
-	if (bar === null) {
-		return t('chronos', 'No dates')
-	}
-
-	const from = when(bar.startAt, bar.startIsDate)
-	if (bar.isMilestone) {
-		return from
-	}
-
-	return `${from} → ${when(inclusiveDue(bar.endAt, bar.dueIsDate), bar.dueIsDate)}`
-}
-
 function onScroll(): void {
 	const element = chart.value
 	if (element === null) {
@@ -261,6 +260,71 @@ function scrollToToday(): void {
 
 function removeLink(link: PlanLink): void {
 	void plan.unlink(link.predecessorUid, link.successorUid)
+}
+
+function startAdding(under: PlanRow | null = null): void {
+	parent.value = under
+	adding.value = true
+}
+
+function stopAdding(): void {
+	adding.value = false
+	parent.value = null
+}
+
+/**
+ * A task added from here has no dates: most tasks in a real list have none,
+ * and a plan starts by dragging a bar out of a row that has none (§12.5). It
+ * arrives as a row, in the tree under its parent if it was given one.
+ */
+async function addTask(summary: string): Promise<void> {
+	const into = project.value
+	if (into === null) {
+		return
+	}
+
+	const under = parent.value
+	const written = await tasks.add(into.uri, summary, { parentUid: under?.uid ?? null })
+	if (written === null) {
+		return
+	}
+
+	if (under !== null) {
+		stopAdding()
+	}
+	await plan.refresh()
+}
+
+/**
+ * Taking a task's dates off, which is how a bar leaves the chart. There is no
+ * gesture for it — a bar can be dragged anywhere except out of existence.
+ */
+async function clearDates(row: PlanRow): Promise<void> {
+	const cleared = await tasks.save(row, {
+		startAt: null,
+		startIsDate: true,
+		dueAt: null,
+		dueIsDate: true,
+	})
+
+	if (cleared) {
+		await plan.refresh()
+	}
+}
+
+async function confirmDelete(): Promise<void> {
+	const row = deleting.value
+	if (row === null) {
+		return
+	}
+
+	if (await tasks.remove(row)) {
+		deleting.value = null
+		if (editing.value?.uid === row.uid) {
+			editing.value = null
+		}
+		await plan.refresh()
+	}
 }
 
 async function saveDetails(changes: Partial<TaskWritePayload>): Promise<void> {
@@ -350,6 +414,12 @@ onBeforeUnmount(() => {
 					{{ level === 'month' ? t('chronos', 'Months') : level === 'week' ? t('chronos', 'Weeks') : t('chronos', 'Days') }}
 				</NcButton>
 			</div>
+			<NcButton
+				v-if="plan.plan && !readOnly"
+				variant="secondary"
+				@click="adding ? stopAdding() : startAdding()">
+				{{ t('chronos', 'Add a task') }}
+			</NcButton>
 			<NcButton variant="tertiary" @click="scrollToToday">
 				{{ t('chronos', 'Today') }}
 			</NcButton>
@@ -366,6 +436,18 @@ onBeforeUnmount(() => {
 				@click="configuring = true">
 				{{ plan.settings.mode === 'cascade' ? t('chronos', 'Moves cascade') : t('chronos', 'Moves warn') }}
 			</NcButton>
+		</div>
+
+		<div v-if="adding" :class="$style.adding">
+			<span v-if="parent" :class="$style.under">
+				{{ t('chronos', 'Subtask of “{parent}”', { parent: parent.summary || t('chronos', 'Untitled task') }) }}
+			</span>
+			<TaskComposer
+				autofocus
+				:busy="tasks.loading"
+				:placeholder="parent ? t('chronos', 'Add a subtask…') : t('chronos', 'Add a task — give it dates by dragging out a bar')"
+				@submit="addTask"
+				@cancel="stopAdding" />
 		</div>
 
 		<NcNoteCard v-if="readOnly" type="info">
@@ -389,15 +471,16 @@ onBeforeUnmount(() => {
 
 			<div :class="[$style.cell, $style.table]">
 				<div :class="$style.tableInner" :style="{ transform: `translateY(${-scrollTop}px)` }">
-					<div
+					<GanttRow
 						v-for="{ row, index } in visible"
 						:key="row.uid"
-						:class="[$style.row, { [$style.summaryRow]: row.isSummary }]"
-						:style="{ insetBlockStart: `${index * ROW_HEIGHT}px`, paddingInlineStart: `${8 + row.depth * 14}px` }"
-						@dblclick="editing = row">
-						<span :class="$style.name">{{ row.summary || t('chronos', 'Untitled task') }}</span>
-						<span :class="$style.when">{{ dates(row) }}</span>
-					</div>
+						:row="row"
+						:readOnly="readOnly"
+						:style="{ insetBlockStart: `${index * ROW_HEIGHT}px`, height: `${ROW_HEIGHT}px` }"
+						@open="editing = row"
+						@addSubtask="startAdding(row)"
+						@clearDates="clearDates(row)"
+						@remove="deleting = row" />
 				</div>
 			</div>
 
@@ -469,7 +552,15 @@ onBeforeUnmount(() => {
 			v-else-if="project"
 			:class="$style.empty"
 			:name="t('chronos', 'Nothing to put on a timeline')"
-			:description="t('chronos', 'Add a task in the Tasks view, and it becomes a row here.')" />
+			:description="searching
+				? t('chronos', 'Nothing here matches what you typed.')
+				: t('chronos', 'A task added here arrives as a row; drag a bar across it to say when it runs.')">
+			<template v-if="!readOnly && !searching" #action>
+				<NcButton variant="primary" @click="startAdding()">
+					{{ t('chronos', 'Add a task') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
 
 		<NcEmptyContent
 			v-else
@@ -478,7 +569,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task.') }}
+			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task. Double-click an empty row to give that task a day; a row’s own menu edits, adds and deletes.') }}
 		</p>
 
 		<!-- What a screen reader hears while a bar is in the air (§15.7). -->
@@ -489,8 +580,18 @@ onBeforeUnmount(() => {
 		<TaskDetailDialog
 			v-if="editing"
 			:task="editing"
+			:deletable="!readOnly"
 			@close="editing = null"
-			@save="saveDetails" />
+			@save="saveDetails"
+			@remove="deleting = editing" />
+
+		<ConfirmDialog
+			v-if="deleting"
+			:name="t('chronos', 'Delete this task?')"
+			:message="t('chronos', '“{name}” will be deleted from this list, and from the Tasks app and your phone with it. Anything depending on it loses that link. This cannot be undone.', { name: deleting.summary || t('chronos', 'Untitled task') })"
+			:busy="tasks.loading"
+			@close="deleting = null"
+			@confirm="confirmDelete" />
 
 		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
@@ -592,37 +693,15 @@ onBeforeUnmount(() => {
 	height: 100%;
 }
 
-.row {
-	position: absolute;
-	inset-inline: 0;
-	height: 32px;
+.adding {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
-	padding-inline-end: 8px;
-	box-sizing: border-box;
-	border-block-end: 1px solid var(--color-border-dark);
-	cursor: default;
+	gap: 4px;
 }
 
-.summaryRow .name {
-	font-weight: 600;
-}
-
-.name {
-	font-size: 13px;
-	line-height: 1.1;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.when {
-	font-size: 10px;
+.under {
+	font-size: 12px;
 	color: var(--color-text-maxcontrast);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 .chart {
@@ -656,17 +735,6 @@ onBeforeUnmount(() => {
 	height: 32px;
 	border-block-end: 1px solid var(--color-border-dark);
 	box-sizing: border-box;
-}
-
-/* Narrow: the dates in the table have nowhere to go, and the name matters more. */
-@media (max-width: 700px) {
-	.when {
-		display: none;
-	}
-
-	.row {
-		justify-content: center;
-	}
 }
 
 /* The row a dependency is being dragged onto (§15.3). */

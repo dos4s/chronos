@@ -82,6 +82,15 @@ export function shortcutGroups(): ShortcutGroup[] {
 			],
 		},
 		{
+			route: 'roadmap',
+			title: t('chronos', 'Roadmap'),
+			shortcuts: [
+				{ keys: t('chronos', 'Click a line’s name'), what: t('chronos', 'Open that project’s timeline') },
+				{ keys: t('chronos', 'Double-click a lane'), what: t('chronos', 'Put a milestone on that project, at that date') },
+				{ keys: t('chronos', 'Click a diamond'), what: t('chronos', 'Rename, move or delete that milestone') },
+			],
+		},
+		{
 			route: 'tasks',
 			title: t('chronos', 'Tasks'),
 			shortcuts: [
