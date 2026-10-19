@@ -165,6 +165,10 @@ stays compatible with other CalDAV clients, the module map, and the roadmap from
 management. Worth reading before a larger change — in particular §8, which is why every timestamp in this
 app is an integer number of UNIX seconds.
 
+[`docs/REFERENCES.md`](docs/REFERENCES.md) is the outside view: how OpenProject, Jira, GitHub Projects,
+Linear, Vikunja and Deck draw a board, a timeline and a roadmap, what the Kanban Guide and the W3C require
+of them, where Chronos is ahead and where it is behind, and what is worth building next.
+
 ## Licence
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE).
