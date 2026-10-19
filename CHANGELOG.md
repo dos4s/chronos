@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-10-19
+
+The first release written while looking at the app. A headless browser logged into the instance as a
+throwaway account, and most of what looked wrong turned out to be one mistake made in eight places: the
+server's own stylesheet is more specific than ours (§15.10).
+
+### Fixed
+
+- **A task's name is text again, not a green box.** Nextcloud paints every plain button as a filled pill,
+  through a selector that outranks a component's own class — so the Tasks view was a column of ten form
+  fields, the line at the foot of a board column was a button, a roadmap row's label was a 130px pill with
+  its count printed on top of its name, and a milestone was a cream blob. Every bespoke button now names
+  the element in its rule, which is what it takes to win.
+- **A milestone, today's line and an overdue date can be seen.** `--color-warning`, `--color-error` and
+  `--color-success` are *background tints* in Nextcloud 33, and Chronos was using them as ink: today was a
+  hint of pink across the chart, a conflicted bar's outline and a broken dependency were nearly invisible,
+  overdue text was pale pink on white, and the dashboard's own delete button was white on pale pink. Marks
+  now take the readable `-text` colour; the glow around a running dot keeps the tint.
+- **A view's title is no longer printed under the navigation toggle**, which Nextcloud floats over the
+  top-left corner of the content area.
+- **A board fills the window.** Columns were a fixed width that could not shrink, so the four standard
+  statuses overflowed a desktop and cut the last column in half; they now share the room above phone width,
+  and all of them are the same height, so each column's add line sits on the same row.
+- **A chart is as tall as the rows it has.** The timeline asked for at least the height of its own window,
+  which made the window its own floor: a ten-row plan was drawn into a slab of empty lanes half a screen
+  tall. Same for the roadmap, which also stops printing a *No area* heading when there are no areas.
+- **A message is a toast again.** `@nextcloud/dialogs` 7 positions its toast container from a stylesheet
+  the app never imported, so every success and every failure Chronos reported — *Checked in*, *Task added*,
+  every error — was rendered unstyled in the top-left corner of the window with half of it off the screen.
+- The session editor got the same height rule as the other two charts, so one day of sessions no longer
+  sits above an empty band.
+
 ## [0.5.6] - 2026-10-19
 
 Three rough edges in what 0.5.5 added: two found by reading it back, one by running its live check against
