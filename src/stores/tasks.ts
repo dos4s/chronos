@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ApiError, messageFor } from '../api/client.ts'
 import * as api from '../api/tasks.ts'
+import { blankTask } from '../utils/compose.ts'
 import { buildTaskTree, countOpen, toWritePayload } from '../utils/tasks.ts'
 
 /** HTTP 412: the task changed since the edit was based on it (§11.1). */
@@ -74,26 +75,47 @@ export const useTasksStore = defineStore('tasks', () => {
 		}
 	}
 
-	function create(summary: string, parentUid: string | null = null): Promise<boolean> {
+	/**
+	 * Writes a new task into a project it is told, and hands the task back.
+	 *
+	 * The list view has a project of its own and reloads it; the board, the
+	 * timeline and the roadmap each keep their own copy of one and reload
+	 * that, so they say which project out loud and refresh themselves. They
+	 * also want the task itself: a card added to a column is opened for
+	 * naming, and a milestone dropped on the roadmap is opened to be named at
+	 * all (§14.3).
+	 */
+	async function add(
+		into: string,
+		summary: string,
+		extra: Partial<TaskWritePayload> = {},
+	): Promise<Task | null> {
+		loading.value = true
+		try {
+			const task = await api.createTask(into, { ...blankTask(summary), ...extra })
+			showSuccess(t('chronos', 'Task added'))
+			return task
+		} catch (error) {
+			showError(messageFor(error))
+			return null
+		} finally {
+			loading.value = false
+		}
+	}
+
+	async function create(summary: string, parentUid: string | null = null): Promise<boolean> {
 		const ref = projectRef.value
 		if (ref === null) {
-			return Promise.resolve(false)
+			return false
 		}
 
-		const payload: TaskWritePayload = {
-			summary,
-			status: 'NEEDS-ACTION',
-			priority: 0,
-			startAt: null,
-			startIsDate: true,
-			dueAt: null,
-			dueIsDate: true,
-			percent: null,
-			parentUid,
-			type: 'task',
+		const task = await add(ref, summary, { parentUid })
+		if (task === null) {
+			return false
 		}
 
-		return write(() => api.createTask(ref, payload), t('chronos', 'Task added'))
+		await refresh()
+		return true
 	}
 
 	function save(task: Task, changes: Partial<TaskWritePayload>): Promise<boolean> {
@@ -125,6 +147,7 @@ export const useTasksStore = defineStore('tasks', () => {
 		openCount,
 		select,
 		refresh,
+		add,
 		create,
 		save,
 		toggleComplete,

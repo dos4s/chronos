@@ -13,8 +13,18 @@ import { useWorkflowsStore } from '../stores/workflows.ts'
 import { fromDateInput, toDateInput, toTimeInput } from '../utils/dateInput.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 
-const props = defineProps<{ task: Task }>()
-const emit = defineEmits<{ close: [], save: [changes: Partial<TaskWritePayload>] }>()
+const props = defineProps<{
+	task: Task
+	/** False where the view has nothing to delete into, like a read-only list. */
+	deletable?: boolean
+}>()
+
+const emit = defineEmits<{
+	close: []
+	save: [changes: Partial<TaskWritePayload>]
+	/** The view asks to be sure and does the deleting; this only asks for it. */
+	remove: []
+}>()
 
 const workflows = useWorkflowsStore()
 const { workflowId, statuses } = useCurrentWorkflow()
@@ -25,6 +35,7 @@ const loadingHistory = ref(false)
 const currentStatus = computed(() => workflows.statusOf(props.task, workflowId.value))
 
 const form = reactive({
+	summary: '',
 	startDate: '',
 	startTime: '',
 	startAllDay: true,
@@ -55,6 +66,7 @@ const transition = computed(() => {
 const needsComment = computed(() => transition.value?.requiresComment === true)
 
 watch(() => props.task, (task) => {
+	form.summary = task.summary ?? ''
 	form.startAllDay = task.startIsDate
 	form.startDate = task.startAt === null ? '' : toDateInput(task.startAt, task.startIsDate)
 	form.startTime = task.startAt === null || task.startIsDate ? '09:00' : toTimeInput(task.startAt)
@@ -123,6 +135,7 @@ function save() {
 		: fromDateInput(form.dueDate, form.dueAllDay, form.dueTime)
 
 	const changes: Partial<TaskWritePayload> = {
+		summary: form.summary.trim(),
 		startAt,
 		startIsDate: form.startAllDay,
 		dueAt,
@@ -146,9 +159,14 @@ function save() {
 <template>
 	<NcModal :name="t('chronos', 'Task details')" @close="emit('close')">
 		<div :class="$style.content">
-			<h3 :class="$style.title">
-				{{ task.summary || t('chronos', 'Untitled task') }}
-			</h3>
+			<label :class="$style.field">
+				<span :class="$style.legend">{{ t('chronos', 'Name') }}</span>
+				<input
+					v-model="form.summary"
+					type="text"
+					:placeholder="t('chronos', 'Untitled task')"
+					@keydown.enter="save">
+			</label>
 
 			<label v-if="workflowId !== null" :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Status') }}</span>
@@ -261,6 +279,10 @@ function save() {
 			</section>
 
 			<div :class="$style.actions">
+				<NcButton v-if="deletable" variant="error" @click="emit('remove')">
+					{{ t('chronos', 'Delete') }}
+				</NcButton>
+				<div :class="$style.spacer" />
 				<NcButton variant="secondary" @click="emit('close')">
 					{{ t('chronos', 'Cancel') }}
 				</NcButton>
@@ -281,9 +303,8 @@ function save() {
 	gap: 16px;
 }
 
-.title {
-	margin: 0;
-	font-size: 1.1rem;
+.spacer {
+	flex: 1;
 }
 
 .group {

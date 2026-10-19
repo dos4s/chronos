@@ -9,6 +9,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import ProjectHeading from '../components/ProjectHeading.vue'
 import ProjectSettingsDialog from '../components/ProjectSettingsDialog.vue'
@@ -28,6 +29,8 @@ const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
 const editing = ref<Task | null>(null)
+/** The task a *Delete* is waiting on an answer about (§14.3). */
+const deleting = ref<Task | null>(null)
 const subtaskParent = ref<TaskNode | null>(null)
 /** The subproject being turned into a list of its own (F2, §6). */
 const promoting = ref<TaskNode | null>(null)
@@ -81,6 +84,34 @@ async function onPromoted(): Promise<void> {
 	await tasks.refresh()
 }
 
+/** The list's own composer, which adds to the list the sidebar is working in. */
+async function addTask(summary: string): Promise<void> {
+	if (await tasks.create(summary)) {
+		subtaskParent.value = null
+	}
+}
+
+async function addSubtask(summary: string): Promise<void> {
+	const parent = subtaskParent.value
+	if (parent !== null && await tasks.create(summary, parent.task.uid)) {
+		subtaskParent.value = null
+	}
+}
+
+async function confirmDelete(): Promise<void> {
+	const task = deleting.value
+	if (task === null) {
+		return
+	}
+
+	if (await tasks.remove(task)) {
+		deleting.value = null
+		if (editing.value?.uid === task.uid) {
+			editing.value = null
+		}
+	}
+}
+
 async function saveDetails(changes: Partial<TaskWritePayload>) {
 	const task = editing.value
 	if (task === null) {
@@ -125,7 +156,10 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 			{{ t('chronos', 'This list is shared with you read-only, so its tasks cannot be changed here.') }}
 		</NcNoteCard>
 
-		<TaskComposer v-if="project && !readOnly" @added="subtaskParent = null" />
+		<TaskComposer
+			v-if="project && !readOnly"
+			:busy="tasks.loading"
+			@submit="addTask" />
 
 		<div v-if="tasks.initialLoading" :class="$style.loading">
 			<NcLoadingIcon :size="32" />
@@ -140,7 +174,8 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				:readOnly="readOnly"
 				@edit="editing = $event.task"
 				@addSubtask="subtaskParent = $event"
-				@promote="promoting = $event" />
+				@promote="promoting = $event"
+				@remove="deleting = $event.task" />
 		</ul>
 
 		<NcEmptyContent
@@ -178,16 +213,28 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 				{{ t('chronos', 'Subtask of “{parent}”', { parent: subtaskParent.task.summary || t('chronos', 'Untitled task') }) }}
 			</div>
 			<TaskComposer
-				:parentUid="subtaskParent.task.uid"
 				:placeholder="t('chronos', 'Add a subtask…')"
-				@added="subtaskParent = null" />
+				:busy="tasks.loading"
+				autofocus
+				@submit="addSubtask"
+				@cancel="subtaskParent = null" />
 		</div>
 
 		<TaskDetailDialog
 			v-if="editing"
 			:task="editing"
+			:deletable="!readOnly"
 			@close="editing = null"
-			@save="saveDetails" />
+			@save="saveDetails"
+			@remove="deleting = editing" />
+
+		<ConfirmDialog
+			v-if="deleting"
+			:name="t('chronos', 'Delete this task?')"
+			:message="t('chronos', '“{name}” will be deleted from this list, and from the Tasks app and your phone with it. This cannot be undone.', { name: deleting.summary || t('chronos', 'Untitled task') })"
+			:busy="tasks.loading"
+			@close="deleting = null"
+			@confirm="confirmDelete" />
 
 		<PromoteDialog
 			v-if="promoting && project"
