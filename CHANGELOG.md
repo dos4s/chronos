@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `scripts/live-check.php` left the task it added to a column sitting in the real list: its CalDAV cleanup
+  is a list of names and the new step was only added to the index cleanup. It deletes it now, and then asks
+  the calendar whether every task it made is really gone, so the next forgotten line fails a check instead
+  of leaving a task behind.
+
 ## [0.5.5] - 2026-10-19
 
 The board, the timeline and the roadmap were views of work done somewhere else. Now each of them writes

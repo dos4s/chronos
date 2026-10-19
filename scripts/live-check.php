@@ -21,7 +21,8 @@ declare(strict_types=1);
  * part of a branch along without reopening the finished part — and, since
  * 0.5.5, that a card made straight into a column in the middle of a workflow
  * lands in that column, which is what the board's own composer does. Then it
- * undoes all of it.
+ * undoes all of it — and asks the calendar whether it really did, because a
+ * cleanup that is a list of names is a list somebody can forget to add to.
  *
  * It found D31 and D32 the first time it ran. Run it after deploying, as
  * www-data, from anywhere:
@@ -54,6 +55,7 @@ use OCA\Chronos\Workflow\Db\StatusChange;
 use OCA\Chronos\Workflow\Db\StatusChangeMapper;
 use OCA\Chronos\Workflow\Service\WorkflowService;
 use OCA\Chronos\Workflow\WorkflowTemplates;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Server;
 
 OC_App::loadApp('chronos');
@@ -103,6 +105,7 @@ echo 'list: ' . $project->calendar->name() . ' (' . $ref . ')' . PHP_EOL;
 $workflow = null;
 $taskUid = null;
 $childUid = null;
+$inColumnUid = null;
 $containerUid = null;
 /**
  * The container's UID is kept separately as well, because `$containerUid` is
@@ -518,7 +521,8 @@ try {
 		'doing',
 		null,
 	));
-	$everythingMade[] = $inColumn->getUid();
+	$inColumnUid = $inColumn->getUid();
+	$everythingMade[] = $inColumnUid;
 	$columnStatus = $workflow->statusById($inColumn->getStatusId());
 	check(
 		'a card made in a column starts in that column',
@@ -858,7 +862,7 @@ try {
 
 	// Undo everything, in reverse. The subtask goes first: a parent with a
 	// child left behind is exactly the mess 0.4.2 was about.
-	foreach (array_filter([$childUid, $taskUid, $containerUid]) as $throwaway) {
+	foreach (array_filter([$childUid, $taskUid, $inColumnUid, $containerUid]) as $throwaway) {
 		try {
 			$tasks->delete($user, $throwaway);
 			echo '  cleaned up the throwaway task ' . $throwaway . PHP_EOL;
@@ -881,6 +885,35 @@ try {
 			->where($hard->expr()->eq('uid', $hard->createNamedParameter($throwaway)));
 		$hard->executeStatement();
 	}
+
+	// Did any of that actually work? Every task above is deleted by name, so
+	// a step added later is a line somebody can forget — which is exactly what
+	// happened to the card made in a column: 0.5.5's first run left it sitting
+	// in a real list. So this asks the calendar rather than the code, about
+	// everything the check made.
+	$left = $db->getQueryBuilder();
+	$left->select('uid')
+		->from('calendarobjects')
+		->where($left->expr()->in(
+			'uid',
+			$left->createNamedParameter(
+				array_values(array_unique(array_filter($everythingMade))),
+				IQueryBuilder::PARAM_STR_ARRAY,
+			),
+		))
+		// A deleted calendar object stays in this table with `deleted_at` set
+		// — that is the calendar trash bin, which holds it for its retention
+		// period and is not this check's business. Only a *live* row means a
+		// task was left in the list.
+		->andWhere($left->expr()->isNull('deleted_at'));
+	$leftovers = $left->executeQuery()->fetchAll();
+	check(
+		'the check left nothing of its own in the list',
+		$leftovers === [],
+		$leftovers === []
+			? 'nothing left behind'
+			: implode(', ', array_column($leftovers, 'uid')),
+	);
 
 	// The timeline settings this check wrote, back to none at all.
 	try {
