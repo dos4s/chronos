@@ -738,6 +738,12 @@ three (7/14/21 days, `utils/age.ts`) — and under the first one the card says n
 every card is a badge that means nothing. Making them a per-project setting is the obvious next step and is
 not built.
 
+**Proved on the instance, not only in CI.** `scripts/live-check.php` step 18 creates a task in a list that
+has no workflow, moves its status, and asserts that a row was written naming the standard status on both
+sides and that the board reads the arrival back out of it. It runs in the list the promotion step just made
+rather than detaching the workflow from the main one, because the gateway caches a project's workflow for
+the request (D44) and a check that detached would be measuring its own stale cache.
+
 **What is not built yet**, in the order it is worth doing: cycle time and throughput per column (the same
 rows, grouped by the move into a final status), a cumulative flow diagram in Analytics (one band per state
 per day; a widening band is a bottleneck), and the service level expectation the Guide asks for, which is
@@ -1348,6 +1354,7 @@ requests never fires.
 | D39 | **Every timed date was rewritten as UTC:** the writer always wrote `DTSTART`/`DUE` as `…Z`, although §7 and §8.4 both say the value type and the `TZID` or floating form are preserved | `Core/Dav/VTodoWriter::setDate()` | The instant survived, so no time was lost, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z` — and a *floating* time, which means six o'clock wherever the reader is, came back pinned to an instant, which says something else. Found while building M4, where a drag writes dates constantly | Read the property that is there before replacing it: a `TZID` is written again as that `TZID`, a floating time stays floating, anything else stays UTC | M4 | done |
 | D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
 | D43 | **Four views are far longer than §N10 allows:** `Gantt.vue` 772 lines, `SessionEditor.vue` 732, `Kanban.vue` 723 and `Roadmap.vue` 562, against the ≲300 the conventions ask for | `src/views/` | Every change to one of them costs more than it should, and the parts worth reusing are not reachable: 0.5.5 added writing to three of these views and made each longer, having taken only the timeline's table row out into `GanttRow.vue` | Take out what is already a thing of its own: each view's toolbar, the board's dialog pair, the chart canvas that the timeline and the roadmap draw almost identically. Not bundled with the writes, because a refactor of a deployed view and a behaviour change in it should not land in one release | M5 | planned |
+| D44 | **A workflow attached or detached in the same process is invisible to the status gateway:** `WorkflowStatusGateway::forCalendar()` caches a project's workflow for the request, and nothing clears that cache when `assignToProject()` changes it | `Workflow/Service/WorkflowStatusGateway` | Harmless in the app, where one request is one state — but a long-lived process sees the old answer, so a task created after a detach is still given the old workflow's initial status. Found by 0.5.8's new live-check step, which detached a workflow and then measured its own stale cache; the step now runs in a list that never had one | Clear the entry for a calendar when its workflow is assigned, which is one line and a test; the cache itself is right (§16, N5) | M5 | planned |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 

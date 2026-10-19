@@ -828,21 +828,14 @@ try {
 	check('the old list has neither the task nor the container any more', !in_array($promotedUid, $oldList, true) && !in_array($containerUid, $oldList, true), count($oldList) . ' tasks left in it');
 	$containerUid = null;
 
-	// 18. Whether the board is switched on at all. A module ships off, so this
-	// is a reminder rather than a bug: the API refuses while it is.
-	check(
-		'the kanban module is switched on for this user',
-		$toggles->isEnabledForUser(FeatureToggles::MODULE_KANBAN, $user),
-		'occ config:app:set chronos module_kanban --value 1 --type boolean',
-	);
-
-	// 19. A project *without* a workflow still records what its cards do
+	// 18. A project *without* a workflow still records what its cards do
 	// (§12.9) — the case 0.5.8 fixed, and the one no earlier release recorded
-	// at all. The workflow comes off first, which is also how this list is
-	// handed back, so everything after here runs the way the user's own
-	// projects do.
-	$workflows->assignToProject($user, $ref, null);
-	$plainCreated = $tasks->create($user, $ref, TaskWrite::fromParams(
+	// at all. It runs in the list the promotion just made, because that list
+	// has no workflow and never had one: `WorkflowStatusGateway` caches a
+	// project's workflow for the request (§16, N5), so attaching or detaching
+	// one mid-process is invisible to it, and a check that detached would be
+	// measuring its own stale cache rather than the app (D44).
+	$plainCreated = $tasks->create($user, $promotedRef, TaskWrite::fromParams(
 		'Chronos live check — plain status',
 		null,
 		null,
@@ -890,10 +883,15 @@ try {
 		$lastPlain?->getToStatusId() === null && $lastPlain?->getToKey() === null,
 		'status id ' . var_export($lastPlain?->getToStatusId(), true),
 	);
+	check(
+		'the standard status reached CalDAV too',
+		$plainMoved->getVtodoStatus() === 'IN-PROCESS',
+		(string)$plainMoved->getVtodoStatus(),
+	);
 
 	// And what the board does with those rows: a card knows how long it has
 	// been in the column it is in, which is the Kanban Guide's work item age.
-	$plainBoard = $board->board($user, $ref);
+	$plainBoard = $board->board($user, $promotedRef);
 	$enteredAt = $plainBoard->ages?->enteredAt($plainUid);
 	check(
 		'the board reads the card\'s arrival back out of history',
@@ -905,11 +903,20 @@ try {
 		$plainBoard->ages?->enteredAt('chronos-live-check-nonexistent') === null,
 		'absent cards have no arrival',
 	);
+
+	// It goes now rather than in the cleanup: its list is about to be deleted
+	// with it inside.
+	$tasks->delete($user, $plainUid);
+	$plainUid = null;
+
+	// 19. Whether the board is switched on at all. A module ships off, so this
+	// is a reminder rather than a bug: the API refuses while it is.
 	check(
-		'the standard status reached CalDAV too',
-		$plainMoved->getVtodoStatus() === 'IN-PROCESS',
-		(string)$plainMoved->getVtodoStatus(),
+		'the kanban module is switched on for this user',
+		$toggles->isEnabledForUser(FeatureToggles::MODULE_KANBAN, $user),
+		'occ config:app:set chronos module_kanban --value 1 --type boolean',
 	);
+
 } finally {
 	// The promoted list, and everything in it: created by this check, so it
 	// goes for good rather than into the calendar trash.
