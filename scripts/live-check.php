@@ -18,8 +18,10 @@ declare(strict_types=1);
  * back, that a drop the transition rules forbid is refused, and — since 0.4.2
  * — that a subtask is a card that says whose it is, that rolling the board up
  * folds it into its parent, and that a cascading drop takes the unfinished
- * part of a branch along without reopening the finished part. Then it undoes
- * all of it.
+ * part of a branch along without reopening the finished part — and, since
+ * 0.5.5, that a card made straight into a column in the middle of a workflow
+ * lands in that column, which is what the board's own composer does. Then it
+ * undoes all of it.
  *
  * It found D31 and D32 the first time it ran. Run it after deploying, as
  * www-data, from anywhere:
@@ -497,7 +499,46 @@ try {
 		implode(', ', array_map(static fn (Task $moved): string => $moved->getUid(), $again->cards)),
 	);
 
-	// 14. The timeline (§12.5). The throwaway task gets dates by being
+	// 14. A card made in a column lands in that column (§14.2, AD18). The
+	// board's composer creates a task with the column's own status key rather
+	// than the initial one, which is allowed precisely because a task that has
+	// never had a status has no transition to disallow — a claim about the
+	// server that only a real workflow can answer.
+	$inColumn = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — added to a column',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		'doing',
+		null,
+	));
+	$everythingMade[] = $inColumn->getUid();
+	$columnStatus = $workflow->statusById($inColumn->getStatusId());
+	check(
+		'a card made in a column starts in that column',
+		$columnStatus?->getStatusKey() === 'doing',
+		(string)$columnStatus?->getStatusKey(),
+	);
+	check(
+		'and other apps see the standard status that column stands for',
+		$inColumn->getVtodoStatus() === 'IN-PROCESS',
+		(string)$inColumn->getVtodoStatus(),
+	);
+	$drawn = false;
+	foreach ($board->board($user, $ref)->column('doing') as $card) {
+		if ($card->getUid() === $inColumn->getUid()) {
+			$drawn = true;
+		}
+	}
+	check('and the board draws it in that column', $drawn, $inColumn->getUid());
+
+	// 15. The timeline (§12.5). The throwaway task gets dates by being
 	// dragged, which is the only way an inferred bar becomes a real one.
 	$planService->configure($user, $ref, PlanSettings::MODE_WARN, [1, 2, 3, 4, 5]);
 	$everything = $taskMapper->findForCalendars([$calendarId]);
@@ -697,7 +738,7 @@ try {
 		'no RELATED-TO left',
 	);
 
-	// 15. The roadmap (§12.6): every project at once, this one among them.
+	// 16. The roadmap (§12.6): every project at once, this one among them.
 	$road = $roadmapService->roadmap($user, true);
 	$refs = array_map(static fn ($row): string => $row->ref, $road->rows);
 	check('the roadmap has a line for this project', in_array($ref, $refs, true), count($road->rows) . ' lines');
@@ -713,7 +754,7 @@ try {
 		$mine === null ? '(no line)' : $mine->tasks . ' tasks, ' . ($mine->span === null ? 'no span' : date('Y-m-d', $mine->span->startAt)),
 	);
 
-	// 16. Promoting a subproject to a list of its own (F2, §6). The riskiest
+	// 17. Promoting a subproject to a list of its own (F2, §6). The riskiest
 	// operation in the app — one copy and one delete per task, with no
 	// transaction — so it is the one most worth doing against a real calendar.
 	$container = $tasks->create($user, $ref, TaskWrite::fromParams(
@@ -782,7 +823,7 @@ try {
 	check('the old list has neither the task nor the container any more', !in_array($promotedUid, $oldList, true) && !in_array($containerUid, $oldList, true), count($oldList) . ' tasks left in it');
 	$containerUid = null;
 
-	// 17. Whether the board is switched on at all. A module ships off, so this
+	// 18. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
 	check(
 		'the kanban module is switched on for this user',

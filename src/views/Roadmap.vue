@@ -37,7 +37,7 @@ import { createScale, windowFor } from '../utils/scale.ts'
  * The one thing it writes is the one thing it is about: a milestone is a date
  * something has to be true by, and this is the screen where those dates are
  * decided. Double-clicking a project's lane puts one there and opens it to be
- * named; clicking a diamond opens it again, to move, rename or delete (§14.3).
+ * named; clicking a diamond opens it again, to move, rename or delete (§14.2).
  */
 const router = useRouter()
 const projects = useProjectsStore()
@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Click a line’s name to open its timeline, double-click a lane to put a milestone there, and click a diamond to change or remove it.') }}
+			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Press ? for what can be done here.') }}
 		</p>
 
 		<TaskDetailDialog

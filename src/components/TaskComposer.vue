@@ -10,7 +10,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
  * It knows nothing about where the task goes: the list adds it to the list,
  * a board column adds it to that column, the timeline adds it to the plan.
  * All three say what the placeholder should read and what to do with the
- * words, which is why this is the only composer in the app (§14.3).
+ * words, which is why this is the only composer in the app (§14.2).
  *
  * Typing and pressing Enter leaves the box focused and empty, because adding
  * one task is nearly always adding three.

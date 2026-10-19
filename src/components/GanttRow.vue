@@ -15,7 +15,7 @@ import { inclusiveDue } from '../utils/planDates.ts'
  *
  * The chart beside it can move a bar and draw a dependency; this is where the
  * things a chart has no gesture for live — naming a task, giving it a subtask,
- * taking its dates off so it leaves the chart, deleting it (§14.3).
+ * taking its dates off so it leaves the chart, deleting it (§14.2).
  *
  * The row is placed by the view, which owns the row height and the index, so
  * nothing here is ever measured (§15.2).

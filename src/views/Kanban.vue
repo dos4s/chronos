@@ -39,7 +39,7 @@ import { passes } from '../utils/filter.ts'
  *
  * Cards are also *made* here, in the column they belong in, and deleted here —
  * the board was a view of work done elsewhere for two releases, and a board
- * you cannot add to is a board you keep leaving (§14.3).
+ * you cannot add to is a board you keep leaving (§14.2).
  */
 const board = useBoardStore()
 const projects = useProjectsStore()
@@ -47,7 +47,7 @@ const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
 const editing = ref<BoardCard | null>(null)
-/** The card a *Delete* is waiting on an answer about (§14.3). */
+/** The card a *Delete* is waiting on an answer about (§14.2). */
 const deleting = ref<BoardCard | null>(null)
 
 /**
@@ -359,7 +359,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>): Promise<void> {
 /**
  * A card added to a column, which is created *in* that column: the status is
  * the column's, so the card appears where the box was rather than in the
- * initial status for the user to drag across (§14.3).
+ * initial status for the user to drag across (§14.2).
  */
 async function addCard(column: BoardColumn, summary: string, parentUid: string | null): Promise<void> {
 	const into = project.value
@@ -494,7 +494,7 @@ async function columnSaved(): Promise<void> {
 		</p>
 
 		<p v-else :class="$style.hint">
-			{{ t('chronos', 'Drag a card between columns, or press space on one to move it from the keyboard. Add one with the + at the top of a column, and use a card’s own menu to edit or delete it.') }}
+			{{ t('chronos', 'Drag a card between columns, add one with the + above a column, and use a card’s own menu to edit or delete it. Press ? for the keyboard.') }}
 		</p>
 
 		<!--

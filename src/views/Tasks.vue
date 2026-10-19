@@ -29,7 +29,7 @@ const tasks = useTasksStore()
 const workflows = useWorkflowsStore()
 
 const editing = ref<Task | null>(null)
-/** The task a *Delete* is waiting on an answer about (§14.3). */
+/** The task a *Delete* is waiting on an answer about (§14.2). */
 const deleting = ref<Task | null>(null)
 const subtaskParent = ref<TaskNode | null>(null)
 /** The subproject being turned into a list of its own (F2, §6). */

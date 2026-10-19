@@ -207,9 +207,12 @@ const limitLabel = computed(() => {
 .column {
 	/*
 	 * A column fills most of a phone and the next one peeks past it, which is
-	 * how a reader knows the board goes on (§14.2).
+	 * how a reader knows the board goes on (§14.2). On a wide screen the
+	 * columns grow into the room instead of leaving it empty — but they never
+	 * shrink below that basis, so a narrow window scrolls rather than squeezes.
 	 */
-	flex: 0 0 clamp(240px, 78vw, 300px);
+	flex: 1 0 clamp(240px, 78vw, 300px);
+	max-width: 420px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;

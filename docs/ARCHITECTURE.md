@@ -90,6 +90,7 @@ and the web UI); billing/invoicing.
 | AD17 | **The sidebar is the only place a project is chosen**, and it carries both a scope (`selection`) and a current project (`current`) | A picker per view, as it was; one single-select "current project" with no multi-select at all | Two controls for one idea is one too many, and the sidebar's filter did nothing for the three views that most obviously needed it. A pure filter cannot replace them, though: a board, a plan and a task list are **one project each** by construction, so the single control has to express "working in this one" as well as "looking at these". Multi-select stays because the analytics and the roadmap genuinely read several at once (§14.2) |
 | AD16 | **The scheduling algorithm is written twice**, once in PHP and once in TypeScript, from one specification and one set of test cases | Compute only on the server and show the answer after the round trip; compute only in the browser and trust what it sends | §15.3 asks for the dependents' **ghost bars before the drop**, and §15.6 for the server to be the authority on what is written. One copy cannot do both: a preview that is not the same function as the write is a guess that will eventually be wrong. So `Planning/Schedule` and `src/utils/schedule.ts` are the same algorithm with the same tests, and the test files say so to each other (§15.4) |
 | AD15 | **A subtask is a card of its own**; rolling subtasks up into their parent is a view, not the model | Parent-only board with a progress bar (Jira); subtasks as checklist items (Deck, Trello) | A subtask has a `STATUS` of its own and a column *is* a status (AD7), so hiding it would make the board disagree with every other CalDAV client about where that work is. What it needs instead is to say whose it is. The roll-up is answered by the server, because the server also counts the columns and a count has to describe what is on the screen (§15.9) |
+| AD18 | **Every view writes what it is about**, and the task list stays | Keep every write in the task list, as it was, and leave the charts read-only; drop the task list, because Nextcloud Tasks already has one | The list was the only place a task could be made, named or deleted, so the board, the timeline and the roadmap were views of work done somewhere else — and the board's own empty state said as much: *"add a task in the Tasks view"*. A board that cannot take a card is a board you keep leaving. Dropping the list instead is the opposite temptation and a trap: `kanban`, `gantt` and `roadmap` are **optional** modules (§13) while `core` is not, so an instance with them switched off would have a timer and nothing to attach it to — and the list is also the only view that draws the tree and the only host for promote-to-list (F2). What the list has to stop being is a worse copy of the Tasks app: it shows what a CalDAV client cannot — the workflow status, the plan's dates, and from M5 the time worked (§14.2) |
 
 ## 4. Requirements
 
@@ -839,6 +840,41 @@ the analytics add up. The check-in panel keeps a picker of its own, because *whi
 work on* is an action's input rather than a view's scope; it simply starts on the current project. The
 *Show archived* checkboxes that each view had are one checkbox under the sidebar's project list.
 
+**Every view writes what it is about (AD18).** Until 0.5.5 every write that was not a drag lived in the
+task list: the composer was wired to the list's own project, the detail dialog the charts opened had no
+name field in it, and a *Delete* happened the moment the menu item was clicked. So the board could move a
+card and the timeline could move a bar, and anything else meant leaving for the list and coming back.
+
+Each view now writes the thing it is *for*, and only that:
+
+- **The board** makes cards, in the column they were added to. A `+` above each column and a dashed line
+  at its foot open one composer; the card is created in that column's status — a status key under a
+  workflow, the plain VTODO status without one — so it appears where the box was rather than in the
+  initial status waiting to be dragged across. It sits at the foot because that is where an unranked card
+  lands (§15.5, and D37 is why it is not yet beside its parent). Each card has a menu: edit, add a
+  subtask, delete.
+- **The timeline** makes tasks, undated, as a row waiting for a bar — because that is how a plan starts
+  here, with a double-click on the lane to give it a day. Each row has a menu, including *take its dates
+  off*, which is the one thing a chart has no gesture for: a bar can be dragged anywhere except out of
+  existence.
+- **The roadmap** makes milestones, which is what a roadmap is: a double-click on a project's lane puts
+  one at that date and opens it to be named, since the gesture knows the date and not the name. On a
+  subproject's line it belongs to that subproject. Clicking a diamond opens it to be moved, renamed or
+  deleted.
+
+What they deliberately do *not* write is as much of the rule. The board sets no dates and the timeline no
+statuses; neither makes a project, because a project is a Tasks list and making lists is the Tasks app's
+job (AD1). Anything beyond the two or three fields a view is about is in the detail dialog, which every
+view opens and which can now rename and ask to delete.
+
+Three pieces are shared so that none of this is three implementations: `TaskComposer` no longer knows
+where a task goes — it emits the words and the view decides, which is what lets a column and a toolbar
+reuse it — `utils/compose.ts` holds what a task is made of when it is made outside the list, with the
+board's column rule as a tested function rather than a line in a view, and `ConfirmDialog` asks the one
+question that matters before a delete. Deleting a task deletes the VTODO: it leaves the Tasks app and the
+phone with it, and unlike a move (§15.6) there is no undo to offer. Every view asks first, in the same
+words.
+
 ### 14.3 Git and release conventions
 - Conventional commits (already enforced by CI).
 - One branch and pull request per milestone (or per sub-step for large milestones).
@@ -1179,7 +1215,8 @@ from the third real upgrade, found by the live check on a list with fifty cards 
 are what 0.4.2 left after giving the board its tree back (§15.9), D39 and D40 were found while building M4 — a date's time zone and an all-day date's
 day, neither of which anything before a timeline handled often enough to notice — D41 is what M4 knowingly
 left, and D42 came from the fourth real deployment: the live check's new timeline section found it within a
-minute of 0.5.0 landing on the instance. None of
+minute of 0.5.0 landing on the instance, and D43 is what 0.5.5 made worse while making the views
+writable. None of
 them were in the original list. Three times now, checking against a real instance has found something no
 amount of CI could: D25 and D30 from the integration suite, and D31, D32 and D35 from
 `scripts/live-check.php`, which exercises the parts that need an actual calendar. D35 is the clearest case
@@ -1235,6 +1272,7 @@ requests never fires.
 | D41 | **Two gesture implementations:** the board's `useDrag` (lanes and positions) and the timeline's `useTimeDrag` (an axis and deltas) each carry their own pointer capture, threshold, long press, autoscroll and keyboard handling | `src/composables/useDrag.ts`, `src/composables/useTimeDrag.ts` | The thing §15.8 set out to avoid: two copies of the input manners, which can drift apart | Extract the gesture mechanics into one primitive both sit on. Not done with M4 because the board is deployed and verified and there is no way to test pointer code in the node test environment — so the refactor would be unverifiable, which is a worse trade than the duplication | M5 | planned |
 | D39 | **Every timed date was rewritten as UTC:** the writer always wrote `DTSTART`/`DUE` as `…Z`, although §7 and §8.4 both say the value type and the `TZID` or floating form are preserved | `Core/Dav/VTodoWriter::setDate()` | The instant survived, so no time was lost, but `DUE;TZID=Europe/Madrid` came back as `DUE…Z` — and a *floating* time, which means six o'clock wherever the reader is, came back pinned to an instant, which says something else. Found while building M4, where a drag writes dates constantly | Read the property that is there before replacing it: a `TZID` is written again as that `TZID`, a floating time stays floating, anything else stays UTC | M4 | done |
 | D35 | **A drop that named only one neighbour landed halfway down the column:** the other side was read as the end of the column rather than taken from the column itself | `Board/Service/BoardService::gap()` | A reorder could put the card far from where it was dropped, at a rank another card already had — two cards at one position, which the query plan then decides between | Fill the missing side in from the column: the card above means directly below it, neither means the end | 0.4.1 | done |
+| D43 | **Four views are far longer than §N10 allows:** `Gantt.vue` 772 lines, `SessionEditor.vue` 732, `Kanban.vue` 723 and `Roadmap.vue` 562, against the ≲300 the conventions ask for | `src/views/` | Every change to one of them costs more than it should, and the parts worth reusing are not reachable: 0.5.5 added writing to three of these views and made each longer, having taken only the timeline's table row out into `GanttRow.vue` | Take out what is already a thing of its own: each view's toolbar, the board's dialog pair, the chart canvas that the timeline and the roadmap draw almost identically. Not bundled with the writes, because a refactor of a deployed view and a behaviour change in it should not land in one release | M5 | planned |
 
 **D14 in detail.** Taken one at a time, each with the full check suite behind it:
 

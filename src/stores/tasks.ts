@@ -83,7 +83,7 @@ export const useTasksStore = defineStore('tasks', () => {
 	 * that, so they say which project out loud and refresh themselves. They
 	 * also want the task itself: a card added to a column is opened for
 	 * naming, and a milestone dropped on the roadmap is opened to be named at
-	 * all (§14.3).
+	 * all (§14.2).
 	 */
 	async function add(
 		into: string,

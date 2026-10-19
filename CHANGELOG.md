@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-19
+
+The board, the timeline and the roadmap were views of work done somewhere else. Now each of them writes
+the thing it is about.
+
+### Added
+
+- **The board makes cards.** A `+` above each column and a dashed *Add a card* at its foot open one
+  composer, and the card is created **in that column's status** — so it appears where the box was, rather
+  than in the first column waiting to be dragged across. The box stays open for the next card, because a
+  column gets filled in one sitting. Every card has a menu: edit its details, give it a subtask, delete it.
+- **The timeline makes tasks.** *Add a task* in the toolbar, and in the empty state that used to send you
+  to another view. A task added here has no dates — most tasks in a real list have none — so it arrives as
+  a row waiting for a bar, and double-clicking its lane gives it a day. Every row has a menu, including
+  *take its dates off*, which is the one thing a chart has no gesture for: a bar can be dragged anywhere
+  except out of existence.
+- **The roadmap makes milestones**, which is what a roadmap is for. Double-click a project's lane to put
+  one at that date; it opens so you can name it, because the gesture knows the date and not the name. On a
+  subproject's line it belongs to that subproject. Click a diamond to rename it, move it or delete it.
+- **Anything can be renamed from anywhere.** The task details dialog — which the board, the timeline and
+  the roadmap all open — had no name field in it, so a card could only be renamed by going to the Tasks
+  view and clicking its summary. It has one now, and a *Delete*.
+
+### Changed
+
+- **Deleting asks first.** It says what it means, too: the task leaves the Tasks app and your phone with
+  it, and unlike a move there is no undo to offer. The Tasks view's own *Delete* used to happen the instant
+  it was clicked.
+- **A board fills a wide window.** Its columns were a fixed 300 px, so a three-column workflow used a third
+  of a desktop screen and left the rest empty. They now grow into the room, up to 420 px each, and still
+  never shrink below the width that keeps a phone readable.
+- The three hint lines under the charts are one sentence again, and point at `?` for the rest — which now
+  lists the new menus and gestures, and has a *Roadmap* section. The roadmap has a `?` button of its own.
+- The empty states stop telling you to go to another view to add something, and offer the thing they are
+  talking about instead.
+
 ## [0.5.4] - 2026-10-18
 
 Four things the app needed and nobody had asked for, from reading it with fresh eyes.
