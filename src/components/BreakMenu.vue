@@ -123,7 +123,15 @@ watch(() => props.initialStart, (value) => {
 	justify-content: flex-end;
 }
 
-.cancel {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.cancel {
+	min-height: 0;
+	width: auto;
 	padding: 6px 12px;
 	border-radius: var(--border-radius);
 	border: 1px solid var(--color-border);
@@ -131,9 +139,12 @@ watch(() => props.initialStart, (value) => {
 	color: var(--color-main-text);
 	cursor: pointer;
 	font-size: 13px;
+	font-weight: normal;
 }
 
-.confirm {
+button.confirm {
+	min-height: 0;
+	width: auto;
 	padding: 6px 12px;
 	border-radius: var(--border-radius);
 	border: none;

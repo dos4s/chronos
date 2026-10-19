@@ -200,15 +200,23 @@ async function confirmDelete(session: Session) {
 }
 
 .live {
-	color: var(--color-success);
+	color: var(--color-success-text);
 	font-weight: 600;
 	text-transform: uppercase;
 	font-size: 10px;
 	letter-spacing: 0.08em;
 }
 
-.delete {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.delete {
 	display: flex;
+	min-height: 0;
+	width: auto;
 	align-items: center;
 	justify-content: center;
 	border: none;
@@ -221,15 +229,15 @@ async function confirmDelete(session: Session) {
 	transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.delete:hover,
-.delete:focus-visible {
+button.delete:hover,
+button.delete:focus-visible {
 	opacity: 1;
 	background: color-mix(in srgb, var(--color-error) 20%, transparent);
-	color: var(--color-error);
+	color: var(--color-error-text);
 	outline: none;
 }
 
-.delete:disabled {
+button.delete:disabled {
 	opacity: 0.3;
 	cursor: not-allowed;
 }

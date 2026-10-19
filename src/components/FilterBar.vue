@@ -103,12 +103,22 @@ const showCompleted = computed({
 	margin: 0;
 }
 
-.clear {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.clear {
 	position: absolute;
+	min-height: 0;
+	width: auto;
+	border-radius: 0;
 	inset-inline-end: 4px;
 	background: transparent;
 	border: none;
 	font-size: 18px;
+	font-weight: normal;
 	line-height: 1;
 	cursor: pointer;
 	color: var(--color-text-maxcontrast);

@@ -207,9 +207,9 @@ const limitLabel = computed(() => {
 .column {
 	/*
 	 * A column fills most of a phone and the next one peeks past it, which is
-	 * how a reader knows the board goes on (§14.2). On a wide screen the
-	 * columns grow into the room instead of leaving it empty — but they never
-	 * shrink below that basis, so a narrow window scrolls rather than squeezes.
+	 * how a reader knows the board goes on (§14.2). It never shrinks below that
+	 * basis here, so a narrow window scrolls rather than squeezes; wider than a
+	 * phone the columns share the room instead (below).
 	 */
 	flex: 1 0 clamp(240px, 78vw, 300px);
 	max-width: 420px;
@@ -231,7 +231,18 @@ const limitLabel = computed(() => {
 }
 
 .over {
-	border-color: var(--color-warning);
+	border-color: var(--color-warning-text);
+}
+
+/*
+ * On anything wider than a phone the columns share the room rather than keep a
+ * width of their own: a four-status board used to overflow a desktop window and
+ * cut its last column in half (§14.2).
+ */
+@media (min-width: 701px) {
+	.column {
+		flex: 1 1 240px;
+	}
 }
 
 .head {
@@ -319,19 +330,28 @@ const limitLabel = computed(() => {
  * Quiet until it is wanted: a dashed line that reads as the place a card
  * would go, not as a fifth button in the header.
  */
-.addRow {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.addRow {
 	background: transparent;
+	min-height: 0;
+	width: 100%;
 	border: 1px dashed var(--color-border-dark);
 	border-radius: var(--border-radius-large);
 	color: var(--color-text-maxcontrast);
 	cursor: pointer;
 	font-size: 13px;
+	font-weight: normal;
 	padding: 6px;
 	text-align: start;
 	padding-inline-start: 12px;
 }
 
-.addRow:hover {
+button.addRow:hover {
 	background: var(--color-background-hover);
 	color: var(--color-main-text);
 }

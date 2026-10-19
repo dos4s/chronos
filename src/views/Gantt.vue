@@ -98,7 +98,12 @@ const scale = computed(() => {
 	return createScale(zoom.value, window.from, window.to)
 })
 
-const canvasHeight = computed(() => Math.max(viewport.value, rows.value.length * ROW_HEIGHT))
+/*
+ * Exactly the rows there are. It used to be at least the height of the chart
+ * window, which made the window its own floor: a ten-row plan was drawn into a
+ * slab of empty lanes half a screen tall (§14.2).
+ */
+const canvasHeight = computed(() => rows.value.length * ROW_HEIGHT)
 
 /** Which rows are worth drawing, given where the chart is scrolled to. */
 const visible = computed(() => {
@@ -393,7 +398,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<div :class="$style.view">
-		<div class="chronos-header">
+		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
 				{{ t('chronos', 'Timeline') }}
 			</h2>
@@ -665,8 +670,10 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
-	min-height: 320px;
-	/* Never shorter than a few rows, however short the window is. */
+	/*
+	 * As tall as its rows, and never taller than the window — so a short plan
+	 * is a short chart and a long one scrolls (§14.2).
+	 */
 	max-height: max(260px, calc(100vh - 340px));
 }
 
@@ -731,7 +738,7 @@ onBeforeUnmount(() => {
 	position: absolute;
 	inset-block: 0;
 	width: 2px;
-	background: var(--color-error);
+	background: var(--color-error-text);
 	opacity: 0.6;
 	pointer-events: none;
 }

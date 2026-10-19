@@ -99,13 +99,18 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 	width: 10px;
 	height: 10px;
 	border-radius: 50%;
-	background: var(--color-success);
+	/*
+	 * The shape takes the readable colour and the glow the pale one: in
+	 * Nextcloud 33 `--color-success` and its two siblings are background
+	 * tints, so a dot painted in one is a dot nobody can see (§15.10).
+	 */
+	background: var(--color-success-text);
 	box-shadow: 0 0 0 0 var(--color-success);
 	animation: pulse 1.8s infinite;
 }
 
 .pulsePaused {
-	background: var(--color-warning);
+	background: var(--color-warning-text);
 	box-shadow: none;
 	animation: none;
 }

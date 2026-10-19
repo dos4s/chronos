@@ -82,13 +82,19 @@ const lines = computed(() => {
 	const areas = roadmap.value?.areas ?? []
 	const out: ({ kind: 'area', name: string } | { kind: 'row', row: RoadmapRow })[] = []
 
+	// With no areas of their own the projects all land in the one catch-all
+	// group, and a heading over every line in the chart says nothing (§14.2).
+	const grouped = areas.some((area) => area.name !== null)
+
 	for (const area of areas) {
 		const mine = rows.value.filter((row) => row.areaId === area.id)
 		if (mine.length === 0) {
 			continue
 		}
 
-		out.push({ kind: 'area', name: area.name ?? t('chronos', 'No area') })
+		if (grouped) {
+			out.push({ kind: 'area', name: area.name ?? t('chronos', 'No area') })
+		}
 		for (const row of mine) {
 			out.push({ kind: 'row', row })
 		}
@@ -97,7 +103,7 @@ const lines = computed(() => {
 	return out
 })
 
-const height = computed(() => Math.max(240, lines.value.length * ROW_HEIGHT))
+const height = computed(() => lines.value.length * ROW_HEIGHT)
 const todayX = computed(() => scale.value.xOf(now.value, false))
 
 function placeOf(row: RoadmapRow) {
@@ -235,7 +241,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<div :class="$style.view">
-		<div class="chronos-header">
+		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
 				{{ t('chronos', 'Roadmap') }}
 			</h2>
@@ -419,7 +425,7 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
-	min-height: 280px;
+	/* As tall as its lines, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));
 }
 
@@ -477,10 +483,20 @@ onBeforeUnmount(() => {
 	background: var(--color-background-dark);
 }
 
-.project {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.project {
 	background: transparent;
 	border-inline: none;
 	border-block-start: none;
+	border-radius: 0;
+	min-height: 0;
+	width: 100%;
+	padding-block: 0;
 	cursor: pointer;
 	font: inherit;
 	color: inherit;
@@ -529,27 +545,37 @@ onBeforeUnmount(() => {
 	opacity: 0.85;
 }
 
-.milestone {
+/*
+ * Qualified with the element on purpose: Nextcloud styles every plain button as
+ * a filled pill through `button:not(.button-vue, …)`, which outranks a single
+ * class, so a bespoke control styled by its class alone came out as a green box
+ * (§15.10).
+ */
+button.milestone {
 	position: absolute;
+	min-height: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
 	inset-block-start: 10px;
 	width: 12px;
 	height: 12px;
 	margin-inline-start: -6px;
-	background: var(--color-warning);
+	background: var(--color-warning-text);
 	transform: rotate(45deg);
 }
 
 /* A milestone that has been met is hollow: it is history, not a deadline. */
-.met {
+button.met {
 	background: transparent;
-	border: 2px solid var(--color-success);
+	border: 2px solid var(--color-success-text);
 }
 
 .today {
 	position: absolute;
 	inset-block: 0;
 	width: 2px;
-	background: var(--color-error);
+	background: var(--color-error-text);
 	opacity: 0.6;
 	pointer-events: none;
 }

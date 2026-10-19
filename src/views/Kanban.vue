@@ -411,7 +411,7 @@ async function columnSaved(): Promise<void> {
 
 <template>
 	<div :class="$style.view">
-		<div class="chronos-header">
+		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
 				{{ t('chronos', 'Board') }}
 			</h2>
@@ -662,7 +662,8 @@ async function columnSaved(): Promise<void> {
 .lanes {
 	display: flex;
 	gap: 12px;
-	align-items: flex-start;
+	/* Columns of one height, so every foot — and its add line — is in a row. */
+	align-items: stretch;
 	overflow-x: auto;
 	overflow-y: hidden;
 	padding-bottom: 8px;

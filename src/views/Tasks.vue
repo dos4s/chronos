@@ -126,7 +126,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 
 <template>
 	<div :class="$style.view">
-		<div class="chronos-header">
+		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
 				{{ t('chronos', 'Tasks') }}
 			</h2>

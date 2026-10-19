@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<div :class="$style.view">
-		<div class="chronos-header">
+		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
 				{{ t('chronos', 'Session editor') }}
 			</h2>
