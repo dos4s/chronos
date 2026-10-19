@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DragTarget } from '../composables/useDrag.ts'
-import type { BoardCard, BoardColumn, TaskWritePayload } from '../types/index.ts'
+import type { BoardCard, BoardColumn, Task, TaskWritePayload } from '../types/index.ts'
 import type { TaskFilter } from '../utils/filter.ts'
 
 import { n, t } from '@nextcloud/l10n'
@@ -371,7 +371,20 @@ async function addCard(column: BoardColumn, summary: string, parentUid: string |
 	const written = await tasks.add(into.uri, summary, { ...cardIn(column, underWorkflow), parentUid })
 
 	if (written !== null) {
+		revealIfHidden(written)
 		await board.refresh()
+	}
+}
+
+/**
+ * A card added while a search is on would be created and then hidden by that
+ * search, which looks exactly like a write that failed. If it does not match
+ * what is being searched for, the search goes — making something is a clearer
+ * statement of what the user wants to see than a word typed earlier.
+ */
+function revealIfHidden(written: Task): void {
+	if (filter.value.query.trim() !== '' && !passes(written, filter.value)) {
+		filter.value = { ...filter.value, query: '' }
 	}
 }
 

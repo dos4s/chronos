@@ -28,7 +28,7 @@ import { useTimeDrag } from '../composables/useTimeDrag.ts'
 import { usePlanStore } from '../stores/plan.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { useTasksStore } from '../stores/tasks.ts'
-import { filterRows, NO_FILTER } from '../utils/filter.ts'
+import { filterRows, NO_FILTER, passes } from '../utils/filter.ts'
 import { formatDate, formatDuration, formatTimeOfDay } from '../utils/format.ts'
 import { inclusiveDue } from '../utils/planDates.ts'
 import { createScale, dayAfter, windowFor } from '../utils/scale.ts'
@@ -292,6 +292,13 @@ async function addTask(summary: string): Promise<void> {
 	if (under !== null) {
 		stopAdding()
 	}
+
+	// A task added while a search is on would be hidden by that search the
+	// moment it arrived, which looks like a write that failed.
+	if (searching.value && !passes(written, filter.value)) {
+		filter.value = { ...filter.value, query: '' }
+	}
+
 	await plan.refresh()
 }
 
