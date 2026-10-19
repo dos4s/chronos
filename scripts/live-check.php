@@ -107,6 +107,8 @@ $taskUid = null;
 $childUid = null;
 $inColumnUid = null;
 $plainUid = null;
+$aheadUid = null;
+$behindUid = null;
 $containerUid = null;
 /**
  * The container's UID is kept separately as well, because `$containerUid` is
@@ -945,6 +947,9 @@ try {
 	));
 	$behindUid = $behindTask->getUid();
 	$everythingMade[] = $behindUid;
+	// Storing the link rewrites the predecessor's own VTODO, so the etag from
+	// its creation is already stale — the update below names no etag rather
+	// than an old one (§10.1).
 	$planService->link($user, $ref, $aheadUid, $behindUid, 'FINISHTOSTART');
 
 	$blockedBoard = $board->board($user, $ref);
@@ -972,7 +977,7 @@ try {
 		null,
 		null,
 		null,
-	), $aheadTask->getEtag());
+	));
 	check(
 		'finishing it stops the other card waiting',
 		($board->board($user, $ref)->blocks?->waitingOn($behindUid) ?? []) === [],
@@ -982,6 +987,8 @@ try {
 	foreach ([$behindUid, $aheadUid] as $throwaway) {
 		$tasks->delete($user, $throwaway);
 	}
+	$aheadUid = null;
+	$behindUid = null;
 
 	// 19. Whether the board is switched on at all. A module ships off, so this
 	// is a reminder rather than a bug: the API refuses while it is.
@@ -1019,7 +1026,7 @@ try {
 
 	// Undo everything, in reverse. The subtask goes first: a parent with a
 	// child left behind is exactly the mess 0.4.2 was about.
-	foreach (array_filter([$childUid, $taskUid, $inColumnUid, $plainUid, $containerUid]) as $throwaway) {
+	foreach (array_filter([$childUid, $taskUid, $inColumnUid, $plainUid, $aheadUid, $behindUid, $containerUid]) as $throwaway) {
 		try {
 			$tasks->delete($user, $throwaway);
 			echo '  cleaned up the throwaway task ' . $throwaway . PHP_EOL;
@@ -1037,6 +1044,17 @@ try {
 		$delete->delete('chronos_status_history')
 			->where($delete->expr()->eq('task_uid', $delete->createNamedParameter($throwaway)));
 		$delete->executeStatement();
+		// Dependencies, from either end. The index rows below are deleted by
+		// SQL rather than through the app, so nothing else will: a run that
+		// died before its own cleanup used to leave link rows pointing at
+		// tasks that no longer exist, and the next run then read three
+		// dependencies where it had made one.
+		foreach (['predecessor_uid', 'successor_uid'] as $column) {
+			$unlink = $db->getQueryBuilder();
+			$unlink->delete('chronos_task_links')
+				->where($unlink->expr()->eq($column, $unlink->createNamedParameter($throwaway)));
+			$unlink->executeStatement();
+		}
 		$hard = $db->getQueryBuilder();
 		$hard->delete('chronos_tasks')
 			->where($hard->expr()->eq('uid', $hard->createNamedParameter($throwaway)));
@@ -1070,6 +1088,24 @@ try {
 		$leftovers === []
 			? 'nothing left behind'
 			: implode(', ', array_column($leftovers, 'uid')),
+	);
+
+	// And nothing of its own in the index either. The calendar guard above
+	// asks about tasks; this asks about the rows that point at them, which is
+	// the table the cleanup forgot first time round.
+	$made = array_values(array_unique(array_filter($everythingMade)));
+	$dangling = $db->getQueryBuilder();
+	$dangling->select('id')
+		->from('chronos_task_links')
+		->where($dangling->expr()->orX(
+			$dangling->expr()->in('predecessor_uid', $dangling->createNamedParameter($made, IQueryBuilder::PARAM_STR_ARRAY)),
+			$dangling->expr()->in('successor_uid', $dangling->createNamedParameter($made, IQueryBuilder::PARAM_STR_ARRAY)),
+		));
+	$leftLinks = $dangling->executeQuery()->fetchAll();
+	check(
+		'and no dependency of its own in the index',
+		$leftLinks === [],
+		$leftLinks === [] ? 'nothing left behind' : count($leftLinks) . ' link rows left',
 	);
 
 	// The timeline settings this check wrote, back to none at all.
