@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-19
+
+Three rough edges in what 0.5.5 added: two found by reading it back, one by running its live check against
+a real instance.
+
 ### Fixed
 
+- **A card's menu no longer opens the card as well.** A card is the drag handle — it answers space, enter
+  and a double-click — and the menu sits inside it, so reaching the menu from the keyboard opened the task
+  dialog behind it. A timeline row had the same shape.
+- **A card added while a search is on is no longer hidden by it.** The card was created and then filtered
+  out of sight, which looks exactly like a write that failed. If what you just made does not match what you
+  were searching for, the search clears. Same on the timeline.
 - `scripts/live-check.php` left the task it added to a column sitting in the real list: its CalDAV cleanup
   is a list of names and the new step was only added to the index cleanup. It deletes it now, and then asks
   the calendar whether every task it made is really gone, so the next forgotten line fails a check instead
