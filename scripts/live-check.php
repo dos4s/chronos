@@ -900,7 +900,12 @@ try {
 				array_values(array_unique(array_filter($everythingMade))),
 				IQueryBuilder::PARAM_STR_ARRAY,
 			),
-		));
+		))
+		// A deleted calendar object stays in this table with `deleted_at` set
+		// — that is the calendar trash bin, which holds it for its retention
+		// period and is not this check's business. Only a *live* row means a
+		// task was left in the list.
+		->andWhere($left->expr()->isNull('deleted_at'));
 	$leftovers = $left->executeQuery()->fetchAll();
 	check(
 		'the check left nothing of its own in the list',
