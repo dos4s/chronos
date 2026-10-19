@@ -52,6 +52,50 @@ class StatusChangeMapper extends QBMapper {
 	}
 
 	/**
+	 * Where a set of cards has arrived, for the whole board in one query (§16).
+	 *
+	 * Only the four fields the age arithmetic needs, because a board of fifty
+	 * cards can have hundreds of changes behind it and none of the rest of a
+	 * row is read (§12.9).
+	 *
+	 * @param list<string> $taskUids
+	 * @return list<array{taskUid: string, toKey: ?string, toStandard: ?string, changedAt: int}>
+	 */
+	public function findArrivals(array $taskUids): array {
+		if ($taskUids === []) {
+			return [];
+		}
+
+		$rows = [];
+		// A list longer than this is more parameters than some engines take.
+		foreach (array_chunk(array_values(array_unique($taskUids)), 900) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('task_uid', 'to_key', 'to_standard', 'changed_at')
+				->from($this->getTableName())
+				->where($qb->expr()->in(
+					'task_uid',
+					$qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY),
+				));
+
+			$result = $qb->executeQuery();
+			/** @var list<array<string, mixed>> $found */
+			$found = $result->fetchAll();
+			$result->closeCursor();
+
+			foreach ($found as $row) {
+				$rows[] = [
+					'taskUid' => (string)$row['task_uid'],
+					'toKey' => $row['to_key'] === null ? null : (string)$row['to_key'],
+					'toStandard' => $row['to_standard'] === null ? null : (string)$row['to_standard'],
+					'changedAt' => (int)$row['changed_at'],
+				];
+			}
+		}
+
+		return $rows;
+	}
+
+	/**
 	 * History outlives the workflow it was recorded under, so a delete only
 	 * forgets the ids and keeps the keys (§10.3).
 	 */

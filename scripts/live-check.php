@@ -106,6 +106,7 @@ $workflow = null;
 $taskUid = null;
 $childUid = null;
 $inColumnUid = null;
+$plainUid = null;
 $containerUid = null;
 /**
  * The container's UID is kept separately as well, because `$containerUid` is
@@ -834,6 +835,81 @@ try {
 		$toggles->isEnabledForUser(FeatureToggles::MODULE_KANBAN, $user),
 		'occ config:app:set chronos module_kanban --value 1 --type boolean',
 	);
+
+	// 19. A project *without* a workflow still records what its cards do
+	// (§12.9) — the case 0.5.8 fixed, and the one no earlier release recorded
+	// at all. The workflow comes off first, which is also how this list is
+	// handed back, so everything after here runs the way the user's own
+	// projects do.
+	$workflows->assignToProject($user, $ref, null);
+	$plainCreated = $tasks->create($user, $ref, TaskWrite::fromParams(
+		'Chronos live check — plain status',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+	));
+	$plainUid = $plainCreated->getUid();
+	$everythingMade[] = $plainUid;
+	$plainMoved = $tasks->update($user, $plainUid, TaskWrite::fromParams(
+		'Chronos live check — plain status',
+		'IN-PROCESS',
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+		null,
+	), $plainCreated->getEtag());
+	$plainRows = $history->findTimeline($plainUid);
+	$lastPlain = $plainRows === [] ? null : $plainRows[count($plainRows) - 1];
+	check(
+		'a status move with no workflow is recorded at all',
+		$lastPlain !== null,
+		count($plainRows) . ' rows',
+	);
+	check(
+		'and the row names the standard status on both sides',
+		$lastPlain?->getToStandard() === 'IN-PROCESS'
+			&& $lastPlain?->getFromStandard() === 'NEEDS-ACTION',
+		($lastPlain?->getFromStandard() ?? '—') . '>' . ($lastPlain?->getToStandard() ?? '—'),
+	);
+	check(
+		'with no workflow status to name, because there is no workflow',
+		$lastPlain?->getToStatusId() === null && $lastPlain?->getToKey() === null,
+		'status id ' . var_export($lastPlain?->getToStatusId(), true),
+	);
+
+	// And what the board does with those rows: a card knows how long it has
+	// been in the column it is in, which is the Kanban Guide's work item age.
+	$plainBoard = $board->board($user, $ref);
+	$enteredAt = $plainBoard->ages?->enteredAt($plainUid);
+	check(
+		'the board reads the card\'s arrival back out of history',
+		$enteredAt !== null && abs($enteredAt - time()) < 300,
+		$enteredAt === null ? 'no arrival' : 'entered ' . (time() - $enteredAt) . 's ago',
+	);
+	check(
+		'and a card nothing recorded has no age rather than a made-up one',
+		$plainBoard->ages?->enteredAt('chronos-live-check-nonexistent') === null,
+		'absent cards have no arrival',
+	);
+	check(
+		'the standard status reached CalDAV too',
+		$plainMoved->getVtodoStatus() === 'IN-PROCESS',
+		(string)$plainMoved->getVtodoStatus(),
+	);
 } finally {
 	// The promoted list, and everything in it: created by this check, so it
 	// goes for good rather than into the calendar trash.
@@ -862,7 +938,7 @@ try {
 
 	// Undo everything, in reverse. The subtask goes first: a parent with a
 	// child left behind is exactly the mess 0.4.2 was about.
-	foreach (array_filter([$childUid, $taskUid, $inColumnUid, $containerUid]) as $throwaway) {
+	foreach (array_filter([$childUid, $taskUid, $inColumnUid, $plainUid, $containerUid]) as $throwaway) {
 		try {
 			$tasks->delete($user, $throwaway);
 			echo '  cleaned up the throwaway task ' . $throwaway . PHP_EOL;

@@ -203,6 +203,12 @@ export type BoardCard = Task & {
 	subtasks: CardSubtasks | null
 	rank?: string | null
 	fromColumn?: string | null
+	/**
+	 * When this card entered the column it is in, in UNIX seconds, or null
+	 * where status history cannot say — which is every card whose last move
+	 * predates 0.5.8 (§12.9).
+	 */
+	enteredColumnAt?: number | null
 }
 
 /** Which cards a board shows: every task, or only the top of each branch. */

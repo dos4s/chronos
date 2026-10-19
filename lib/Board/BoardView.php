@@ -32,6 +32,7 @@ final class BoardView implements JsonSerializable {
 		public readonly StatusColumns $statuses,
 		public readonly array $cards,
 		public readonly CardTree $tree,
+		public readonly ?CardAges $ages = null,
 	) {
 	}
 
@@ -55,7 +56,11 @@ final class BoardView implements JsonSerializable {
 				// not refuse the drop (§15.3).
 				'overWipLimit' => self::isOver($column, count($cards)),
 				'cards' => array_map(
-					fn (Task $card): array => $card->jsonSerialize() + $this->tree->factsFor($card->getUid()),
+					fn (Task $card): array => $card->jsonSerialize()
+						+ $this->tree->factsFor($card->getUid())
+						// When it arrived in this column, or null where history
+						// cannot say (§12.9).
+						+ ['enteredColumnAt' => $this->ages?->enteredAt($card->getUid())],
 					$cards,
 				),
 			];
