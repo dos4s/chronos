@@ -28,6 +28,8 @@ const props = defineProps<{
 	ghost?: boolean
 	dragging?: boolean
 	conflicted?: boolean
+	/** Whether this row has rows under it, whatever its own dates say. */
+	parent?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -37,6 +39,25 @@ const emit = defineEmits<{
 }>()
 
 const place = computed(() => props.scale.place(props.bar))
+
+/**
+ * Where this bar's name goes and how much room it has there: in the bar when it
+ * fits, otherwise in the gutter on whichever side has more of it. The room is a
+ * ceiling, not a suggestion — a name is clipped to it rather than allowed past
+ * the end of the canvas, where it would grow the chart and need scrolling to
+ * (§15.13).
+ */
+const name = computed(() => {
+	if (place.value.width >= 56) {
+		return { side: 'in' as const, room: 0 }
+	}
+
+	const end = props.scale.width - (place.value.x + place.value.width)
+	const start = place.value.x
+	const side = end >= 160 || end >= start ? 'end' as const : 'start' as const
+
+	return { side, room: Math.max(0, (side === 'end' ? end : start) - 10) }
+})
 
 /** A summary is derived from its children, so it is not dragged (§12.5). */
 const movable = computed(() => !props.readOnly && !props.row.isSummary && !props.ghost)
@@ -72,7 +93,9 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	<div
 		v-else
 		:class="[$style.bar, {
+			[$style.clipped]: place.width >= 56,
 			[$style.summary]: row.isSummary,
+			[$style.parent]: parent && !row.isSummary,
 			[$style.inferred]: bar.inferred,
 			[$style.ghost]: ghost,
 			[$style.dragging]: dragging,
@@ -93,12 +116,17 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 			aria-hidden="true" />
 
 		<!--
-			A bar too short for a word shows none: at a fitted scale a one-day
-			task is a dozen pixels wide, and "C…" in a dashed box reads as a
-			rendering fault rather than a task (§15.12). The name is still in
-			the row beside it, and in the bar's own tooltip.
+			A name too long for its bar goes beside it rather than inside it,
+			which is what every chart of this kind does: at a fitted scale a
+			ten-day task is forty pixels wide, and a name clipped to "A le…"
+			reads as a rendering fault rather than as a task (§15.13).
 		-->
-		<span v-if="place.width >= 44" :class="$style.text">{{ label }}</span>
+		<span v-if="name.side === 'in'" :class="$style.text">{{ label }}</span>
+		<span
+			v-else
+			:class="[$style.outside, name.side === 'start' ? $style.outsideStart : $style.outsideEnd]"
+			:style="{ maxWidth: `${name.room}px` }"
+			aria-hidden="true">{{ label }}</span>
 
 		<template v-if="movable">
 			<span
@@ -127,7 +155,6 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	color: var(--color-primary-element-text);
 	display: flex;
 	align-items: center;
-	overflow: hidden;
 	cursor: grab;
 	/* A finger on a bar drags the bar; the browser must not also scroll (§15.1). */
 	touch-action: none;
@@ -135,9 +162,28 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	box-sizing: border-box;
 }
 
+/* Wide enough to hold its own name: then the name is clipped to the bar. */
+.clipped {
+	overflow: hidden;
+}
+
 .bar:focus-visible {
 	outline: 2px solid var(--color-main-text);
 	outline-offset: 1px;
+}
+
+/*
+ * A row with rows under it. A summary bar is derived from its children and so
+ * is drawn as a span; this one is a phase somebody dated themselves, which is
+ * movable and real — but on a plan of phases it was the same green pill as the
+ * tasks inside it, which is not how a plan reads (§15.13).
+ */
+.parent {
+	background: var(--color-primary-element-dark, var(--color-primary-element));
+	border-radius: 3px;
+	inset-block-start: 7px;
+	height: 18px;
+	font-weight: 600;
 }
 
 /* A summary is the span of what is under it, not a date anybody set (§12.5). */
@@ -169,6 +215,13 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
 }
 
+/*
+ * A broken dependency is drawn on the line that is broken, which is where the
+ * reader is looking. The bar used to be outlined in red as well, so a plan with
+ * three late hand-offs looked like three errors rather than three dates to
+ * move — one fact, one mark (§15.13). A drag still outlines what it would
+ * break, because there the warning is the point.
+ */
 .conflict {
 	outline: 2px solid var(--color-error-text);
 	outline-offset: 1px;
@@ -190,6 +243,33 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	pointer-events: none;
+}
+
+/*
+ * The name of a bar too short to hold it. It sits in the gutter to the bar's
+ * right, in the text colour rather than the bar's, and the bar has to let it
+ * out — which is why `.bar` only clips when it is wide enough to clip (§15.13).
+ */
+.outside {
+	position: absolute;
+	inset-block: 0;
+	display: flex;
+	align-items: center;
+	font-size: var(--chronos-text-small);
+	line-height: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--color-main-text);
+	pointer-events: none;
+}
+
+.outsideEnd {
+	inset-inline-start: calc(100% + 6px);
+}
+
+.outsideStart {
+	inset-inline-end: calc(100% + 6px);
 }
 
 .grip {

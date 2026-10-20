@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { UnixSeconds } from '../api/time.ts'
 import type { Roadmap, RoadmapMilestone, RoadmapRow, Task, TaskWritePayload } from '../types/index.ts'
 import type { Zoom } from '../utils/scale.ts'
 
@@ -52,6 +53,8 @@ const loading = ref(false)
 const zoom = ref<Zoom>('fit')
 /** How wide the chart may draw, measured rather than assumed (§12.6). */
 const chartWidth = ref(0)
+/** The date the viewport is centred on, so a zoom can keep looking at it. */
+const anchor = ref<UnixSeconds | null>(null)
 const shortcuts = ref(false)
 
 /** The milestone being edited, which is a task like any other (§6). */
@@ -134,6 +137,7 @@ function onScroll(): void {
 	scrollLeft.value = element.scrollLeft
 	scrollTop.value = element.scrollTop
 	chartWidth.value = Math.max(0, element.clientWidth - 2)
+	anchor.value = scale.value.atOf(element.scrollLeft + element.clientWidth / 2, false, false)
 }
 
 /** Whether this project's list can be written to; a shared one may not be. */
@@ -261,12 +265,28 @@ watch(() => projects.showArchived, () => {
  */
 let watcher: ResizeObserver | null = null
 
+/* Changing the zoom keeps the month you were looking at (§15.13). */
+watch(zoom, async () => {
+	const at = anchor.value
+	await nextTick()
+	const element = chart.value
+	if (element === null || at === null) {
+		return
+	}
+
+	element.scrollLeft = Math.max(0, scale.value.xOf(at, false) - element.clientWidth / 2)
+	onScroll()
+})
+
 // The chart element only exists once there are rows to draw, so the watch is
 // on the ref: when it appears — or is replaced — it is measured and observed.
 watch(chart, (element) => {
 	if (element !== null) {
 		chartWidth.value = Math.max(0, element.clientWidth - 2)
 		watchChartWidth()
+		// Also the first reading of where the chart is scrolled to and which
+		// day is in the middle of it: on mount there was no element to read.
+		onScroll()
 	}
 })
 

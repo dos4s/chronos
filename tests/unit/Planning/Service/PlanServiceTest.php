@@ -114,6 +114,39 @@ class PlanServiceTest extends TestCase {
 	}
 
 	/**
+	 * The index reads tasks by due date, which in every engine puts the
+	 * undated ones first — so a plan opened at the top showed rows of "No
+	 * dates" before anything scheduled. A plan is read as a plan: earliest
+	 * first, with whatever has no dates at the bottom (§15.13).
+	 */
+	public function testABranchComesInTheOrderItStartsWithTheUndatedLast(): void {
+		$this->index = [
+			$this->task('nothing-planned'),
+			$this->task('later', startAt: '2026-11-01', dueAt: '2026-11-05'),
+			$this->task('sooner', startAt: '2026-10-01', dueAt: '2026-10-05'),
+			$this->task('nothing-planned-either'),
+		];
+
+		$rows = $this->plan->plan(self::USER, self::REF)->rows;
+
+		self::assertSame(['sooner', 'later', 'nothing-planned', 'nothing-planned-either'], $this->uids($rows));
+	}
+
+	/** A branch sorts on the earliest date anywhere in it, children included. */
+	public function testABranchSortsOnWhenItsChildrenStart(): void {
+		$this->index = [
+			$this->task('phase-two', type: ParsedTask::TYPE_SUBPROJECT),
+			$this->task('late-work', parentUid: 'phase-two', startAt: '2026-12-01', dueAt: '2026-12-05'),
+			$this->task('phase-one', type: ParsedTask::TYPE_SUBPROJECT),
+			$this->task('early-work', parentUid: 'phase-one', startAt: '2026-10-01', dueAt: '2026-10-05'),
+		];
+
+		$rows = $this->plan->plan(self::USER, self::REF)->rows;
+
+		self::assertSame(['phase-one', 'early-work', 'phase-two', 'late-work'], $this->uids($rows));
+	}
+
+	/**
 	 * A subproject has no dates of its own and is never dragged, but it is a
 	 * row: a container with a span is exactly what a summary bar is for (§6).
 	 */

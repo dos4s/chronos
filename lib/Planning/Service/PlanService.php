@@ -338,6 +338,14 @@ class PlanService {
 		$rows = [];
 		$seen = [];
 
+		/*
+		 * Each root with its branch under it, ordered by when the branch
+		 * starts. The index reads tasks by due date, which puts every undated
+		 * task first — so a plan opened at the top showed three rows of "No
+		 * dates" before anything that is actually scheduled (§15.13). A branch
+		 * with no dates at all sorts last, in the order it came.
+		 */
+		$branches = [];
 		foreach ($tasks as $task) {
 			$parentUid = $task->getParentUid();
 			// A task whose parent is in this list is reached through it; one
@@ -346,7 +354,26 @@ class PlanService {
 			if ($parentUid !== null && isset($byUid[$parentUid]) && $parentUid !== $task->getUid()) {
 				continue;
 			}
-			$rows = array_merge($rows, $this->branch($task, 0, $dates, $children, $byUid, $seen)['rows']);
+			$branch = $this->branch($task, 0, $dates, $children, $byUid, $seen);
+			$branches[] = ['rows' => $branch['rows'], 'start' => $this->branchStart($branch['rows'])];
+		}
+
+		usort($branches, static function (array $a, array $b): int {
+			if ($a['start'] === $b['start']) {
+				return 0;
+			}
+			if ($a['start'] === null) {
+				return 1;
+			}
+			if ($b['start'] === null) {
+				return -1;
+			}
+
+			return $a['start'] <=> $b['start'];
+		});
+
+		foreach ($branches as $branch) {
+			$rows = array_merge($rows, $branch['rows']);
 		}
 
 		// A loop in the tree reaches nothing from a root; those tasks are
@@ -358,6 +385,26 @@ class PlanService {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * When a branch starts: the earliest bar anywhere in it, or null when
+	 * nothing in it has a date. A milestone counts, since a date is a date.
+	 *
+	 * @param list<PlanRow> $rows
+	 */
+	private function branchStart(array $rows): ?int {
+		$start = null;
+		foreach ($rows as $row) {
+			if ($row->bar === null) {
+				continue;
+			}
+			if ($start === null || $row->bar->startAt < $start) {
+				$start = $row->bar->startAt;
+			}
+		}
+
+		return $start;
 	}
 
 	/**

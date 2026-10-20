@@ -99,10 +99,10 @@ const drawn = computed<Drawn[]>(() => props.links.flatMap((link) => {
 		aria-hidden="true">
 		<g v-for="item in drawn" :key="`${item.link.predecessorUid}>${item.link.successorUid}`">
 			<path
-				:class="[$style.line, { [$style.broken]: item.broken, [$style.loose]: !item.link.temporal }]"
+				:class="[$style.line, { [$style.lineBroken]: item.broken, [$style.loose]: !item.link.temporal }]"
 				:d="item.path" />
 			<polygon
-				:class="[$style.head, { [$style.broken]: item.broken }]"
+				:class="[$style.head, { [$style.headBroken]: item.broken }]"
 				:points="item.arrow" />
 			<!--
 				A wider invisible copy of the line, so a dependency can be
@@ -136,8 +136,17 @@ const drawn = computed<Drawn[]>(() => props.links.flatMap((link) => {
 	stroke-dasharray: 3 3;
 }
 
-.broken {
+/*
+ * A line is stroked and an arrowhead is filled, and the two cannot share a
+ * rule: `fill` on the path closed its L-shape and painted a red wedge across
+ * the bars it ran between, which on a plan with a few broken links looked like
+ * the chart had been struck through (§15.13).
+ */
+.lineBroken {
 	stroke: var(--color-error-text);
+}
+
+.headBroken {
 	fill: var(--color-error-text);
 }
 

@@ -1374,6 +1374,26 @@ would run past the end of the chart, and a bar too short for a word all used to 
 "September 2026" as "S", a one-day task as "C…" in a dashed box. Each reads as a rendering fault rather
 than as data, so each is now left out; the row beside the bar and the bar's own tooltip still name it.
 
+**Then it was driven with a real plan** — six months, six phases, thirty-four tasks, seven dependencies,
+four milestones — because a dozen bars in a fortnight proves nothing. Five faults only that could show:
+
+- A **broken link painted a red wedge** over the bars it ran between. `.broken` set `fill` as well as
+  `stroke`, and an L-shaped path with a fill is a filled polygon. A line is stroked; an arrowhead is
+  filled; they cannot share a rule.
+- **A name too long for its bar** was hidden, which on a fitted scale is most of them. It now goes beside
+  the bar, on whichever side has more room and clipped to that room — never past the canvas, which would
+  grow the chart and make the reader scroll to a name.
+- **A phase dated by hand** was the same pill as the tasks inside it. `isSummary` is only true for a row
+  with no dates of its own, so the chart decides for itself what has children.
+- **Undated rows came first**, because the index reads by due date and every engine sorts nulls first. A
+  plan is read as a plan: earliest branch first, undated last.
+- **Changing the zoom threw the view away**: `Fit` to `Weeks` landed half a year before today. The day in
+  the middle of the viewport is remembered on every scroll and put back after the scale changes.
+
+And two measurements settled arguments the screenshots could not: the chart's own width matches its
+scroll width exactly at `fit` (732/732), and the roadmap's label rows and chart lanes are both 34px — the
+drift between them was in a resized screenshot, not in the DOM.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.
