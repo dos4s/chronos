@@ -74,6 +74,8 @@ const deleting = ref<PlanRow | null>(null)
 const chart = ref<HTMLElement | null>(null)
 /** How wide the chart may draw, measured rather than assumed (§12.5). */
 const chartWidth = ref(0)
+/** The date the viewport is centred on, so a zoom can keep looking at it. */
+const anchor = ref<UnixSeconds | null>(null)
 const scrollLeft = ref(0)
 const scrollTop = ref(0)
 const viewport = ref(480)
@@ -109,6 +111,22 @@ const scale = computed(() => {
  * window, which made the window its own floor: a ten-row plan was drawn into a
  * slab of empty lanes half a screen tall (§14.2).
  */
+/*
+ * Which rows have rows under them. The plan only calls a row a *summary* when
+ * it has no dates of its own, so a phase somebody dated by hand arrives as an
+ * ordinary task; the chart still draws it as the group it is (§15.13).
+ */
+const hasChildren = computed(() => {
+	const parents = new Set<string>()
+	for (const row of rows.value) {
+		if (row.parentUid !== null && row.parentUid !== undefined) {
+			parents.add(row.parentUid)
+		}
+	}
+
+	return parents
+})
+
 const canvasHeight = computed(() => rows.value.length * ROW_HEIGHT)
 
 /** Which rows are worth drawing, given where the chart is scrolled to. */
@@ -236,6 +254,9 @@ function onScroll(): void {
 	scrollLeft.value = element.scrollLeft
 	scrollTop.value = element.scrollTop
 	viewport.value = element.clientHeight
+	// The date in the middle of what is on screen, kept so that changing the
+	// zoom can put it back in the middle (§15.13).
+	anchor.value = scale.value.atOf(element.scrollLeft + element.clientWidth / 2, false, false)
 	// What `fit` fits into. A scrollbar's worth is left so the fitted chart
 	// does not itself cause one.
 	chartWidth.value = Math.max(0, element.clientWidth - 2)
@@ -392,12 +413,33 @@ watch(() => plan.plan, async (loaded) => {
  */
 let watcher: ResizeObserver | null = null
 
+/*
+ * Changing the zoom keeps the day you were looking at. The window is rebuilt
+ * around the new scale, so without this the chart jumped to the start of it:
+ * going from `Fit` to `Weeks` on a six-month plan landed half a year before
+ * today, on an empty screen (§15.13).
+ */
+watch(zoom, async () => {
+	const at = anchor.value
+	await nextTick()
+	const element = chart.value
+	if (element === null || at === null) {
+		return
+	}
+
+	element.scrollLeft = Math.max(0, scale.value.xOf(at, false) - element.clientWidth / 2)
+	onScroll()
+})
+
 // The chart element only exists once there are rows to draw, so the watch is
 // on the ref: when it appears — or is replaced — it is measured and observed.
 watch(chart, (element) => {
 	if (element !== null) {
 		chartWidth.value = Math.max(0, element.clientWidth - 2)
 		watchChartWidth()
+		// Also the first reading of where the chart is scrolled to and which
+		// day is in the middle of it: on mount there was no element to read.
+		onScroll()
 	}
 })
 
@@ -586,7 +628,8 @@ onBeforeUnmount(() => {
 							:readOnly="readOnly"
 							:ghost="live.ghosts.has(row.uid)"
 							:dragging="drag.dragging.value?.uid === row.uid"
-							:conflicted="plan.conflicts.some((conflict) => conflict.successorUid === row.uid)"
+							:conflicted="drag.dragging.value !== null && plan.conflicts.some((conflict) => conflict.successorUid === row.uid)"
+							:parent="hasChildren.has(row.uid)"
 							@pick="(kind, event) => drag.pointerDown(event, row.uid, kind)"
 							@grab="drag.keyDown($event, row.uid)"
 							@open="editing = row" />

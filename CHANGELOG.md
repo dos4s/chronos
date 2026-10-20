@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-10-20
+
+Driven with a plan the size of a real one — six months, six phases, thirty-four tasks, seven dependencies
+and four milestones — which showed up what a dozen bars in a fortnight could not.
+
+### Fixed
+- **A broken dependency painted a red wedge across the chart.** The line and its arrowhead shared one
+  `.broken` rule, and `fill` on an L-shaped path closes it: three late hand-offs looked like the plan had
+  been struck through. A line is stroked, an arrowhead is filled.
+- **Changing the zoom threw the view away.** Going from `Fit` to `Weeks` on a six-month plan landed half a
+  year before today on an empty screen. Both charts now keep the day that was in the middle of the view.
+- The chart's first measurement never happened when the rows arrived after the mount, so the day under
+  the viewport's centre was unknown until the first scroll.
+
+### Changed
+- A name too long for its bar is drawn **beside** it — on whichever side has more room, clipped to that
+  room so it can never grow the canvas. Short bars used to show "A le…" or nothing at all.
+- A row with rows under it is drawn as the group it is. The plan only calls a row a *summary* when it has
+  no dates of its own, so a phase dated by hand was the same green pill as the tasks inside it.
+- A plan is ordered by when a branch starts, with the undated ones last. The index reads tasks by due
+  date, which puts every undated task first: a plan opened at the top showed three rows of "No dates"
+  before anything scheduled.
+- Weekend stripes are left out once a day is under 9px wide — below that they stop marking weekends and
+  become a zebra behind every bar.
+- A conflict is marked on the line that is broken, not also around the bar; a drag still outlines what it
+  would break, because there the warning is the point.
+
 ## [0.5.13] - 2026-10-20
 
 The timeline and the roadmap fit the window they are drawn in. Both charts used a fixed scale, so a

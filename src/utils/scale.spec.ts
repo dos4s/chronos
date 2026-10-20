@@ -154,6 +154,15 @@ describe('the grid behind the bars', () => {
 		expect(scale.stripes([1, 2, 3, 4, 5, 6, 7])).toEqual([])
 	})
 
+	/** Narrow stripes stop reading as weekends and start reading as a zebra. */
+	it('stripes nothing once a day is too narrow to be one', () => {
+		const wide = createScale('fit', localDay('2026-10-01'), localDay('2026-10-29'), 1400)
+		const narrow = createScale('fit', localDay('2026-01-01'), localDay('2027-01-01'), 900)
+
+		expect(wide.stripes([1, 2, 3, 4, 5]).length).toBeGreaterThan(0)
+		expect(narrow.stripes([1, 2, 3, 4, 5])).toEqual([])
+	})
+
 	it('bands the months it spans', () => {
 		const bands = scale.bands()
 
