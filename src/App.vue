@@ -247,12 +247,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style module>
+/*
+ * Flush with the content area and as wide as it is, which is how Files and
+ * Notes are laid out; the 28px gutter and the 1200px column made the app a
+ * floating sheet inside the pane (§15.12).
+ */
 .main {
 	display: flex;
 	flex-direction: column;
-	gap: 24px;
-	padding: 32px 28px 48px;
-	margin: 0 auto;
+	gap: var(--chronos-space-4);
+	/*
+	 * The top padding is what clears Nextcloud's navigation toggle, which
+	 * floats over the corner of the content area; the sides are a gutter, not
+	 * a margin, so the content still reaches the edges.
+	 */
+	padding: calc(var(--chronos-space-4) * 2) var(--chronos-space-4) var(--chronos-space-6);
+	margin: 0;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -264,13 +274,13 @@ onBeforeUnmount(() => {
 /* A phone has no 28px to spare on either side (§14.2). */
 @media (max-width: 700px) {
 	.main {
-		padding: 16px 12px 32px;
-		gap: 16px;
+		padding: var(--chronos-space-2) var(--chronos-space-3) var(--chronos-space-6);
+		gap: var(--chronos-space-3);
 	}
 }
 
 .wide {
-	max-width: 1200px;
+	max-width: none;
 }
 
 .dot {

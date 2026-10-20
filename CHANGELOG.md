@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-10-20
+
+The app stops looking like something pasted into Nextcloud. Measured against Files and Notes on the same
+instance: a native app's content area has no padding, its children are flat, and the list fills the pane.
+Chronos drew frosted-glass cards, a shadowed slab and a bordered white box on a white background, all
+inside a 28px gutter capped at 1200px.
+
+### Changed
+
+- **Sections are sections, not stickers.** `.chronos-card` lost its translucent background, its 18px blur,
+  its border, its radius and its inset highlight; `.chronos-panel` lost its slab and its shadow. What is
+  left is spacing and a heading, which is how Nextcloud's own apps are built (§15.12).
+- **The task list is rows on the page**, flush to the content area with separators and hover, rather than a
+  rounded box with its own background.
+- **The content fills the pane.** The gutter is a gutter now, not a margin, and the 1200px cap is gone, so
+  Chronos is as wide as Files is.
+- **The timer reads down the page** like everything else instead of being centred in the middle of a
+  left-aligned view, its three controls share one width, and "filtering by project" is a line rather than a
+  grey card.
+- Every view now starts on the same left edge — including the timer, which used to begin 132px further in.
+
+The board keeps its outlined columns (a column is a container, as it is in Deck) and the charts keep their
+frame (a chart is a table). Everything else is flat.
+
 ## [0.5.11] - 2026-10-20
 
 A design pass, after being asked whether I could see that the interface was sloppy. I could, once I

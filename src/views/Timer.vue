@@ -44,14 +44,10 @@ const projects = useProjectsStore()
 }
 
 .filterNotice {
-	font-size: var(--chronos-text);
-	padding: 12px 16px;
-	background: var(--color-background-hover);
-	border-radius: var(--chronos-radius-card);
-	color: var(--color-main-text);
+	font-size: var(--chronos-text-small);
+	color: var(--color-text-maxcontrast);
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	border: 1px solid var(--color-border);
+	gap: var(--chronos-space-1);
 }
 </style>
