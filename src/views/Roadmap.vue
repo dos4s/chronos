@@ -456,7 +456,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. Diamonds are milestones; a hollow one has been met. Press ? for what can be done here.') }}
+			{{ t('chronos', 'Each line is a project or one of its subprojects, from its earliest task to its latest. The line down the chart is today, and diamonds are milestones; a hollow one has been met. Press ? for what can be done here.') }}
 		</p>
 
 		<TaskDetailDialog
@@ -727,12 +727,18 @@ button.met {
 	outline-offset: -6px;
 }
 
+/*
+ * Today. It was a 2px red bar down the whole chart, which reads as an error
+ * cutting the plan in half — the first thing anyone asked about it was what had
+ * gone wrong. It is a hairline in the accent colour now, and the scale above it
+ * says "Today" where it falls, so it explains itself (§15.13).
+ */
 .today {
 	position: absolute;
 	inset-block: 0;
-	width: 2px;
-	background: var(--color-error-text);
-	opacity: 0.6;
+	width: 1px;
+	background: var(--color-primary-element);
+	opacity: 0.5;
 	pointer-events: none;
 }
 

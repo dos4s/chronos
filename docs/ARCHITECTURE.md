@@ -1394,6 +1394,18 @@ And two measurements settled arguments the screenshots could not: the chart's ow
 scroll width exactly at `fit` (732/732), and the roadmap's label rows and chart lanes are both 34px — the
 drift between them was in a resized screenshot, not in the DOM.
 
+**Two more came from being asked what they were.** A 2px red bar ran the height of both charts: it marked
+today, but red is the colour of a mistake, and the first question about it was what had gone wrong. It is
+a hairline in the accent colour, and the sentence under the chart names it — a label in the scale header
+was tried first and printed across the month band, which is §15.12 all over again.
+
+And the **arrows doubled back**. The three-segment route (out of the finish, down, into the start) is
+right whenever the successor starts after the predecessor ends. When it does not — a hand-off on the same
+day, a successor that starts mid-predecessor — those segments run backwards through the bar they just
+left, which is what made the direction unreadable. Such a link now leaves the **bottom edge** of the
+predecessor, runs along the gap between the rows, and drops into the successor from the side it is
+actually approaching from. Forward links are untouched.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.

@@ -44,6 +44,9 @@ interface Drawn {
 /** A stub this long leaves the bar before the line turns. */
 const STUB = 10
 
+/** Half a bar, so a line that leaves underneath starts at its edge. */
+const BAR_HALF = 11
+
 const drawn = computed<Drawn[]>(() => props.links.flatMap((link) => {
 	const from = props.bars[link.predecessorUid]
 	const to = props.bars[link.successorUid]
@@ -71,15 +74,43 @@ const drawn = computed<Drawn[]>(() => props.links.flatMap((link) => {
 	const inward = toEnd === toPlace.x ? -STUB : STUB
 	const turn = toEnd + inward
 
+	/*
+	 * The route. When the successor is far enough along for the line to run
+	 * forwards, it leaves the end of the predecessor, drops to the successor's
+	 * row and comes in from the side: three segments, the way every chart of
+	 * this kind draws it.
+	 *
+	 * When it is not — a hand-off on the same day, or a successor that starts
+	 * before its predecessor finishes — those three segments double back on
+	 * themselves and the line crosses its own bar, which is what made the
+	 * arrows look wrong. Then the line leaves the *bottom* of the predecessor
+	 * instead, runs along the gap between the two rows, and drops into the
+	 * successor from the side it is actually approaching from (§15.13).
+	 */
+	const forwards = inward < 0 ? turn >= fromEnd + outward : turn <= fromEnd + outward
+	const down = y2 > y1 ? 1 : -1
+	const gutter = y1 + down * (props.rowHeight / 2)
+
+	const path = forwards
+		? [
+				`M ${fromEnd} ${y1}`,
+				`H ${fromEnd + outward}`,
+				`V ${y2}`,
+				`H ${turn}`,
+				`L ${toEnd} ${y2}`,
+			].join(' ')
+		: [
+			// Out of the bottom (or top) edge of the bar, not its end.
+				`M ${fromEnd - outward} ${y1 + down * BAR_HALF}`,
+				`V ${gutter}`,
+				`H ${turn}`,
+				`V ${y2}`,
+				`L ${toEnd} ${y2}`,
+			].join(' ')
+
 	return [{
 		link,
-		path: [
-			`M ${fromEnd} ${y1}`,
-			`H ${fromEnd + outward}`,
-			`V ${y2}`,
-			`H ${turn}`,
-			`L ${toEnd} ${y2}`,
-		].join(' '),
+		path,
 		// A small arrowhead pointing the way the dependency runs.
 		arrow: inward < 0
 			? `${toEnd} ${y2} ${toEnd - 6} ${y2 - 4} ${toEnd - 6} ${y2 + 4}`
