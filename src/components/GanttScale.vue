@@ -56,7 +56,7 @@ const ticks = computed(() => props.scale.ticks())
 .band,
 .tick {
 	position: absolute;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	line-height: 22px;
 	white-space: nowrap;
 	overflow: hidden;

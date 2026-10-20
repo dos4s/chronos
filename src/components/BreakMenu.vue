@@ -76,7 +76,7 @@ watch(() => props.initialStart, (value) => {
 	z-index: 9001;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	padding: 16px;
 	width: 230px;
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -87,7 +87,7 @@ watch(() => props.initialStart, (value) => {
 
 .title {
 	font-weight: 700;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	color: var(--color-main-text);
 	padding-bottom: 4px;
 	border-bottom: 1px solid var(--color-border);
@@ -101,20 +101,27 @@ watch(() => props.initialStart, (value) => {
 }
 
 .label {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	flex-shrink: 0;
 }
 
-.input {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.input,
+select.input {
 	background: var(--color-background-hover);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	color: var(--color-main-text);
 	padding: 4px 8px;
 	flex: 1;
 	min-width: 0;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .actions {
@@ -133,12 +140,12 @@ button.cancel {
 	min-height: 0;
 	width: auto;
 	padding: 6px 12px;
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	border: 1px solid var(--color-border);
 	background: transparent;
 	color: var(--color-main-text);
 	cursor: pointer;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: normal;
 }
 
@@ -146,12 +153,12 @@ button.confirm {
 	min-height: 0;
 	width: auto;
 	padding: 6px 12px;
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	border: none;
 	background: var(--color-primary-element);
 	color: var(--color-primary-element-text);
 	cursor: pointer;
 	font-weight: 600;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 </style>

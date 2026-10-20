@@ -122,7 +122,7 @@ async function confirmDelete(session: Session) {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -141,7 +141,7 @@ async function confirmDelete(session: Session) {
 	gap: 1px;
 	background: var(--color-background-hover);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	overflow: hidden;
 }
 
@@ -176,7 +176,7 @@ async function confirmDelete(session: Session) {
 }
 
 .note {
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -184,7 +184,7 @@ async function confirmDelete(session: Session) {
 }
 
 .meta {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -196,14 +196,14 @@ async function confirmDelete(session: Session) {
 .duration {
 	font-variant-numeric: tabular-nums;
 	font-weight: 600;
-	font-size: 15px;
+	font-size: var(--chronos-text);
 }
 
 .live {
 	color: var(--color-success-text);
 	font-weight: 600;
 	text-transform: uppercase;
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	letter-spacing: 0.08em;
 }
 

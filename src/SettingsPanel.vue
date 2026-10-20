@@ -159,12 +159,12 @@ async function toggle(module: string, enabled: boolean): Promise<void> {
 	display: flex;
 	align-items: flex-start;
 	gap: 8px;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 }
 
 .label small {
 	display: block;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 </style>

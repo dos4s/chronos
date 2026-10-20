@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-10-20
+
+A design pass, after being asked whether I could see that the interface was sloppy. I could, once I
+measured it: eleven font sizes, five corner radii, gaps off the grid, controls between 16 and 36px tall,
+text printed over icons, and dialogs nobody had ever looked at.
+
+### Fixed
+
+- **Text no longer runs into the interface.** The search field's magnifier was printed over the first
+  characters of its own placeholder in three views, because `padding-inline` set on a class loses to
+  Nextcloud's rule for `input` (§15.10 — the same trap as the buttons, for fields this time). Every bespoke
+  `input`, `select` and `textarea` names its element in the selector now, and a measurement pass over every
+  view at desktop and phone width reports no text sitting on any control or icon.
+- **The task dialog.** Its title was drawn across Nextcloud's own top bar, its name field was 130px wide
+  and scrolled the name it held, a time input showed against a blank date, and three filled buttons sat in
+  one row. All eight dialogs moved from `NcModal` to `NcDialog`, fields fill the dialog, the time appears
+  once there is a date, and the buttons are one primary, one quiet, one destructive.
+- **A menu that opens a dialog closes itself** instead of staying open on top of it.
+- **Every view starts on one line.** 0.5.7 cleared the navigation toggle sideways, which left each view's
+  title standing 48px right of its own content; the toggle is cleared downwards now.
+- **A four-status board fits the window.** The columns could not shrink past their own content, so the
+  fourth was cut in half at 1400px.
+- Controls that were below the minimum target — the list's checkbox, the roadmap's milestone diamonds —
+  are at least as large as the server's small clickable area, the diamonds keeping their 12px look.
+
+### Changed
+
+- **One scale, and it is Nextcloud's**: four font sizes instead of eleven, spacing in multiples of its grid
+  baseline, its three radii, its clickable area. Chronos sets no size of its own any more; see §15.11.
+- A task's facts read as one line — *24 Oct 2026 · Priority 1 · 45% done* — rather than five chips in four
+  shapes, and only a state takes a colour.
+- An overdue card says so once, on its date, instead of also carrying a red edge.
+- Board columns are outlines rather than grey slabs, so an empty column stops being the heaviest thing on
+  the screen, and the workflow note above the board is a quiet line shown only while a board is new.
+- Analytics: one figure style instead of two sizes side by side, no duplicate *Last 7 days* headings, and
+  the bars and the ring are drawn only when there is something to draw.
+- The Timer view has a name and a line saying what it is for, its three controls share one width, and it
+  says "optional" once rather than twice.
+
 ## [0.5.10] - 2026-10-20
 
 Asked what the difference between the roadmap and the timeline is, and found the app had been hiding it.

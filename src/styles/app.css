@@ -2,7 +2,41 @@
  * The app's shared visual language: surfaces, labels and the few global
  * overrides Nextcloud needs. Component-specific layout stays in
  * each component's own CSS module.
+ *
+ * **One scale, and it is Nextcloud's (§15.11).** Before 0.5.11 every view set
+ * its own sizes by hand: eleven different font sizes across the app, five
+ * corner radii, gaps of 2, 6 and 14px off the 4px grid, and controls between
+ * 16 and 36px tall where the server's minimum target is 34. Nothing was
+ * *wrong* in isolation and the whole was a mess, which is what sloppy means.
+ *
+ * The variables below are the only sizes the app uses. They are thin wrappers
+ * over the server's own tokens so the app follows a theme that changes them,
+ * with a fallback for an older server that does not define one.
  */
+
+:root {
+	/* Type: the server's body and small sizes, plus its heading steps. */
+	--chronos-text: var(--default-font-size, 15px);
+	--chronos-text-small: var(--font-size-small, 13px);
+	--chronos-text-title: 20px;
+	--chronos-text-display: 28px;
+
+	/* Space: whole multiples of the server's grid baseline, never raw px. */
+	--chronos-space-1: calc(var(--default-grid-baseline, 4px) * 1);
+	--chronos-space-2: calc(var(--default-grid-baseline, 4px) * 2);
+	--chronos-space-3: calc(var(--default-grid-baseline, 4px) * 3);
+	--chronos-space-4: calc(var(--default-grid-baseline, 4px) * 4);
+	--chronos-space-6: calc(var(--default-grid-baseline, 4px) * 6);
+
+	/* Shape: the server's three radii, named for what they wrap. */
+	--chronos-radius-chip: var(--border-radius-small, 4px);
+	--chronos-radius-card: var(--border-radius-element, 8px);
+	--chronos-radius-panel: var(--border-radius-container, 12px);
+
+	/* Size: one height for anything clickable, one for a chip. */
+	--chronos-control: var(--default-clickable-area, 34px);
+	--chronos-control-small: var(--clickable-area-small, 24px);
+}
 
 body.app-chronos .app-navigation {
 	background: transparent !important;
@@ -15,7 +49,7 @@ body.app-chronos .app-navigation {
 	border: 1px solid color-mix(in srgb, var(--color-main-text) 10%, transparent);
 	backdrop-filter: blur(18px) saturate(1.4);
 	-webkit-backdrop-filter: blur(18px) saturate(1.4);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	padding: 20px 24px;
 	display: flex;
 	flex-direction: column;
@@ -30,7 +64,7 @@ body.app-chronos .app-navigation {
 	gap: 14px;
 	padding: 36px 32px;
 	background: var(--color-background-hover);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	border: 1px solid var(--color-border);
 	transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 	box-shadow: 0 8px 32px -20px rgba(0, 0, 0, 0.4);
@@ -43,16 +77,19 @@ body.app-chronos .app-navigation {
 /* Text */
 
 .chronos-section-title {
-	font-size: 16px;
-	font-weight: 600;
+	font-size: var(--chronos-text-title);
+	font-weight: 700;
 	margin: 0;
 	letter-spacing: -0.01em;
 }
 
+/*
+ * A label above a field or a figure. It was 11px uppercase with wide tracking,
+ * which is the smallest text in the app worn by the thing that says what you
+ * are looking at; it is the server's small size now, and sentence case.
+ */
 .chronos-label {
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.1em;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	font-weight: 600;
 }
@@ -68,11 +105,16 @@ body.app-chronos .app-navigation {
 /*
  * A view's own first line. Nextcloud floats the navigation toggle over the
  * top-left corner of the content area, so a title that starts at the content's
- * edge is drawn underneath it; the indent is that button and a gap.
+ * edge is drawn underneath it.
+ *
+ * 0.5.7 dodged it sideways, which gave every view a stepped left edge: the
+ * title stood 48px to the right of the list beneath it. The toggle is cleared
+ * *downwards* now, the way Nextcloud's own apps do it, so the title, the line
+ * under it and everything below share one edge.
  */
 .chronos-view-head {
-	padding-inline-start: 48px;
-	min-height: 34px;
+	margin-block-start: var(--chronos-space-6);
+	min-height: var(--chronos-control);
 }
 
 /*
@@ -82,18 +124,14 @@ body.app-chronos .app-navigation {
  * screen was what the roadmap is for when the timeline is right above it.
  */
 .chronos-view-why {
-	margin: -8px 0 0;
-	padding-inline-start: 48px;
-	font-size: 13px;
+	margin: calc(var(--chronos-space-2) * -1) 0 0;
+	padding-inline-start: var(--chronos-space-1);
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	max-width: 80ch;
 }
 
-@media (max-width: 700px) {
-	.chronos-view-why {
-		padding-inline-start: 4px;
-	}
-}
+
 
 .chronos-dot {
 	width: 10px;

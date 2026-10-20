@@ -6,9 +6,9 @@ import type { TaskFilter } from '../utils/filter.ts'
 import { n, t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import ColumnSettingsDialog from '../components/ColumnSettingsDialog.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -461,9 +461,17 @@ async function columnSaved(): Promise<void> {
 			{{ t('chronos', 'This list is shared with you read-only, so its cards cannot be moved here.') }}
 		</NcNoteCard>
 
-		<NcNoteCard v-else-if="board.board && board.board.workflowId === null" type="info">
-			{{ t('chronos', 'This project has no workflow, so the board shows the four standard statuses. Give it one in the project settings to use statuses of your own.') }}
-		</NcNoteCard>
+		<!--
+			A standing fact about the project, not news: it was a full-width
+			blue card above the board on every visit, which is the loudest
+			thing on the screen saying the least (§15.11). It is a quiet line
+			now, and only while the board is still empty enough to be new.
+		-->
+		<p
+			v-else-if="board.board && board.board.workflowId === null && board.cardCount <= 4"
+			:class="$style.standing">
+			{{ t('chronos', 'No workflow on this project, so these are the four standard statuses. Project settings can give it statuses of its own.') }}
+		</p>
 
 		<div v-if="board.initialLoading" :class="$style.loading">
 			<NcLoadingIcon :size="32" />
@@ -540,10 +548,12 @@ async function columnSaved(): Promise<void> {
 			{{ drag.announcement.value }}
 		</div>
 
-		<NcModal
+		<NcDialog
 			v-if="cascading"
 			:name="t('chronos', 'Bring the subtasks along?')"
-			@close="cascading = null">
+			:open="true"
+			size="small"
+			@update:open="cascading = null">
 			<div :class="$style.noteBody">
 				<p :class="$style.question">
 					<template v-if="cascading.name">
@@ -573,12 +583,14 @@ async function columnSaved(): Promise<void> {
 					</NcButton>
 				</div>
 			</div>
-		</NcModal>
+		</NcDialog>
 
-		<NcModal
+		<NcDialog
 			v-if="pending"
 			:name="t('chronos', 'This move needs a note')"
-			@close="pending = null">
+			:open="true"
+			size="small"
+			@update:open="pending = null">
 			<div :class="$style.noteBody">
 				<label :class="$style.label" for="chronos-move-note">
 					{{ t('chronos', 'Why is it moving?') }}
@@ -597,7 +609,7 @@ async function columnSaved(): Promise<void> {
 					</NcButton>
 				</div>
 			</div>
-		</NcModal>
+		</NcDialog>
 
 		<TaskDetailDialog
 			v-if="editing"
@@ -627,6 +639,12 @@ async function columnSaved(): Promise<void> {
 </template>
 
 <style module>
+.standing {
+	margin: 0;
+	color: var(--color-text-maxcontrast);
+	font-size: var(--chronos-text-small);
+}
+
 .view {
 	display: flex;
 	flex-direction: column;
@@ -634,7 +652,7 @@ async function columnSaved(): Promise<void> {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -653,7 +671,7 @@ async function columnSaved(): Promise<void> {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -680,7 +698,7 @@ async function columnSaved(): Promise<void> {
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }
@@ -701,7 +719,7 @@ async function columnSaved(): Promise<void> {
 
 .stacked {
 	list-style: none;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	text-align: center;
 	padding-block-start: 4px;
@@ -724,13 +742,13 @@ async function columnSaved(): Promise<void> {
 }
 
 .label {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 }
 
 .question {
 	margin: 0;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 }
 
 .actions {

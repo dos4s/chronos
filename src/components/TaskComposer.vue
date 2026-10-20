@@ -85,11 +85,17 @@ function abandon(): void {
 	align-items: center;
 }
 
-.input {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.input {
 	flex: 1;
 	min-width: 0;
 	padding: 10px 16px;
-	font-size: 15px;
+	font-size: var(--chronos-text);
 	color: var(--color-main-text);
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
@@ -97,14 +103,14 @@ function abandon(): void {
 	outline: none;
 }
 
-.input:focus {
+input.input:focus {
 	border-color: var(--color-primary-element);
 }
 
 /* Inside a board column there is room for a line of text and little else. */
 .compact .input {
 	padding: 6px 10px;
-	font-size: 13px;
-	border-radius: var(--border-radius-large);
+	font-size: var(--chronos-text-small);
+	border-radius: var(--chronos-radius-card);
 }
 </style>

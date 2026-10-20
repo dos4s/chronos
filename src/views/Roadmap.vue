@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -466,7 +466,7 @@ onBeforeUnmount(() => {
 	grid-template-columns: clamp(130px, 32vw, 300px) 1fr;
 	grid-template-rows: 44px 1fr;
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	overflow: hidden;
 	/* As tall as its lines, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
 	display: flex;
 	align-items: flex-end;
 	padding: 0 8px 4px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	border-inline-end: 1px solid var(--color-border);
 	border-block-end: 1px solid var(--color-border);
@@ -524,7 +524,7 @@ onBeforeUnmount(() => {
 }
 
 .areaRow {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
@@ -556,14 +556,14 @@ button.project {
 }
 
 .name {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .meta {
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -615,7 +615,7 @@ button.project {
 .undated {
 	position: absolute;
 	inset-block-start: 9px;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	white-space: nowrap;
 	padding-inline-start: 8px;
@@ -628,24 +628,37 @@ button.project {
  * class, so a bespoke control styled by its class alone came out as a green box
  * (§15.10).
  */
+/*
+ * The mark stays 12px to the eye; the box around it is padded out to the
+ * server's small target so a milestone can be clicked without aiming (§15.11).
+ * `background-clip` keeps the padding transparent, so only the inner square
+ * is painted — and rotating it makes the diamond.
+ */
 button.milestone {
 	position: absolute;
 	min-height: 0;
-	padding: 0;
 	border: none;
 	border-radius: 0;
-	inset-block-start: 10px;
+	box-sizing: content-box;
+	inset-block-start: 4px;
 	width: 12px;
 	height: 12px;
-	margin-inline-start: -6px;
+	padding: 6px;
+	margin-inline-start: -12px;
 	background: var(--color-warning-text);
+	background-clip: content-box;
 	transform: rotate(45deg);
 }
 
 /* A milestone that has been met is hollow: it is history, not a deadline. */
+/*
+ * A met milestone is hollow. The outline is pulled in by the padding that
+ * makes the hit area, so it traces the 12px mark rather than the 24px box.
+ */
 button.met {
 	background: transparent;
-	border: 2px solid var(--color-success-text);
+	outline: 2px solid var(--color-success-text);
+	outline-offset: -6px;
 }
 
 .today {
@@ -658,7 +671,7 @@ button.met {
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }

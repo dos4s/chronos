@@ -5,7 +5,7 @@ import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import { reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { fromTimeInput, toTimeInput } from '../utils/timeInput.ts'
 
 const props = defineProps<{ session: Session }>()
@@ -87,7 +87,11 @@ function save() {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Edit session')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Edit session')"
+		:open="true"
+		size="normal"
+		@update:open="emit('close')">
 		<div :class="$style.content">
 			<h3 :class="$style.title">
 				{{ session.projectName || t('chronos', 'No project') }}
@@ -163,7 +167,7 @@ function save() {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>

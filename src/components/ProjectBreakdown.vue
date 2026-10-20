@@ -35,7 +35,8 @@ const donut = computed(() => {
 			{{ t('chronos', 'By project (7 days) and goals') }}
 		</div>
 
-		<div :class="$style.donutWrap">
+		<!-- An empty ring beside "no sessions" says the same thing twice. -->
+		<div v-if="analytics.projects.length" :class="$style.donutWrap">
 			<div :class="$style.donut" :style="{ background: donut }">
 				<div :class="$style.hole" />
 			</div>
@@ -142,7 +143,7 @@ const donut = computed(() => {
 }
 
 .name {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -150,7 +151,7 @@ const donut = computed(() => {
 }
 
 .duration {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-variant-numeric: tabular-nums;
 	font-weight: 600;
 	color: var(--color-text-maxcontrast);
@@ -163,18 +164,24 @@ const donut = computed(() => {
 	padding-inline-start: 18px;
 }
 
-.goalInput {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.goalInput {
 	width: 80px;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
 	border-radius: 4px;
 	padding: 4px 6px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-main-text);
 }
 
 .goalProgress {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	color: var(--color-text-maxcontrast);
 }
@@ -195,7 +202,7 @@ const donut = computed(() => {
 }
 
 .empty {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	font-style: italic;
 }

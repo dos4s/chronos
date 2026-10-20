@@ -66,7 +66,7 @@ const area = computed(() => current.value === null ? null : projects.areaFor(cur
 }
 
 .name {
-	font-size: 15px;
+	font-size: var(--chronos-text);
 	font-weight: 600;
 	white-space: nowrap;
 	overflow: hidden;
@@ -74,7 +74,7 @@ const area = computed(() => current.value === null ? null : projects.areaFor(cur
 }
 
 .area {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	white-space: nowrap;
 }

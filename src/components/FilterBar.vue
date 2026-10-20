@@ -97,7 +97,13 @@ const showCompleted = computed({
 	pointer-events: none;
 }
 
-.input {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.input {
 	width: 100%;
 	padding-inline: 30px 28px;
 	margin: 0;
@@ -129,12 +135,12 @@ button.clear {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
 .hidden {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 
 /**
  * The question asked before something cannot be taken back.
@@ -24,7 +24,11 @@ const emit = defineEmits<{ close: [], confirm: [] }>()
 </script>
 
 <template>
-	<NcModal :name="name" @close="emit('close')">
+	<NcDialog
+		:name="name"
+		:open="true"
+		size="small"
+		@update:open="emit('close')">
 		<div :class="$style.body">
 			<p :class="$style.message">
 				{{ message }}
@@ -38,7 +42,7 @@ const emit = defineEmits<{ close: [], confirm: [] }>()
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -51,7 +55,7 @@ const emit = defineEmits<{ close: [], confirm: [] }>()
 
 .message {
 	margin: 0;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 }
 
 .actions {

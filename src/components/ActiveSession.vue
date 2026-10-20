@@ -122,7 +122,7 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 }
 
 .state {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	text-transform: uppercase;
 	letter-spacing: 0.12em;
 	font-weight: 700;
@@ -138,7 +138,7 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 }
 
 .startedAt {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -146,7 +146,7 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 500;
 }
 
@@ -157,7 +157,7 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 	max-width: 420px;
 	padding: 8px 16px;
 	background: color-mix(in srgb, var(--color-main-text) 6%, transparent);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 }
 
 .actions {

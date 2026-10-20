@@ -5,7 +5,7 @@ import { showError, showSuccess } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, ref } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { messageFor } from '../api/client.ts'
 import { promoteSubproject } from '../api/projects.ts'
@@ -68,7 +68,11 @@ async function promote(): Promise<void> {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Promote to a list')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Promote to a list')"
+		:open="true"
+		size="small"
+		@update:open="emit('close')">
 		<div :class="$style.body">
 			<p :class="$style.lead">
 				{{ n('chronos',
@@ -112,7 +116,7 @@ async function promote(): Promise<void> {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -125,7 +129,7 @@ async function promote(): Promise<void> {
 
 .lead {
 	margin: 0;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 }
 
 .field {
@@ -135,14 +139,14 @@ async function promote(): Promise<void> {
 }
 
 .label {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 }
 
 .facts {
 	margin: 0;
 	padding-inline-start: 18px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	display: flex;
 	flex-direction: column;

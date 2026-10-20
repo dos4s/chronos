@@ -12,6 +12,16 @@ const projects = useProjectsStore()
 
 <template>
 	<div :class="$style.view">
+		<div class="chronos-view-head">
+			<h2 class="chronos-section-title">
+				{{ t('chronos', 'Timer') }}
+			</h2>
+		</div>
+
+		<p class="chronos-view-why">
+			{{ t('chronos', 'Check in when you start and out when you stop; what you record here is what the analytics count. A session can name a project and carry a note.') }}
+		</p>
+
 		<div v-if="projects.selection.length" :class="$style.filterNotice">
 			{{ t('chronos', 'Filtering by project') }}:
 			<strong>{{ projects.selection.map((uri: string) => projects.nameFor(uri) ?? uri).join(', ') }}</strong>
@@ -34,10 +44,10 @@ const projects = useProjectsStore()
 }
 
 .filterNotice {
-	font-size: 15px;
+	font-size: var(--chronos-text);
 	padding: 12px 16px;
 	background: var(--color-background-hover);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	color: var(--color-main-text);
 	display: flex;
 	align-items: center;

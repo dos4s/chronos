@@ -4,7 +4,7 @@ import type { PlanSettings } from '../types/index.ts'
 import { t } from '@nextcloud/l10n'
 import { ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 
 /**
@@ -45,7 +45,11 @@ function toggle(day: number): void {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Timeline settings')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Timeline settings')"
+		:open="true"
+		size="small"
+		@update:open="emit('close')">
 		<div :class="$style.body">
 			<fieldset :class="$style.field">
 				<legend :class="$style.label">
@@ -100,7 +104,7 @@ function toggle(day: number): void {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -113,7 +117,7 @@ function toggle(day: number): void {
 
 .field {
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	padding: 12px;
 	display: flex;
 	flex-direction: column;
@@ -122,7 +126,7 @@ function toggle(day: number): void {
 }
 
 .label {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 }
 
@@ -130,7 +134,7 @@ function toggle(day: number): void {
 	display: flex;
 	gap: 8px;
 	align-items: flex-start;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .week {
@@ -143,11 +147,11 @@ function toggle(day: number): void {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }
