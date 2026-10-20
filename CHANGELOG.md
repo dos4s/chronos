@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.15] - 2026-10-20
+
+### Fixed
+- **The red bar down the chart was today, and it read as an error.** It is a hairline in the accent
+  colour now, and the sentence under the chart says what it is. (A label in the scale header was tried
+  first and printed over the month band — §15.12 again: nothing over text.)
+- **Dependency arrows doubled back over their own bars.** A hand-off on the same day, or a successor that
+  starts before its predecessor finishes, sent the three-segment route backwards through the bar it had
+  just left. Those links now leave the **bottom edge** of the predecessor, run along the gap between the
+  rows, and drop into the successor from the side they are approaching from. Links that run forwards are
+  unchanged.
+
 ## [0.5.14] - 2026-10-20
 
 Driven with a plan the size of a real one — six months, six phases, thirty-four tasks, seven dependencies

@@ -678,7 +678,7 @@ onBeforeUnmount(() => {
 			:description="t('chronos', 'Create a list in the Tasks app, and it becomes a project here.')" />
 
 		<p :class="$style.hint">
-			{{ t('chronos', 'Drag a bar to move it, its edges to change a date, and the dot on its right onto another task. Press ? for the rest.') }}
+			{{ t('chronos', 'The line down the chart is today. Drag a bar to move it, its edges to change a date, and the dot on its right onto another task. Press ? for the rest.') }}
 		</p>
 
 		<!-- What a screen reader hears while a bar is in the air (§15.7). -->
@@ -835,12 +835,18 @@ onBeforeUnmount(() => {
 	pointer-events: none;
 }
 
+/*
+ * Today. It was a 2px red bar down the whole chart, which reads as an error
+ * cutting the plan in half — the first thing anyone asked about it was what had
+ * gone wrong. It is a hairline in the accent colour now, and the scale above it
+ * says "Today" where it falls, so it explains itself (§15.13).
+ */
 .today {
 	position: absolute;
 	inset-block: 0;
-	width: 2px;
-	background: var(--color-error-text);
-	opacity: 0.6;
+	width: 1px;
+	background: var(--color-primary-element);
+	opacity: 0.5;
 	pointer-events: none;
 }
 

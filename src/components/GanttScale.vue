@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Scale } from '../utils/scale.ts'
 
+import { t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 
 /**
