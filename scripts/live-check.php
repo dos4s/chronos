@@ -623,14 +623,25 @@ try {
 	);
 
 	$linked = $planService->link($user, $ref, $taskUid, $childUid, 'FINISHTOSTART', 86400);
+
+	// Its own dependency among whatever else the list has. A real list may
+	// carry dependencies of its own, and asserting that the plan holds exactly
+	// one of them makes the check fail on somebody else's data rather than on
+	// the app.
+	$ownLinks = static function (array $links) use ($taskUid, $childUid): array {
+		return array_values(array_filter(
+			$links,
+			static fn (object $link): bool => $link->predecessorUid === $taskUid
+				&& $link->successorUid === $childUid,
+		));
+	};
+	$mine = $ownLinks($linked->links);
 	check(
 		'a dependency is stored once, predecessor to successor',
-		count($linked->links) === 1
-			&& $linked->links[0]->predecessorUid === $taskUid
-			&& $linked->links[0]->successorUid === $childUid,
-		count($linked->links) . ' links',
+		count($mine) === 1,
+		count($mine) . ' of its own, ' . count($linked->links) . ' in the plan',
 	);
-	check('the gap survives being written and read back', ($linked->links[0]->gapSeconds ?? 0) === 86400, 'GAP=P1D');
+	check('the gap survives being written and read back', ($mine[0]->gapSeconds ?? 0) === 86400, 'GAP=P1D');
 
 	// M4's acceptance criterion: what Chronos wrote is in the VTODO, where
 	// every other client can read it.
@@ -737,7 +748,11 @@ try {
 	// link was made is stale as soon as a bar has been dragged (D42) — which
 	// is exactly what happened here on the first run.
 	$withoutLink = $planService->unlink($user, $ref, $taskUid, $childUid);
-	check('removing a dependency rewrites the task without it', $withoutLink->links === [], count($withoutLink->links) . ' links left');
+	check(
+		'removing a dependency rewrites the task without it',
+		$ownLinks($withoutLink->links) === [],
+		count($ownLinks($withoutLink->links)) . ' of its own left',
+	);
 	$object = $predecessorUri === null ? null : $calendars->getObject($calendarId, $predecessorUri);
 	check(
 		'and takes it out of the VTODO as well',
