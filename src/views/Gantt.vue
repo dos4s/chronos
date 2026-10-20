@@ -407,6 +407,10 @@ onBeforeUnmount(() => {
 			</span>
 		</div>
 
+		<p class="chronos-view-why">
+			{{ t('chronos', 'When each task in this project runs. Drag a bar to move it, an edge to change a date, and the dot on its right onto another task to make that one wait for this one.') }}
+		</p>
+
 		<div :class="$style.toolbar">
 			<ProjectHeading />
 			<FilterBar

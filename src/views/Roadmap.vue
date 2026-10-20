@@ -62,11 +62,22 @@ const scrollTop = ref(0)
 const ROW_HEIGHT = 34
 
 /**
- * Every project the sidebar has in scope. With nothing selected that is all of
- * them, which is the roadmap's usual case — it is the cross-project view — and
- * with a selection it is those, because the sidebar scopes every view (§14.2).
+ * **Every** project, whatever the sidebar has selected — this is the one view
+ * that is deliberately not scoped to one project (§12.6), and scoping it was
+ * what made it indistinguishable from the timeline: click a project to work on
+ * its board, come to the roadmap, and you were looking at one fat bar rather
+ * than at where that project sits among the others. The selection is marked
+ * instead of enforced (§14.2, AD17).
  */
-const rows = computed(() => (roadmap.value?.rows ?? []).filter((row) => projects.matches(row.ref)))
+const rows = computed(() => roadmap.value?.rows ?? [])
+
+/**
+ * Which rows belong to the project being worked in, so the sidebar's choice is
+ * still visible here — marked rather than enforced.
+ */
+function isCurrent(row: RoadmapRow): boolean {
+	return projects.isCurrent(row.ref) && projects.selection.length > 0
+}
 
 const scale = computed(() => {
 	const window = windowFor(roadmap.value?.from ?? null, roadmap.value?.to ?? null, now.value, zoom.value)
@@ -266,6 +277,10 @@ onBeforeUnmount(() => {
 			</span>
 		</div>
 
+		<p class="chronos-view-why">
+			{{ t('chronos', 'Every project at once — each line runs from its earliest task to its latest, so it is read rather than drawn. Click a line to open that project’s timeline; double-click one to put a milestone on it.') }}
+		</p>
+
 		<div :class="$style.toolbar">
 			<div :class="$style.spacer" />
 			<NcButton
@@ -309,7 +324,7 @@ onBeforeUnmount(() => {
 						</div>
 						<button
 							v-else
-							:class="[$style.line, $style.project]"
+							:class="[$style.line, $style.project, { [$style.currentProject]: isCurrent(line.row) }]"
 							:style="{ paddingInlineStart: `${10 + line.row.depth * 14}px` }"
 							@click="open(line.row)">
 							<span :class="$style.name">{{ line.row.name }}</span>
@@ -500,6 +515,12 @@ onBeforeUnmount(() => {
 	padding-inline: 10px;
 	width: 100%;
 	text-align: start;
+}
+
+/* The project the sidebar is working in, named here rather than filtered to. */
+.currentProject {
+	font-weight: 600;
+	box-shadow: inset 3px 0 0 0 var(--color-primary-element);
 }
 
 .areaRow {
