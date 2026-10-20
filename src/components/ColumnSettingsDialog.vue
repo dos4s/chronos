@@ -6,7 +6,7 @@ import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import { computed, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { messageFor } from '../api/client.ts'
 import * as api from '../api/workflows.ts'
@@ -89,7 +89,11 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Column settings')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Column settings')"
+		:open="true"
+		size="small"
+		@update:open="emit('close')">
 		<div :class="$style.body">
 			<h2 :class="$style.title">
 				{{ column.name }}
@@ -154,7 +158,7 @@ async function save(): Promise<void> {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -177,19 +181,19 @@ async function save(): Promise<void> {
 }
 
 .label {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }
 
 .rules {
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	padding: 12px;
 	display: flex;
 	flex-direction: column;
@@ -209,14 +213,14 @@ async function save(): Promise<void> {
 	align-items: center;
 	gap: 6px;
 	flex: 1;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 }
 
 .note {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 

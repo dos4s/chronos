@@ -116,7 +116,7 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 	position: absolute;
 	inset-block-start: 5px;
 	height: 22px;
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	background: var(--color-primary-element);
 	color: var(--color-primary-element-text);
 	display: flex;
@@ -178,7 +178,7 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 
 .text {
 	position: relative;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	padding-inline: 6px;
 	white-space: nowrap;
 	overflow: hidden;

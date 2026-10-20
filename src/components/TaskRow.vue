@@ -105,6 +105,12 @@ async function commit() {
 					{{ task.summary || t('chronos', 'Untitled task') }}
 				</button>
 
+				<!--
+					One line, one voice: the facts about a task read as a
+					sentence separated by dots, rather than as five chips in
+					four shapes (§15.11). Only a state — overdue, due today —
+					takes a colour, so the colour means something.
+				-->
 				<div :class="$style.meta">
 					<span
 						v-if="status"
@@ -112,26 +118,26 @@ async function commit() {
 						:style="status.color ? { borderColor: status.color, color: status.color } : undefined">
 						{{ status.name }}
 					</span>
-					<span v-if="task.type === 'milestone'" :class="$style.tag">{{ t('chronos', 'Milestone') }}</span>
-					<span v-if="task.type === 'subproject'" :class="$style.tag">{{ t('chronos', 'Subproject') }}</span>
+					<span v-if="task.type === 'milestone'">{{ t('chronos', 'Milestone') }}</span>
+					<span v-if="task.type === 'subproject'">{{ t('chronos', 'Subproject') }}</span>
 					<span
 						v-if="dueLabel"
 						:class="[$style.due, { [$style.overdue]: overdue, [$style.today]: dueToday && !overdue }]">
-						{{ overdue ? t('chronos', 'Overdue: {due}', { due: dueLabel }) : dueLabel }}
+						{{ overdue ? t('chronos', 'Overdue {due}', { due: dueLabel }) : dueLabel }}
 					</span>
-					<span v-if="task.priority > 0" :class="$style.priority">
+					<span v-if="task.priority > 0">
 						{{ t('chronos', 'Priority {priority}', { priority: task.priority }) }}
 					</span>
-					<span v-if="task.percent !== null && !done" :class="$style.percent">{{ task.percent }}%</span>
-					<span v-if="task.assignee" :class="$style.assignee">{{ task.assignee }}</span>
+					<span v-if="task.percent !== null && !done">{{ task.percent }}% {{ t('chronos', 'done') }}</span>
+					<span v-if="task.assignee">{{ task.assignee }}</span>
 				</div>
 			</div>
 
 			<NcActions v-if="!readOnly" :aria-label="t('chronos', 'Task actions')">
-				<NcActionButton @click="emit('edit', node)">
+				<NcActionButton closeAfterClick @click="emit('edit', node)">
 					{{ t('chronos', 'Edit details') }}
 				</NcActionButton>
-				<NcActionButton @click="emit('addSubtask', node)">
+				<NcActionButton closeAfterClick @click="emit('addSubtask', node)">
 					{{ t('chronos', 'Add subtask') }}
 				</NcActionButton>
 				<!--
@@ -140,10 +146,11 @@ async function commit() {
 				-->
 				<NcActionButton
 					v-if="task.type === 'subproject' && modules.projects"
+					closeAfterClick
 					@click="emit('promote', node)">
 					{{ t('chronos', 'Promote to a list') }}
 				</NcActionButton>
-				<NcActionButton @click="emit('remove', node)">
+				<NcActionButton closeAfterClick @click="emit('remove', node)">
 					{{ t('chronos', 'Delete') }}
 				</NcActionButton>
 			</NcActions>
@@ -194,10 +201,17 @@ async function commit() {
 	color: var(--color-text-maxcontrast);
 }
 
-.check {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.check {
 	flex-shrink: 0;
-	width: 18px;
-	height: 18px;
+	/* The server's own small target: 18px was smaller than anything else. */
+	width: var(--chronos-control-small);
+	height: var(--chronos-control-small);
 	cursor: pointer;
 }
 
@@ -224,7 +238,7 @@ button.summary {
 	min-height: 0;
 	width: auto;
 	max-width: 100%;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 500;
 	color: var(--color-main-text);
 	text-align: start;
@@ -234,58 +248,48 @@ button.summary {
 	white-space: nowrap;
 }
 
-.rename {
+input.rename {
 	width: 100%;
 	max-width: 480px;
 	padding: 4px 8px;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	color: var(--color-main-text);
 	background: var(--color-main-background);
 	border: 1px solid var(--color-primary-element);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 }
 
 .meta {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
-	font-size: 12px;
+	align-items: baseline;
+	gap: var(--chronos-space-2);
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
+	font-variant-numeric: tabular-nums;
+}
+
+/* A dot between the facts, never before the first one. */
+.meta > * + *::before {
+	content: '·';
+	margin-inline-end: var(--chronos-space-2);
+	color: var(--color-border-dark);
 }
 
 .status {
 	padding: 1px 6px;
 	border: 1px solid var(--color-border-dark);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	color: var(--color-text-maxcontrast);
 	white-space: nowrap;
 }
 
-.tag {
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	font-weight: 600;
-	font-size: 10px;
-}
-
-.due {
-	font-variant-numeric: tabular-nums;
-}
-
 .overdue {
 	color: var(--color-error-text);
-	font-weight: 600;
 }
 
 .today {
 	color: var(--color-primary-element);
-	font-weight: 600;
-}
-
-.priority,
-.percent,
-.assignee {
-	font-variant-numeric: tabular-nums;
 }
 
 .children {

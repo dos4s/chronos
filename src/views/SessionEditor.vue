@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -515,7 +515,7 @@ onBeforeUnmount(() => {
 	grid-template-columns: clamp(86px, 22vw, 140px) 1fr;
 	grid-template-rows: 28px 1fr;
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	overflow: hidden;
 	/* As tall as the days it has, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));
@@ -529,7 +529,7 @@ onBeforeUnmount(() => {
 	display: flex;
 	align-items: center;
 	padding-inline: 8px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	border-inline-end: 1px solid var(--color-border);
 	border-block-end: 1px solid var(--color-border);
@@ -544,7 +544,7 @@ onBeforeUnmount(() => {
 
 .tick {
 	position: absolute;
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	line-height: 27px;
 	color: var(--color-text-maxcontrast);
 	padding-inline-start: 3px;
@@ -575,12 +575,12 @@ onBeforeUnmount(() => {
 }
 
 .weekday {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 }
 
 .date {
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -623,7 +623,7 @@ onBeforeUnmount(() => {
 .session {
 	position: absolute;
 	height: 32px;
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	background: var(--color-primary-element);
 	color: var(--color-primary-element-text);
 	border-inline-start: 4px solid var(--color-primary-element-light);
@@ -673,7 +673,7 @@ onBeforeUnmount(() => {
 }
 
 .label {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	padding-inline: 6px;
 	white-space: nowrap;
 	overflow: hidden;
@@ -702,21 +702,21 @@ onBeforeUnmount(() => {
 	z-index: 5;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	padding: 1px 6px;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	white-space: nowrap;
 	pointer-events: none;
 }
 
 .empty {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }

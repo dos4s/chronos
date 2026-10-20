@@ -1,19 +1,26 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
+import { computed } from 'vue'
 import { useAnalyticsStore } from '../stores/analytics.ts'
 import { useProjectsStore } from '../stores/projects.ts'
 import { formatDuration, formatWeekday } from '../utils/format.ts'
 
 const analytics = useAnalyticsStore()
 const projects = useProjectsStore()
+
+/** Nothing worked in the window: seven empty bars are not a chart (§15.11). */
+const hasWork = computed(() => analytics.days.some((day) => day.seconds > 0))
 </script>
 
 <template>
 	<div class="chronos-card">
 		<div class="chronos-label">
-			{{ t('chronos', 'Last 7 days') }}
+			{{ t('chronos', 'Each day') }}
 		</div>
-		<div :class="$style.chart">
+		<p v-if="!hasWork" :class="$style.empty">
+			{{ t('chronos', 'Nothing checked in this week. The bars fill as you work.') }}
+		</p>
+		<div v-else :class="$style.chart">
 			<div v-for="day in analytics.days" :key="day.date" :class="$style.column">
 				<div :class="$style.bars" :title="formatDuration(day.seconds)">
 					<div
@@ -39,8 +46,14 @@ const projects = useProjectsStore()
 	display: flex;
 	align-items: flex-end;
 	height: 220px;
-	gap: 8px;
-	padding-top: 10px;
+	gap: var(--chronos-space-2);
+	padding-top: var(--chronos-space-3);
+}
+
+.empty {
+	margin: var(--chronos-space-4) 0;
+	color: var(--color-text-maxcontrast);
+	font-size: var(--chronos-text-small);
 }
 
 .column {
@@ -72,7 +85,7 @@ const projects = useProjectsStore()
 }
 
 .label {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	text-transform: uppercase;
 	color: var(--color-text-maxcontrast);
 	font-weight: 600;

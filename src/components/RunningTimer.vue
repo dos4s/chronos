@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
 	gap: 6px;
 	padding: 6px 8px;
 	margin: 4px 8px 8px;
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	background: var(--color-background-hover);
 	border: 1px solid var(--color-border);
 }
@@ -145,14 +145,14 @@ onBeforeUnmount(() => {
 }
 
 .clock {
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 	line-height: 1.1;
 }
 
 .where {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	white-space: nowrap;
 	overflow: hidden;

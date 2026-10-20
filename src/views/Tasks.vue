@@ -262,7 +262,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -288,7 +288,7 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 	margin: 0;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	overflow: hidden;
 }
 
@@ -303,11 +303,11 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 	padding: 16px;
 	background: var(--color-background-hover);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 }
 
 .subtaskLabel {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 </style>

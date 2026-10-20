@@ -1289,6 +1289,45 @@ None of this was visible from the tests: Vitest runs without a DOM (§14.2), and
 was found by logging into the instance with a headless Chromium as a throwaway account, which is the only
 way anyone has looked at this app from the outside.
 
+### 15.11 One scale, and it is Nextcloud's
+0.5.11 is the pass that followed the question "can you see that the UI is sloppy?" — asked after ten
+releases of fixing what was *broken* and calling that the look. Measured on the instance, the app used
+**eleven font sizes** (10 to 36px, six of them inside the board alone), five corner radii, gaps of 2, 6 and
+14px against a 4px grid, and controls between 16 and 36px tall where the server's minimum target is 34.
+Nothing was wrong on its own; the whole was a mess, which is what sloppy means.
+
+**The scale lives in `src/styles/app.css`** as thin wrappers over the server's own tokens — `--chronos-text`
+(its body size), `--chronos-text-small`, `--chronos-text-title`, `--chronos-space-*` (whole multiples of its
+grid baseline), `--chronos-radius-*` (its three radii) and `--chronos-control` (its clickable area). Each
+falls back to a literal for a server that does not define one. **A view sets no size of its own**: there are
+now four across the app, and a figure that is not one of them is a bug.
+
+**What the pass changed, and why each is a defect rather than a preference:**
+
+- **The stepped left edge.** 0.5.7 cleared the navigation toggle sideways, so every view's title stood 48px
+  to the right of the content under it. The toggle is cleared *downwards* now, as Nextcloud's own apps do.
+- **Text running into controls.** `scripts/collisions.mjs`-style measurement (a throwaway in the session
+  scratchpad) compares each text node's painted box, clipped by its scroll ancestors, against every control
+  and icon that is not its own parent, and flags anything sitting on the first characters of a line. It
+  found the search field's magnifier printed over the placeholder in three views — because
+  **`.input { padding-inline: 30px }` loses to Nextcloud's `input` rule** (§15.10 again, for fields this
+  time, not buttons). Every bespoke `input`, `select` and `textarea` is element-qualified now.
+- **The dialogs had never been looked at.** `NcModal` paints its title bar across the whole window, so
+  *Task details* was drawn over Nextcloud's own top bar; the name field was 130px wide — the server's
+  default — and scrolled the name it held; a time input showed against a blank date; three filled buttons
+  sat in one row. All eight dialogs are `NcDialog` now, their fields fill the dialog, and a menu that opens
+  one closes itself (`close-after-click`, which Nextcloud leaves off by default).
+- **Two signals for one fact.** An overdue card had a red edge *and* a red date; the date says it.
+- **Charts of nothing.** Seven empty bars and a grey ring next to the sentence "no sessions" are three ways
+  of saying the same thing: the bars and the ring are drawn only when there is something to draw.
+- **A board of grey.** Columns were filled slabs that stretched to the tallest, so an empty column was the
+  heaviest thing on the screen; they are outlines now. A four-status board also overflowed a 1400px window,
+  because a flex item will not shrink past its own content without a floor.
+
+**The rule for new work:** a size, a gap, a radius or a control height that is not one of the variables is
+not a decision, it is an oversight — and anything that is a button or a field for the keyboard's sake must
+be styled with its element in the selector, or the server will style it instead.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.

@@ -68,16 +68,16 @@ const dates = computed(() => {
 			@dblclick.stop
 			@keydown.stop>
 			<NcActions :aria-label="t('chronos', 'Task actions')">
-				<NcActionButton @click="emit('open')">
+				<NcActionButton closeAfterClick @click="emit('open')">
 					{{ t('chronos', 'Edit details') }}
 				</NcActionButton>
-				<NcActionButton @click="emit('addSubtask')">
+				<NcActionButton closeAfterClick @click="emit('addSubtask')">
 					{{ t('chronos', 'Add subtask') }}
 				</NcActionButton>
-				<NcActionButton v-if="row.bar && !row.isSummary" @click="emit('clearDates')">
+				<NcActionButton v-if="row.bar && !row.isSummary" closeAfterClick @click="emit('clearDates')">
 					{{ t('chronos', 'Take its dates off') }}
 				</NcActionButton>
-				<NcActionButton @click="emit('remove')">
+				<NcActionButton closeAfterClick @click="emit('remove')">
 					{{ t('chronos', 'Delete') }}
 				</NcActionButton>
 			</NcActions>
@@ -115,7 +115,7 @@ const dates = computed(() => {
 }
 
 .name {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	line-height: 1.1;
 	white-space: nowrap;
 	overflow: hidden;
@@ -123,7 +123,7 @@ const dates = computed(() => {
 }
 
 .when {
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	white-space: nowrap;
 	overflow: hidden;

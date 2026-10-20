@@ -216,7 +216,7 @@ refresh()
 	text-align: center;
 	padding: 16px;
 	color: var(--color-text-maxcontrast);
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .state {
@@ -253,7 +253,7 @@ refresh()
 }
 
 .stateLabel {
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	text-transform: uppercase;
 	letter-spacing: 0.1em;
 	font-weight: 600;
@@ -273,7 +273,7 @@ refresh()
 	align-items: center;
 	gap: 8px;
 	justify-content: center;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 500;
 }
 
@@ -288,10 +288,10 @@ refresh()
 	font-style: italic;
 	color: var(--color-text-lighter);
 	text-align: center;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	padding: 6px 10px;
 	background: color-mix(in srgb, var(--color-main-text) 6%, transparent);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 }
 
 .todayLine {
@@ -302,7 +302,7 @@ refresh()
 }
 
 .todayLabel {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	text-transform: uppercase;
 	letter-spacing: 0.1em;
 	color: var(--color-text-maxcontrast);
@@ -310,7 +310,7 @@ refresh()
 }
 
 .todayValue {
-	font-size: 16px;
+	font-size: var(--chronos-text-title);
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 }
@@ -319,10 +319,16 @@ refresh()
 	width: 100%;
 }
 
-.input {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.input {
 	width: 100%;
 	padding: 8px 12px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-main-text);
 	background: color-mix(in srgb, var(--color-main-background) 60%, transparent);
 	border: 1px solid color-mix(in srgb, var(--color-main-text) 14%, transparent);
@@ -336,11 +342,11 @@ refresh()
 	color: var(--color-text-maxcontrast);
 }
 
-.input:focus {
+input.input:focus {
 	border-color: var(--color-primary-element);
 }
 
-.input:disabled {
+input.input:disabled {
 	opacity: 0.5;
 }
 
@@ -353,7 +359,7 @@ refresh()
 
 .btn {
 	padding: 7px 14px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	border: none;
 	border-radius: 999px;
@@ -404,7 +410,7 @@ refresh()
 }
 
 .recentTitle {
-	font-size: 10px;
+	font-size: var(--chronos-text-small);
 	text-transform: uppercase;
 	letter-spacing: 0.1em;
 	color: var(--color-text-maxcontrast);
@@ -426,7 +432,7 @@ refresh()
 	align-items: center;
 	gap: 8px;
 	padding: 4px 6px;
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	cursor: pointer;
 	transition: background 0.15s ease;
 }
@@ -443,7 +449,7 @@ refresh()
 }
 
 .recentNote {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -452,7 +458,7 @@ refresh()
 }
 
 .recentDur {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	font-variant-numeric: tabular-nums;
 	color: var(--color-text-maxcontrast);
 	font-weight: 600;

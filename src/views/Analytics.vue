@@ -42,17 +42,30 @@ watch(() => time.sessions, () => analytics.refresh())
 	<div :class="$style.view">
 		<div class="chronos-view-head">
 			<h2 class="chronos-section-title">
-				{{ t('chronos', 'Analytics overview') }}
+				{{ t('chronos', 'Analytics') }}
 			</h2>
 		</div>
 
+		<p class="chronos-view-why">
+			{{ t('chronos', 'Where your time went: today, the last seven days, and which project it went to. It counts checked-in sessions, not tasks.') }}
+		</p>
+
 		<div :class="$style.stats">
+			<!--
+				Two figures of the same kind, so one size and one shape: the
+				left card used to be 36px and the right one 28px, side by side
+				(§15.11). The second line is always there, so the pair matches
+				whether or not there is anything to say.
+			-->
 			<div class="chronos-card">
 				<div class="chronos-label">
 					{{ t('chronos', 'Today') }}
 				</div>
-				<div :class="$style.valueLarge">
+				<div :class="$style.value">
 					{{ formatDuration(analytics.todaySeconds) }}
+				</div>
+				<div :class="$style.meta">
+					{{ t('chronos', 'Since midnight') }}
 				</div>
 			</div>
 			<div class="chronos-card">
@@ -89,20 +102,14 @@ watch(() => time.sessions, () => analytics.refresh())
 }
 
 .value {
-	font-size: 28px;
-	font-weight: 700;
-	font-variant-numeric: tabular-nums;
-}
-
-.valueLarge {
-	font-size: 36px;
+	font-size: var(--chronos-text-display);
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 	letter-spacing: -0.02em;
 }
 
 .meta {
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 

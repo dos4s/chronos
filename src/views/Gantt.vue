@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -672,7 +672,7 @@ onBeforeUnmount(() => {
 	grid-template-columns: clamp(120px, 34vw, 320px) 1fr;
 	grid-template-rows: 44px 1fr;
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	overflow: hidden;
 	/*
 	 * As tall as its rows, and never taller than the window — so a short plan
@@ -689,7 +689,7 @@ onBeforeUnmount(() => {
 	display: flex;
 	align-items: flex-end;
 	padding: 0 8px 4px;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-weight: 600;
 	border-inline-end: 1px solid var(--color-border);
 	border-block-end: 1px solid var(--color-border);
@@ -718,7 +718,7 @@ onBeforeUnmount(() => {
 }
 
 .under {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -765,16 +765,16 @@ onBeforeUnmount(() => {
 	z-index: 5;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	padding: 2px 6px;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	white-space: nowrap;
 	pointer-events: none;
 	box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
 }
 
 .hint {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }

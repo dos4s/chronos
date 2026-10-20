@@ -5,7 +5,7 @@ import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import { computed, reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { messageFor } from '../api/client.ts'
 import { fetchHistory } from '../api/workflows.ts'
 import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
@@ -157,7 +157,16 @@ function save() {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Task details')" @close="emit('close')">
+	<!--
+		NcDialog, not NcModal: the modal paints its title bar across the whole
+		window, so "Task details" was drawn over Nextcloud's own top bar
+		(§15.11). A dialog keeps its name in its own header.
+	-->
+	<NcDialog
+		:name="t('chronos', 'Task details')"
+		:open="true"
+		size="normal"
+		@update:open="emit('close')">
 		<div :class="$style.content">
 			<label :class="$style.field">
 				<span :class="$style.legend">{{ t('chronos', 'Name') }}</span>
@@ -195,7 +204,7 @@ function save() {
 				<div :class="$style.dateRow">
 					<input v-model="form.startDate" type="date" :aria-label="t('chronos', 'Start date')">
 					<input
-						v-if="!form.startAllDay"
+						v-if="!form.startAllDay && form.startDate !== ''"
 						v-model="form.startTime"
 						type="time"
 						:aria-label="t('chronos', 'Start time')">
@@ -213,7 +222,7 @@ function save() {
 				<div :class="$style.dateRow">
 					<input v-model="form.dueDate" type="date" :aria-label="t('chronos', 'Due date')">
 					<input
-						v-if="!form.dueAllDay"
+						v-if="!form.dueAllDay && form.dueDate !== ''"
 						v-model="form.dueTime"
 						type="time"
 						:aria-label="t('chronos', 'Due time')">
@@ -233,17 +242,20 @@ function save() {
 							{{ level }}
 						</option>
 					</select>
-					<small>{{ t('chronos', '1 is highest, as iCalendar defines it') }}</small>
+					<small>{{ t('chronos', '1 is the highest') }}</small>
 				</label>
 
 				<label :class="$style.field">
 					<span :class="$style.legend">{{ t('chronos', 'Progress') }}</span>
-					<input
-						v-model="form.percent"
-						type="number"
-						min="0"
-						max="100"
-						step="5">
+					<div :class="$style.suffixed">
+						<input
+							v-model="form.percent"
+							type="number"
+							min="0"
+							max="100"
+							step="5">
+						<span :class="$style.suffix">%</span>
+					</div>
 				</label>
 
 				<label :class="$style.field">
@@ -283,7 +295,7 @@ function save() {
 					{{ t('chronos', 'Delete') }}
 				</NcButton>
 				<div :class="$style.spacer" />
-				<NcButton variant="secondary" @click="emit('close')">
+				<NcButton variant="tertiary" @click="emit('close')">
 					{{ t('chronos', 'Cancel') }}
 				</NcButton>
 				<NcButton variant="primary" @click="save">
@@ -291,16 +303,37 @@ function save() {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
 .content {
-	padding: 24px;
-	min-width: 380px;
+	padding: var(--chronos-space-6);
+	min-width: min(560px, 90vw);
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: var(--chronos-space-4);
+}
+
+/*
+ * Nextcloud gives every input a width of 130px through a selector with an
+ * element in it, which outranks a class (§15.10) — so the name field in this
+ * dialog was a third the width of the dialog and scrolled the name it held.
+ * These are qualified the same way, and fill their column.
+ */
+.content input[type="text"],
+.content input[type="number"],
+.content input[type="date"],
+.content input[type="time"],
+.content select {
+	width: 100%;
+	min-height: var(--chronos-control);
+	margin: 0;
+}
+
+.content input[type="checkbox"] {
+	width: auto;
+	min-height: 0;
 }
 
 .spacer {
@@ -313,46 +346,68 @@ function save() {
 	margin: 0;
 }
 
+/* Sentence case at the app's small size: a label is read, not shouted. */
 .legend {
 	font-weight: 600;
-	font-size: 0.85rem;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
 	padding: 0;
 }
 
 .dateRow {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--chronos-space-2);
 	flex-wrap: wrap;
-	margin-top: 6px;
+	margin-top: var(--chronos-space-1);
+}
+
+/* The date takes the room; the time and the all-day switch take what they need. */
+.dateRow > :first-child {
+	flex: 1 1 160px;
+}
+
+.dateRow input[type="time"] {
+	flex: 0 1 140px;
 }
 
 .allDay {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	font-size: 13px;
+	gap: var(--chronos-space-2);
+	font-size: var(--chronos-text-small);
+	white-space: nowrap;
 }
 
 .grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-	gap: 12px;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: var(--chronos-space-3);
+	align-items: start;
 }
 
 .field {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .field small {
 	color: var(--color-text-maxcontrast);
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
+}
+
+/* A number with its unit beside it, inside the field's own box. */
+.suffixed {
+	display: flex;
+	align-items: center;
+	gap: var(--chronos-space-2);
+}
+
+.suffix {
+	color: var(--color-text-maxcontrast);
+	font-size: var(--chronos-text-small);
 }
 
 .history {
@@ -364,7 +419,7 @@ function save() {
 
 .empty {
 	margin: 6px 0 0;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -379,18 +434,18 @@ function save() {
 
 .changeWhat {
 	display: block;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .changeWhen {
 	display: block;
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
 .changeNote {
 	display: block;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-style: italic;
 }
 

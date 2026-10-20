@@ -216,10 +216,10 @@ const limitLabel = computed(() => {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	background: var(--color-background-dark);
+	background: transparent;
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
-	padding: 10px;
+	border-radius: var(--chronos-radius-card);
+	padding: var(--chronos-space-2);
 	min-height: 160px;
 	max-height: 100%;
 	transition: opacity 0.12s ease;
@@ -242,6 +242,13 @@ const limitLabel = computed(() => {
 @media (min-width: 701px) {
 	.column {
 		flex: 1 1 240px;
+		/*
+		 * Without a floor a flex item will not shrink past its own content,
+		 * so four columns of long card titles overflowed a 1400px window and
+		 * the fourth was cut in half. Below this they stop shrinking and the
+		 * board scrolls instead, which is what a seven-status workflow needs.
+		 */
+		min-width: 200px;
 	}
 }
 
@@ -259,7 +266,7 @@ const limitLabel = computed(() => {
 }
 
 .name {
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 600;
 	margin: 0;
 	flex: 1;
@@ -269,7 +276,7 @@ const limitLabel = computed(() => {
 }
 
 .count {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 
@@ -279,7 +286,7 @@ const limitLabel = computed(() => {
 }
 
 .warning {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-warning-text);
 	margin: 0;
 }
@@ -299,13 +306,13 @@ const limitLabel = computed(() => {
 	list-style: none;
 	height: 42px;
 	border: 2px dashed var(--color-primary-element);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	background: var(--color-primary-element-light);
 }
 
 .empty {
 	list-style: none;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	text-align: center;
 	padding: 12px 0;
@@ -319,7 +326,7 @@ const limitLabel = computed(() => {
 }
 
 .under {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -338,13 +345,13 @@ const limitLabel = computed(() => {
  */
 button.addRow {
 	background: transparent;
-	min-height: 0;
+	min-height: var(--chronos-control);
 	width: 100%;
 	border: 1px dashed var(--color-border-dark);
-	border-radius: var(--border-radius-large);
+	border-radius: var(--chronos-radius-card);
 	color: var(--color-text-maxcontrast);
 	cursor: pointer;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 	font-weight: normal;
 	padding: 6px;
 	text-align: start;

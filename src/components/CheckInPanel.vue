@@ -54,7 +54,7 @@ async function checkIn() {
 			{{ t('chronos', 'Ready when you are') }}
 		</div>
 		<div :class="$style.hint">
-			{{ t('chronos', 'Pick a project (optional), add a note, and press Check in.') }}
+			{{ t('chronos', 'Pick a project and add a note if you want to, then press Check in.') }}
 		</div>
 		<div :class="$style.field">
 			<NcSelect
@@ -72,7 +72,7 @@ async function checkIn() {
 			v-model="note"
 			type="text"
 			:class="$style.note"
-			:placeholder="t('chronos', 'What are you working on? (optional)')"
+			:placeholder="t('chronos', 'What are you working on?')"
 			:disabled="time.loading"
 			@keydown.enter="checkIn">
 		<NcButton
@@ -95,28 +95,43 @@ async function checkIn() {
 }
 
 .headline {
-	font-size: 22px;
-	font-weight: 600;
+	font-size: var(--chronos-text-title);
+	font-weight: 700;
 	letter-spacing: -0.01em;
 }
 
 .hint {
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	color: var(--color-text-maxcontrast);
 	margin-bottom: 8px;
 	text-align: center;
 }
 
+/*
+ * One width for the three controls. The picker was 370px, the note 600 and the
+ * button 600, stacked — three edges where there should be one (§15.11).
+ */
 .field {
 	width: 100%;
 	max-width: 420px;
 }
 
-.note {
+.panel :global(.button-vue) {
+	max-width: 420px;
+}
+
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.note {
 	width: 100%;
 	max-width: 420px;
-	padding: 12px 16px;
-	font-size: 15px;
+	min-height: var(--chronos-control);
+	padding: var(--chronos-space-2) var(--chronos-space-4);
+	font-size: var(--chronos-text);
 	color: var(--color-main-text);
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
@@ -130,11 +145,11 @@ async function checkIn() {
 	color: var(--color-text-maxcontrast);
 }
 
-.note:focus {
+input.note:focus {
 	border-color: var(--color-primary-element);
 }
 
-.note:disabled {
+input.note:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
 }

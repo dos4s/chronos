@@ -2,7 +2,7 @@
 import { t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { groupsFor } from '../utils/shortcuts.ts'
 
 /**
@@ -19,7 +19,11 @@ const groups = computed(() => groupsFor(typeof route.name === 'string' ? route.n
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Keyboard and gestures')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Keyboard and gestures')"
+		:open="true"
+		size="normal"
+		@update:open="emit('close')">
 		<div :class="$style.body">
 			<section v-for="group in groups" :key="group.title" :class="$style.group">
 				<h3 :class="$style.title">
@@ -41,7 +45,7 @@ const groups = computed(() => groupsFor(typeof route.name === 'string' ? route.n
 				{{ t('chronos', 'Every drag here also works from the keyboard. If one does not, that is a bug worth reporting.') }}
 			</p>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -60,7 +64,7 @@ const groups = computed(() => groupsFor(typeof route.name === 'string' ? route.n
 
 .title {
 	margin: 0;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	font-weight: 600;
 }
 
@@ -73,11 +77,11 @@ const groups = computed(() => groupsFor(typeof route.name === 'string' ? route.n
 }
 
 .keys {
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	font-family: var(--font-face-monospace, monospace);
 	background: var(--color-background-dark);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
+	border-radius: var(--chronos-radius-chip);
 	padding: 1px 6px;
 	white-space: nowrap;
 	justify-self: start;
@@ -85,12 +89,12 @@ const groups = computed(() => groupsFor(typeof route.name === 'string' ? route.n
 
 .what {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .footer {
 	margin: 0;
-	font-size: 12px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 }
 

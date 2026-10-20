@@ -173,7 +173,6 @@ function onPointerDown(event: PointerEvent): void {
 		:class="[$style.card, {
 			[$style.selected]: selected,
 			[$style.ghost]: dragging,
-			[$style.overdue]: overdue,
 			[$style.indented]: indented,
 		}]"
 		:tabindex="readOnly ? -1 : 0"
@@ -207,13 +206,13 @@ function onPointerDown(event: PointerEvent): void {
 				@dblclick.stop
 				@keydown.stop>
 				<NcActions :aria-label="t('chronos', 'Card actions')">
-					<NcActionButton @click="emit('open')">
+					<NcActionButton closeAfterClick @click="emit('open')">
 						{{ t('chronos', 'Edit details') }}
 					</NcActionButton>
-					<NcActionButton @click="emit('addSubtask')">
+					<NcActionButton closeAfterClick @click="emit('addSubtask')">
 						{{ t('chronos', 'Add subtask') }}
 					</NcActionButton>
-					<NcActionButton @click="emit('remove')">
+					<NcActionButton closeAfterClick @click="emit('remove')">
 						{{ t('chronos', 'Delete') }}
 					</NcActionButton>
 				</NcActions>
@@ -265,11 +264,11 @@ function onPointerDown(event: PointerEvent): void {
 	list-style: none;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
-	padding: 10px 12px;
+	border-radius: var(--chronos-radius-card);
+	padding: var(--chronos-space-3);
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: var(--chronos-space-2);
 	cursor: grab;
 	/* A finger on a card drags it; the browser must not also scroll (§15.1). */
 	touch-action: none;
@@ -302,13 +301,15 @@ function onPointerDown(event: PointerEvent): void {
 	opacity: 0.35;
 }
 
-.overdue {
-	border-inline-start: 3px solid var(--color-error-text);
-}
+/*
+ * An overdue card used to carry two signals for one fact — a red edge *and* a
+ * red date — which is how a board ends up looking anxious. The date says it,
+ * because the date is the fact (§15.11).
+ */
 
 /* Whose subtask this is, for a card that is not sitting under its parent. */
 .belongs {
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	display: flex;
 	gap: 4px;
@@ -351,7 +352,7 @@ function onPointerDown(event: PointerEvent): void {
 .summary {
 	flex: 1;
 	min-width: 0;
-	font-size: 14px;
+	font-size: var(--chronos-text);
 	line-height: 1.35;
 	overflow-wrap: anywhere;
 }
@@ -363,11 +364,14 @@ function onPointerDown(event: PointerEvent): void {
 }
 
 .chip {
-	font-size: 11px;
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--chronos-control-small);
+	font-size: var(--chronos-text-small);
 	color: var(--color-text-maxcontrast);
 	background: var(--color-background-hover);
-	border-radius: var(--border-radius);
-	padding: 1px 6px;
+	border-radius: var(--chronos-radius-chip);
+	padding: 0 var(--chronos-space-2);
 	max-width: 140px;
 	overflow: hidden;
 	text-overflow: ellipsis;

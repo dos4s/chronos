@@ -4,7 +4,7 @@ import type { Project } from '../types/index.ts'
 import { t } from '@nextcloud/l10n'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { useModulesStore } from '../stores/modules.ts'
 import { useProjectsStore } from '../stores/projects.ts'
@@ -136,7 +136,11 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-	<NcModal :name="t('chronos', 'Project settings')" @close="emit('close')">
+	<NcDialog
+		:name="t('chronos', 'Project settings')"
+		:open="true"
+		size="normal"
+		@update:open="emit('close')">
 		<div :class="$style.content">
 			<h3 :class="$style.title">
 				{{ project.name }}
@@ -274,7 +278,7 @@ async function save(): Promise<void> {
 				</NcButton>
 			</div>
 		</div>
-	</NcModal>
+	</NcDialog>
 </template>
 
 <style module>
@@ -303,12 +307,12 @@ async function save(): Promise<void> {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .field small {
 	color: var(--color-text-maxcontrast);
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 }
 
 .row {
@@ -318,7 +322,14 @@ async function save(): Promise<void> {
 	flex-wrap: wrap;
 }
 
-.grow {
+/*
+ * Qualified with the element for the same reason the buttons are (§15.10):
+ * Nextcloud styles every `input`, `select` and `textarea` through a selector
+ * with an element in it, which outranks a single class — so this rule's
+ * padding, width and height were being ignored.
+ */
+input.grow,
+select.grow {
 	flex: 1 1 160px;
 }
 
@@ -326,13 +337,13 @@ async function save(): Promise<void> {
 	display: flex;
 	align-items: flex-start;
 	gap: 8px;
-	font-size: 13px;
+	font-size: var(--chronos-text-small);
 }
 
 .checkbox small {
 	display: block;
 	color: var(--color-text-maxcontrast);
-	font-size: 11px;
+	font-size: var(--chronos-text-small);
 }
 
 .actions {
