@@ -238,7 +238,14 @@ export function createScale(zoom: Zoom, from: UnixSeconds, to: UnixSeconds, avai
 			return bands
 		},
 		stripes: (workingDays: number[]) => {
-			if (workingDays.length === 0 || workingDays.length === 7) {
+			/*
+			 * Below about a centimetre a week the stripes stop marking the
+			 * weekends and start being a zebra over the whole chart: six
+			 * months at a fitted scale is forty pairs of narrow grey bands
+			 * behind every bar (§15.13). The days are still there; they are
+			 * just not worth drawing at that size.
+			 */
+			if (workingDays.length === 0 || workingDays.length === 7 || pxPerDay < 9) {
 				return []
 			}
 
