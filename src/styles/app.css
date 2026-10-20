@@ -44,30 +44,34 @@ body.app-chronos .app-navigation {
 
 /* Surfaces */
 
+/*
+ * **A section, not a sticker (§15.12).** This used to be a translucent card
+ * with a blur, a border, a radius and an inset highlight — a pane of frosted
+ * glass laid on top of the page. Nextcloud's own apps do not do that: Files and
+ * Notes put flat content straight onto the content area and let rows and
+ * headings carry the structure, which is why Chronos looked stuck on rather
+ * than built in. What is left is the spacing and a rule above, where a section
+ * follows another.
+ */
 .chronos-card {
-	background: color-mix(in srgb, var(--color-main-background) 30%, transparent);
-	border: 1px solid color-mix(in srgb, var(--color-main-text) 10%, transparent);
-	backdrop-filter: blur(18px) saturate(1.4);
-	-webkit-backdrop-filter: blur(18px) saturate(1.4);
-	border-radius: var(--chronos-radius-card);
-	padding: 20px 24px;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-main-text) 6%, transparent);
+	gap: var(--chronos-space-3);
+	padding: var(--chronos-space-4) 0;
 }
 
+/* The same, for the one panel the timer puts its form in. */
+/*
+ * Left-aligned, like every other block in the app and in Nextcloud: a centred
+ * column in the middle of a left-aligned page is the other half of why this
+ * looked pasted on (§15.12).
+ */
 .chronos-panel {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	gap: 14px;
-	padding: 36px 32px;
-	background: var(--color-background-hover);
-	border-radius: var(--chronos-radius-card);
-	border: 1px solid var(--color-border);
-	transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-	box-shadow: 0 8px 32px -20px rgba(0, 0, 0, 0.4);
+	align-items: flex-start;
+	gap: var(--chronos-space-3);
+	padding: var(--chronos-space-4) 0;
 }
 
 .chronos-panel .button-vue {
@@ -152,7 +156,7 @@ body.app-chronos .app-navigation {
 	}
 
 	.chronos-card {
-		padding: 16px;
+		padding: var(--chronos-space-3) 0;
 	}
 
 	.chronos-header,

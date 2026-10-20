@@ -283,13 +283,15 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 	padding: 32px;
 }
 
+/*
+ * Rows on the content area, the way a file list is: no box around them, no
+ * radius, no second background (§15.12). The separators below do the work the
+ * border used to pretend to do.
+ */
 .list {
 	padding: 0;
 	margin: 0;
-	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
-	border-radius: var(--chronos-radius-card);
-	overflow: hidden;
+	border-top: 1px solid var(--color-border);
 }
 
 .empty {

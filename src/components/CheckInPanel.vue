@@ -103,8 +103,7 @@ async function checkIn() {
 .hint {
 	font-size: var(--chronos-text);
 	color: var(--color-text-maxcontrast);
-	margin-bottom: 8px;
-	text-align: center;
+	margin-bottom: var(--chronos-space-1);
 }
 
 /*
@@ -114,6 +113,11 @@ async function checkIn() {
 .field {
 	width: 100%;
 	max-width: 420px;
+}
+
+/* The picker fills its column, like the note and the button under it. */
+.field :global(.v-select) {
+	width: 100%;
 }
 
 .panel :global(.button-vue) {

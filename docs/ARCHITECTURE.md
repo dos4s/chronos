@@ -1328,6 +1328,31 @@ now four across the app, and a figure that is not one of them is a bug.
 not a decision, it is an oversight — and anything that is a button or a field for the keyboard's sake must
 be styled with its element in the selector, or the server will style it instead.
 
+### 15.12 Built in, not stuck on
+"The sections look like stickers embedded — it doesn't really merge with Nextcloud; native apps have a
+better feeling." Measuring the instance's own apps against ours said exactly why.
+
+**What a native app does.** In Files and Notes the content area has **no padding**, its children are
+**flat** — no background, no border, no radius, no shadow — and the list runs the full width of the pane.
+Structure comes from rows, separators, hover and headings. The only boxes are the components Nextcloud
+itself provides.
+
+**What Chronos did.** `.chronos-card` was a pane of frosted glass: a translucent background, an 18px blur
+with saturation, a 1px border, a radius and an inset highlight. `.chronos-panel` was a grey slab with a
+drop shadow. The task list was a bordered, rounded, white box **on a white background**. `App.vue` put all
+of it inside a 28px gutter capped at 1200px, and the check-in form was centred inside a left-aligned page.
+Six surfaces, each floating on the one below — which is what "stuck on" looks like.
+
+**So the surfaces went.** A section is spacing and a heading; a list is rows with separators, flush to the
+content area; a panel is a left-aligned column. The view fills the pane, with a gutter rather than a
+margin, and the top padding is what clears the navigation toggle. The board keeps outlined columns because
+a column *is* a container — Deck draws them the same way — and the charts keep their frame because a chart
+is a table. Everything else is flat.
+
+**The rule:** a background, a border or a radius has to earn its place by separating things that are
+genuinely different. Decoration that only makes a shape is what made this look like an app pasted into
+another app.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.

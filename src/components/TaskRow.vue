@@ -179,9 +179,9 @@ async function commit() {
 .row {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 10px 16px;
-	border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+	gap: var(--chronos-space-3);
+	padding: var(--chronos-space-2) var(--chronos-space-3);
+	border-bottom: 1px solid var(--color-border);
 }
 
 .row:hover {
