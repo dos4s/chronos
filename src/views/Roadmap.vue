@@ -6,9 +6,12 @@ import { showError } from '@nextcloud/dialogs'
 import { n, t } from '@nextcloud/l10n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import NcButton from '@nextcloud/vue/components/NcButton'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
+import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GanttScale from '../components/GanttScale.vue'
 import ShortcutsDialog from '../components/ShortcutsDialog.vue'
@@ -46,7 +49,9 @@ const { now } = useNow()
 
 const roadmap = ref<Roadmap | null>(null)
 const loading = ref(false)
-const zoom = ref<Zoom>('quarter')
+const zoom = ref<Zoom>('fit')
+/** How wide the chart may draw, measured rather than assumed (§12.6). */
+const chartWidth = ref(0)
 const shortcuts = ref(false)
 
 /** The milestone being edited, which is a task like any other (§6). */
@@ -82,7 +87,7 @@ function isCurrent(row: RoadmapRow): boolean {
 const scale = computed(() => {
 	const window = windowFor(roadmap.value?.from ?? null, roadmap.value?.to ?? null, now.value, zoom.value)
 
-	return createScale(zoom.value, window.from, window.to)
+	return createScale(zoom.value, window.from, window.to, chartWidth.value)
 })
 
 /**
@@ -128,6 +133,7 @@ function onScroll(): void {
 	}
 	scrollLeft.value = element.scrollLeft
 	scrollTop.value = element.scrollTop
+	chartWidth.value = Math.max(0, element.clientWidth - 2)
 }
 
 /** Whether this project's list can be written to; a shared one may not be. */
@@ -248,6 +254,35 @@ watch(() => projects.showArchived, () => {
 	void load()
 })
 
+/*
+ * The chart's width is not known until it has been laid out, and it changes
+ * when the sidebar opens or the window resizes — so `fit` watches the element
+ * rather than measuring it once on mount (§12.5).
+ */
+let watcher: ResizeObserver | null = null
+
+// The chart element only exists once there are rows to draw, so the watch is
+// on the ref: when it appears — or is replaced — it is measured and observed.
+watch(chart, (element) => {
+	if (element !== null) {
+		chartWidth.value = Math.max(0, element.clientWidth - 2)
+		watchChartWidth()
+	}
+})
+
+function watchChartWidth(): void {
+	const element = chart.value
+	if (element === null || typeof ResizeObserver === 'undefined') {
+		return
+	}
+
+	watcher?.disconnect()
+	watcher = new ResizeObserver(() => {
+		chartWidth.value = Math.max(0, element.clientWidth - 2)
+	})
+	watcher.observe(element)
+}
+
 onMounted(async () => {
 	window.addEventListener('resize', onScroll)
 	await load()
@@ -255,13 +290,16 @@ onMounted(async () => {
 	// The chart only exists once there is something to draw, which is after
 	// Vue has rendered what `load()` fetched.
 	await nextTick()
+	watchChartWidth()
 	const element = chart.value
 	if (element !== null) {
+		chartWidth.value = Math.max(0, element.clientWidth - 2)
 		element.scrollLeft = Math.max(0, todayX.value - element.clientWidth / 3)
 	}
 })
 
 onBeforeUnmount(() => {
+	watcher?.disconnect()
 	window.removeEventListener('resize', onScroll)
 })
 </script>
@@ -283,22 +321,20 @@ onBeforeUnmount(() => {
 
 		<div :class="$style.toolbar">
 			<div :class="$style.spacer" />
-			<NcButton
-				variant="tertiary"
-				:aria-label="t('chronos', 'Keyboard and gestures')"
-				:title="t('chronos', 'Keyboard and gestures')"
-				@click="shortcuts = true">
-				?
-			</NcButton>
-			<div :class="$style.zooms" role="group" :aria-label="t('chronos', 'Zoom')">
-				<NcButton
-					v-for="level in (['quarter', 'month', 'week'] as Zoom[])"
-					:key="level"
-					:variant="zoom === level ? 'primary' : 'tertiary'"
-					@click="zoom = level">
-					{{ level === 'quarter' ? t('chronos', 'Quarters') : level === 'month' ? t('chronos', 'Months') : t('chronos', 'Weeks') }}
-				</NcButton>
-			</div>
+			<NcRadioGroup
+				v-model="zoom"
+				:label="t('chronos', 'Zoom')"
+				labelHidden>
+				<NcRadioGroupButton value="fit" :label="t('chronos', 'Fit')" />
+				<NcRadioGroupButton value="quarter" :label="t('chronos', 'Quarters')" />
+				<NcRadioGroupButton value="month" :label="t('chronos', 'Months')" />
+				<NcRadioGroupButton value="week" :label="t('chronos', 'Weeks')" />
+			</NcRadioGroup>
+			<NcActions :aria-label="t('chronos', 'Roadmap options')">
+				<NcActionButton closeAfterClick @click="shortcuts = true">
+					{{ t('chronos', 'Keyboard and gestures') }}
+				</NcActionButton>
+			</NcActions>
 		</div>
 
 		<div v-if="loading" :class="$style.loading">
@@ -465,8 +501,12 @@ onBeforeUnmount(() => {
 	display: grid;
 	grid-template-columns: clamp(130px, 32vw, 300px) 1fr;
 	grid-template-rows: 44px 1fr;
-	border: 1px solid var(--color-border);
-	border-radius: var(--chronos-radius-card);
+	/*
+	 * A chart is a table, so it keeps its grid lines and loses its frame: a
+	 * rounded, bordered box floating on a flat page is the sticker look
+	 * (§15.12). The rule above and below ties it to the content instead.
+	 */
+	border-block: 1px solid var(--color-border);
 	overflow: hidden;
 	/* As tall as its lines, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));
@@ -639,10 +679,16 @@ button.milestone {
 	min-height: 0;
 	border: none;
 	border-radius: 0;
-	box-sizing: content-box;
+	/*
+	 * A 24px target with a 12px mark painted inside it: the padding is the hit
+	 * area, `background-clip` keeps it transparent, and rotating the lot makes
+	 * the diamond. The box is sized for `border-box`, which is what Nextcloud
+	 * sets on every button and would otherwise leave the content box — and so
+	 * the mark — exactly 0 wide (§15.10).
+	 */
 	inset-block-start: 4px;
-	width: 12px;
-	height: 12px;
+	width: var(--chronos-control-small);
+	height: var(--chronos-control-small);
 	padding: 6px;
 	margin-inline-start: -12px;
 	background: var(--color-warning-text);

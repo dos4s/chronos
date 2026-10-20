@@ -514,8 +514,12 @@ onBeforeUnmount(() => {
 	display: grid;
 	grid-template-columns: clamp(86px, 22vw, 140px) 1fr;
 	grid-template-rows: 28px 1fr;
-	border: 1px solid var(--color-border);
-	border-radius: var(--chronos-radius-card);
+	/*
+	 * A chart is a table, so it keeps its grid lines and loses its frame: a
+	 * rounded, bordered box floating on a flat page is the sticker look
+	 * (§15.12). The rule above and below ties it to the content instead.
+	 */
+	border-block: 1px solid var(--color-border);
 	overflow: hidden;
 	/* As tall as the days it has, and never taller than the window (§14.2). */
 	max-height: max(240px, calc(100vh - 300px));

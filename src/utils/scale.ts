@@ -22,7 +22,11 @@ import { formatDayMonth, formatMonth, formatTimeOfDay } from './format.ts'
  * hour before it in New York, which at day zoom is half a bar's width.
  */
 
-export type Zoom = 'quarter' | 'month' | 'week' | 'day'
+/**
+ * `fit` is not a fixed scale: it is whatever makes the whole plan fit the chart
+ * it is drawn in, which is the zoom a reader wants when they arrive (§12.5).
+ */
+export type Zoom = 'fit' | 'quarter' | 'month' | 'week' | 'day'
 
 /**
  * How wide a day is at each zoom, and what a drag snaps to there (§15.4).
@@ -31,6 +35,8 @@ export type Zoom = 'quarter' | 'month' | 'week' | 'day'
  * project is read at. The timeline uses the other three.
  */
 const ZOOMS: Record<Zoom, { pxPerDay: number, snap: number }> = {
+	/* Only the fallback, for a chart whose width is not known yet. */
+	fit: { pxPerDay: 28, snap: 86400 },
 	quarter: { pxPerDay: 8, snap: 86400 },
 	month: { pxPerDay: 28, snap: 86400 },
 	week: { pxPerDay: 120, snap: 86400 },
@@ -89,7 +95,7 @@ export function windowFor(
 	now: UnixSeconds,
 	zoom: Zoom = 'month',
 ): { from: UnixSeconds, to: UnixSeconds } {
-	const padding = zoom === 'day' ? 1 : zoom === 'week' ? 3 : zoom === 'month' ? 7 : 21
+	const padding = zoom === 'day' ? 1 : zoom === 'week' ? 3 : zoom === 'quarter' ? 21 : 7
 	const earliest = from === null ? now : Math.min(from, now) as UnixSeconds
 	const latest = to === null ? now : Math.max(to, now) as UnixSeconds
 
@@ -104,11 +110,24 @@ export function windowFor(
 	}
 }
 
-export function createScale(zoom: Zoom, from: UnixSeconds, to: UnixSeconds): Scale {
-	const { pxPerDay, snap } = ZOOMS[zoom]
-	const pxPerSecond = pxPerDay / 86400
+/**
+ * `available` is how wide the chart may be, in pixels. It is only read at
+ * `fit` zoom, where the scale is chosen so that the window fills that width
+ * exactly — within reason: never finer than a day is useful and never so
+ * coarse that a bar disappears.
+ */
+export function createScale(zoom: Zoom, from: UnixSeconds, to: UnixSeconds, available = 0): Scale {
+	const { snap } = ZOOMS[zoom]
 	const start = startOfDay(from)
 	const end = Math.max(to, addDays(start, 1)) as UnixSeconds
+	// The exact span, not a rounded count of days: a window that crosses a
+	// clock change is not a whole number of days, and rounding it here would
+	// leave the fitted chart a pixel wider than the room it was given.
+	const span = Math.max(1, (end - start) / 86400)
+	const pxPerDay = zoom === 'fit' && available > 0
+		? Math.min(240, Math.max(3, available / span))
+		: ZOOMS[zoom].pxPerDay
+	const pxPerSecond = pxPerDay / 86400
 	const width = (end - start) * pxPerSecond
 
 	/**
@@ -163,8 +182,12 @@ export function createScale(zoom: Zoom, from: UnixSeconds, to: UnixSeconds): Sca
 			// not another column (§8.4).
 			const days = Math.round((end - start) / 86400)
 			// At month zoom a tick per day is unreadable; one per week is not,
-			// and at quarter zoom even that is too many.
-			const step = zoom === 'quarter' ? 28 : zoom === 'month' ? 7 : 1
+			// and at quarter zoom even that is too many. At `fit` the scale is
+			// whatever the data needed, so the step follows from how much room
+			// a day actually got.
+			const step = zoom === 'fit'
+				? (pxPerDay >= 60 ? 1 : pxPerDay >= 16 ? 7 : 28)
+				: zoom === 'quarter' ? 28 : zoom === 'month' ? 7 : 1
 
 			for (let day = 0; day < days; day += step) {
 				const at = addDays(start, day)

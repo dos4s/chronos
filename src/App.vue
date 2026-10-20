@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
@@ -14,12 +13,9 @@ import { useModulesStore } from './stores/modules.ts'
 import { useProjectsStore } from './stores/projects.ts'
 import { useTimeStore } from './stores/time.ts'
 
-const route = useRoute()
 const time = useTimeStore()
 const projects = useProjectsStore()
 const modules = useModulesStore()
-
-const wide = computed(() => route.name !== 'timer')
 
 /** Everything the app can be told to do, on `?` (§15.7). */
 const shortcuts = ref(false)
@@ -239,7 +235,13 @@ onBeforeUnmount(() => {
 		<ShortcutsDialog v-if="shortcuts" @close="shortcuts = false" />
 
 		<NcAppContent>
-			<div :class="[$style.main, wide ? $style.wide : $style.narrow]">
+			<!--
+				Every view fills the pane. The timer used to be kept in a
+				narrow column because its form was a centred stack; the form is
+				one row now, and a list that stops half way across a flat page
+				reads as pasted on (§15.12).
+			-->
+			<div :class="$style.main">
 				<RouterView />
 			</div>
 		</NcAppContent>
@@ -267,20 +269,12 @@ onBeforeUnmount(() => {
 	box-sizing: border-box;
 }
 
-.narrow {
-	max-width: 820px;
-}
-
 /* A phone has no 28px to spare on either side (§14.2). */
 @media (max-width: 700px) {
 	.main {
 		padding: var(--chronos-space-2) var(--chronos-space-3) var(--chronos-space-6);
 		gap: var(--chronos-space-3);
 	}
-}
-
-.wide {
-	max-width: none;
 }
 
 .dot {

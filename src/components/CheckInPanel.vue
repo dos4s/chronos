@@ -50,42 +50,37 @@ async function checkIn() {
 
 <template>
 	<section class="chronos-panel" :class="[$style.panel]">
-		<div :class="$style.headline">
-			{{ t('chronos', 'Ready when you are') }}
-		</div>
-		<div :class="$style.hint">
-			{{ t('chronos', 'Pick a project and add a note if you want to, then press Check in.') }}
-		</div>
-		<div :class="$style.field">
-			<NcSelect
-				v-model="selected"
-				:options="projects.offered"
-				label="label"
-				:reduce="(option: LabelledProject) => option"
-				:clearable="true"
-				:inputLabel="t('chronos', 'Project (optional)')"
-				:placeholder="t('chronos', 'No project')"
+		<div :class="$style.row">
+			<div :class="$style.field">
+				<NcSelect
+					v-model="selected"
+					:options="projects.offered"
+					label="label"
+					:reduce="(option: LabelledProject) => option"
+					:clearable="true"
+					:inputLabel="t('chronos', 'Project (optional)')"
+					:placeholder="t('chronos', 'No project')"
+					:disabled="time.loading"
+					@update:modelValue="touched = true" />
+			</div>
+			<input
+				v-model="note"
+				type="text"
+				:class="$style.note"
+				:placeholder="t('chronos', 'What are you working on?')"
 				:disabled="time.loading"
-				@update:modelValue="touched = true" />
+				@keydown.enter="checkIn">
+			<NcButton
+				variant="primary"
+				:disabled="time.loading"
+				:aria-label="t('chronos', 'Check in')"
+				@click="checkIn">
+				<template v-if="time.loading" #icon>
+					<NcLoadingIcon :size="20" />
+				</template>
+				{{ t('chronos', 'Check in') }}
+			</NcButton>
 		</div>
-		<input
-			v-model="note"
-			type="text"
-			:class="$style.note"
-			:placeholder="t('chronos', 'What are you working on?')"
-			:disabled="time.loading"
-			@keydown.enter="checkIn">
-		<NcButton
-			variant="primary"
-			wide
-			:disabled="time.loading"
-			:aria-label="t('chronos', 'Check in')"
-			@click="checkIn">
-			<template v-if="time.loading" #icon>
-				<NcLoadingIcon :size="20" />
-			</template>
-			{{ t('chronos', 'Check in') }}
-		</NcButton>
 	</section>
 </template>
 
@@ -94,10 +89,17 @@ async function checkIn() {
 	position: relative;
 }
 
-.headline {
-	font-size: var(--chronos-text-title);
-	font-weight: 700;
-	letter-spacing: -0.01em;
+/*
+ * One row: project, note, and the button that starts the clock — the way an
+ * app's own toolbar is laid out, rather than a stack of three controls under
+ * two headings in the middle of the page (§15.12).
+ */
+.row {
+	display: flex;
+	align-items: center;
+	gap: var(--chronos-space-2);
+	flex-wrap: wrap;
+	width: 100%;
 }
 
 .hint {
@@ -111,8 +113,8 @@ async function checkIn() {
  * button 600, stacked — three edges where there should be one (§15.11).
  */
 .field {
-	width: 100%;
-	max-width: 420px;
+	flex: 0 1 260px;
+	min-width: 180px;
 }
 
 /* The picker fills its column, like the note and the button under it. */
@@ -131,8 +133,8 @@ async function checkIn() {
  * padding, width and height were being ignored.
  */
 input.note {
-	width: 100%;
-	max-width: 420px;
+	flex: 1 1 260px;
+	min-width: 0;
 	min-height: var(--chronos-control);
 	padding: var(--chronos-space-2) var(--chronos-space-4);
 	font-size: var(--chronos-text);

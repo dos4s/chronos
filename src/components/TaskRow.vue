@@ -207,11 +207,18 @@ async function commit() {
  * with an element in it, which outranks a single class — so this rule's
  * padding, width and height were being ignored.
  */
+/*
+ * A tick box the size of the server's own, in the server's own colour. A raw
+ * browser checkbox scaled up to 24px is the wrong shape and the wrong blue for
+ * every Nextcloud theme; `accent-color` paints it with the theme's primary and
+ * leaves the platform's tick and focus ring alone (§15.12).
+ */
 input.check {
 	flex-shrink: 0;
-	/* The server's own small target: 18px was smaller than anything else. */
-	width: var(--chronos-control-small);
-	height: var(--chronos-control-small);
+	width: 18px;
+	height: 18px;
+	margin: 0 var(--chronos-space-1);
+	accent-color: var(--color-primary-element);
 	cursor: pointer;
 }
 

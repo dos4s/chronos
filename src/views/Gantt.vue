@@ -8,10 +8,14 @@ import type { Zoom } from '../utils/scale.ts'
 import { n, t } from '@nextcloud/l10n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
+import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import GanttBar from '../components/GanttBar.vue'
@@ -57,7 +61,7 @@ const tasks = useTasksStore()
 const route = useRoute()
 const { now } = useNow()
 
-const zoom = ref<Zoom>('month')
+const zoom = ref<Zoom>('fit')
 const editing = ref<PlanRow | null>(null)
 const configuring = ref(false)
 const shortcuts = ref(false)
@@ -68,6 +72,8 @@ const parent = ref<PlanRow | null>(null)
 const deleting = ref<PlanRow | null>(null)
 
 const chart = ref<HTMLElement | null>(null)
+/** How wide the chart may draw, measured rather than assumed (§12.5). */
+const chartWidth = ref(0)
 const scrollLeft = ref(0)
 const scrollTop = ref(0)
 const viewport = ref(480)
@@ -95,7 +101,7 @@ const readOnly = computed(() => plan.plan !== null && !plan.writable)
 const scale = computed(() => {
 	const window = windowFor(plan.plan?.from ?? null, plan.plan?.to ?? null, now.value, zoom.value)
 
-	return createScale(zoom.value, window.from, window.to)
+	return createScale(zoom.value, window.from, window.to, chartWidth.value)
 })
 
 /*
@@ -230,6 +236,9 @@ function onScroll(): void {
 	scrollLeft.value = element.scrollLeft
 	scrollTop.value = element.scrollTop
 	viewport.value = element.clientHeight
+	// What `fit` fits into. A scrollbar's worth is left so the fitted chart
+	// does not itself cause one.
+	chartWidth.value = Math.max(0, element.clientWidth - 2)
 }
 
 /**
@@ -372,8 +381,38 @@ watch(() => plan.plan, async (loaded) => {
 	// all, quietly.
 	await nextTick()
 	onScroll()
+	watchChartWidth()
 	scrollToToday()
 })
+
+/*
+ * The chart's width is not known until it has been laid out, and it changes
+ * when the sidebar opens or the window resizes — so `fit` watches the element
+ * rather than measuring it once on mount (§12.5).
+ */
+let watcher: ResizeObserver | null = null
+
+// The chart element only exists once there are rows to draw, so the watch is
+// on the ref: when it appears — or is replaced — it is measured and observed.
+watch(chart, (element) => {
+	if (element !== null) {
+		chartWidth.value = Math.max(0, element.clientWidth - 2)
+		watchChartWidth()
+	}
+})
+
+function watchChartWidth(): void {
+	const element = chart.value
+	if (element === null || typeof ResizeObserver === 'undefined') {
+		return
+	}
+
+	watcher?.disconnect()
+	watcher = new ResizeObserver(() => {
+		chartWidth.value = Math.max(0, element.clientWidth - 2)
+	})
+	watcher.observe(element)
+}
 
 onMounted(async () => {
 	window.addEventListener('resize', onScroll)
@@ -392,6 +431,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+	watcher?.disconnect()
 	window.removeEventListener('resize', onScroll)
 })
 </script>
@@ -421,37 +461,47 @@ onBeforeUnmount(() => {
 
 			<div :class="$style.spacer" />
 
-			<div :class="$style.zooms" role="group" :aria-label="t('chronos', 'Zoom')">
-				<NcButton
-					v-for="level in (['month', 'week', 'day'] as Zoom[])"
-					:key="level"
-					:variant="zoom === level ? 'primary' : 'tertiary'"
-					@click="zoom = level">
-					{{ level === 'month' ? t('chronos', 'Months') : level === 'week' ? t('chronos', 'Weeks') : t('chronos', 'Days') }}
-				</NcButton>
-			</div>
-			<NcButton
-				v-if="plan.plan && !readOnly"
-				variant="secondary"
-				@click="adding ? stopAdding() : startAdding()">
-				{{ t('chronos', 'Add a task') }}
-			</NcButton>
+			<!--
+				Nextcloud's own segmented control, not three buttons with the
+				chosen one filled in: one primary button per screen is the
+				house rule, and a choice between three is a radio group
+				(§15.11).
+			-->
+			<NcRadioGroup
+				v-model="zoom"
+				:label="t('chronos', 'Zoom')"
+				labelHidden>
+				<NcRadioGroupButton value="fit" :label="t('chronos', 'Fit')" />
+				<NcRadioGroupButton value="month" :label="t('chronos', 'Months')" />
+				<NcRadioGroupButton value="week" :label="t('chronos', 'Weeks')" />
+				<NcRadioGroupButton value="day" :label="t('chronos', 'Days')" />
+			</NcRadioGroup>
 			<NcButton variant="tertiary" @click="scrollToToday">
 				{{ t('chronos', 'Today') }}
 			</NcButton>
 			<NcButton
-				variant="tertiary"
-				:aria-label="t('chronos', 'Keyboard and gestures')"
-				:title="t('chronos', 'Keyboard and gestures')"
-				@click="shortcuts = true">
-				?
+				v-if="plan.plan && !readOnly"
+				variant="primary"
+				@click="adding ? stopAdding() : startAdding()">
+				{{ t('chronos', 'Add a task') }}
 			</NcButton>
-			<NcButton
-				v-if="plan.plan"
-				variant="secondary"
-				@click="configuring = true">
-				{{ plan.settings.mode === 'cascade' ? t('chronos', 'Moves cascade') : t('chronos', 'Moves warn') }}
-			</NcButton>
+
+			<!--
+				What is left are the two things a reader opens once and forgets:
+				how a move treats the tasks that follow it, and the keyboard.
+				They were buttons in the toolbar, where "Moves warn" wrapped
+				onto a line of its own and read as a stray tag (§15.12).
+			-->
+			<NcActions :aria-label="t('chronos', 'Timeline options')">
+				<NcActionButton v-if="plan.plan" closeAfterClick @click="configuring = true">
+					{{ plan.settings.mode === 'cascade'
+						? t('chronos', 'Moves cascade — change')
+						: t('chronos', 'Moves warn — change') }}
+				</NcActionButton>
+				<NcActionButton closeAfterClick @click="shortcuts = true">
+					{{ t('chronos', 'Keyboard and gestures') }}
+				</NcActionButton>
+			</NcActions>
 		</div>
 
 		<div v-if="adding" :class="$style.adding">
@@ -671,8 +721,12 @@ onBeforeUnmount(() => {
 	 */
 	grid-template-columns: clamp(120px, 34vw, 320px) 1fr;
 	grid-template-rows: 44px 1fr;
-	border: 1px solid var(--color-border);
-	border-radius: var(--chronos-radius-card);
+	/*
+	 * A chart is a table, so it keeps its grid lines and loses its frame: a
+	 * rounded, bordered box floating on a flat page is the sticker look
+	 * (§15.12). The rule above and below ties it to the content instead.
+	 */
+	border-block: 1px solid var(--color-border);
 	overflow: hidden;
 	/*
 	 * As tall as its rows, and never taller than the window — so a short plan

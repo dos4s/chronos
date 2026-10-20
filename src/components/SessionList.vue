@@ -138,20 +138,17 @@ async function confirmDelete(session: Session) {
 	margin: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 1px;
-	background: var(--color-background-hover);
-	border: 1px solid var(--color-border);
-	border-radius: var(--chronos-radius-card);
-	overflow: hidden;
+	border-top: 1px solid var(--color-border);
 }
 
+/* The same row as the task list's, so the two lists read as one app. */
 .row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	padding: 14px 20px;
-	background: var(--color-main-background);
+	gap: var(--chronos-space-3);
+	padding: var(--chronos-space-2) var(--chronos-space-3);
+	border-bottom: 1px solid var(--color-border);
 	transition: background 0.15s ease;
 }
 
