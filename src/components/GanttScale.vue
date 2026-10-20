@@ -13,8 +13,14 @@ import { computed } from 'vue'
  */
 const props = defineProps<{ scale: Scale }>()
 
-const bands = computed(() => props.scale.bands())
-const ticks = computed(() => props.scale.ticks())
+/**
+ * A band too narrow for its own name says nothing useful: the window usually
+ * starts mid-month, and "September 2026" clipped to "S" reads as a glitch
+ * (§15.12). The same for a tick whose label would run off the end of the
+ * chart — at `fit` zoom the last column ends exactly at the edge.
+ */
+const bands = computed(() => props.scale.bands().filter((band) => band.width >= 90))
+const ticks = computed(() => props.scale.ticks().filter((tick) => tick.x <= props.scale.width - 48))
 </script>
 
 <template>

@@ -92,7 +92,13 @@ function onPointerDown(event: PointerEvent, kind: DragKind): void {
 			:style="{ width: `${progress}%` }"
 			aria-hidden="true" />
 
-		<span :class="$style.text">{{ label }}</span>
+		<!--
+			A bar too short for a word shows none: at a fitted scale a one-day
+			task is a dozen pixels wide, and "C…" in a dashed box reads as a
+			rendering fault rather than a task (§15.12). The name is still in
+			the row beside it, and in the bar's own tooltip.
+		-->
+		<span v-if="place.width >= 44" :class="$style.text">{{ label }}</span>
 
 		<template v-if="movable">
 			<span

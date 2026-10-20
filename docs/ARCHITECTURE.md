@@ -1353,6 +1353,27 @@ is a table. Everything else is flat.
 genuinely different. Decoration that only makes a shape is what made this look like an app pasted into
 another app.
 
+### 15.13 A chart fits the chart
+"Timeline section looks bad, roadmap too bad." Both charts drew at a fixed scale — 28 pixels a day on the
+timeline, 8 on the roadmap — so a two-month plan was 1,680 pixels wide inside a 730-pixel pane. The first
+thing a reader saw was a plan cut off at the right edge, with the half of it that mattered off-screen, and
+the toolbar underneath had wrapped "Moves warn" onto a line of its own where it read as a stray tag.
+
+**Fit is a zoom, and it is the default.** `createScale` takes how wide the chart may draw and, at `fit`,
+spends exactly that: `pxPerDay = available / span`, clamped to 3–240 so a day never vanishes and never
+fills the screen. The named zooms are unchanged and still mean what they say; `fit` is what a reader wants
+on arrival. The tick step follows from the scale it computed — a day per tick above 60px, a week above 16,
+a month below — because at a fitted scale the zoom's name no longer says how much room a day got.
+
+The width is **measured, not assumed**: a `ResizeObserver` on the chart element, started by a watch on the
+ref, because the element only exists once there are rows to draw and its width changes when the sidebar
+opens. Measuring once on mount gave zero, which is why the first attempt still drew at a month's scale.
+
+**What is too small to read is not drawn.** A month band narrower than its own name, a tick whose label
+would run past the end of the chart, and a bar too short for a word all used to render clipped —
+"September 2026" as "S", a one-day task as "C…" in a dashed box. Each reads as a rendering fault rather
+than as data, so each is now left out; the row beside the bar and the bar's own tooltip still name it.
+
 ## 16. Performance
 
 - Views read only index tables; VTODOs are parsed only by the listener and the gateway.

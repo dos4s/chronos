@@ -177,3 +177,37 @@ describe('all-day values', () => {
 		expect(allDayOf(noon)).toBe(utcDay('2026-10-05'))
 	})
 })
+
+describe('fitting a plan to the chart it is drawn in', () => {
+	const from = asSeconds(Date.UTC(2026, 0, 1) / 1000)
+	const to = asSeconds(Date.UTC(2026, 2, 1) / 1000)
+
+	it('spends exactly the room it is given', () => {
+		const scale = createScale('fit', from, to, 1000)
+
+		expect(Math.round(scale.width)).toBe(1000)
+	})
+
+	/** A chart that has not been measured yet still has to draw something. */
+	it('falls back to a month when nobody says how wide it is', () => {
+		const unmeasured = createScale('fit', from, to, 0)
+		const month = createScale('month', from, to)
+
+		expect(unmeasured.width).toBe(month.width)
+	})
+
+	it('refuses to go finer than a quarter of an hour of screen or coarser than a thread', () => {
+		const roomy = createScale('fit', from, asSeconds(from + 2 * 86400), 4000)
+		const cramped = createScale('fit', from, asSeconds(from + 4000 * 86400), 300)
+
+		expect(roomy.pxPerDay).toBeLessThanOrEqual(240)
+		expect(cramped.pxPerDay).toBeGreaterThanOrEqual(3)
+	})
+
+	it('thins its ticks out as the days get narrower', () => {
+		const wide = createScale('fit', from, to, 6000)
+		const narrow = createScale('fit', from, to, 400)
+
+		expect(wide.ticks().length).toBeGreaterThan(narrow.ticks().length)
+	})
+})

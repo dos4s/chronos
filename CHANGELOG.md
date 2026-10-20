@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-10-20
+
+The timeline and the roadmap fit the window they are drawn in. Both charts used a fixed scale, so a
+two-month plan was 1,680 pixels wide inside a 730-pixel pane: the first thing a reader saw was a plan cut
+off at the right edge. `Fit` is now a zoom like the others and the one both views open on — it spends
+exactly the width the chart has, measured with a `ResizeObserver` rather than assumed, and picks its tick
+step from the scale that came out. The named zooms are unchanged.
+
+What is too small to read is no longer drawn: a month band narrower than its own name (September 2026 as
+"S"), a tick label that would run past the end of the chart, and a bar too short for a word (a one-day task
+as "C…" in a dashed box) each read as a rendering fault rather than as data. The name is still in the row
+beside the bar and in its tooltip.
+
+### Added
+- `Fit` zoom on the timeline and the roadmap, the default on both.
+
+### Changed
+- The timeline's toolbar is one row: "Moves warn", which used to wrap onto a line of its own, and the
+  keyboard help are in an options menu; "Add a task" is the primary action. The roadmap's help moved the
+  same way.
+- The timer fills the pane like every other view, and its session rows match the task list's.
+- The check-in is one row — project, note and the button that starts the clock.
+- Milestone diamonds are drawn so Nextcloud's own `box-sizing` cannot collapse them.
+- Both zoom controls are a segmented `NcRadioGroup` rather than four loose buttons, and the chart frames
+  are two rules rather than a box.
+- The task checkbox is 18px and uses the instance's accent colour.
+
+### Fixed
+- Bars no longer run off the right edge of a freshly opened chart.
+- Clipped month bands, tick labels and bar labels.
+
 ## [0.5.12] - 2026-10-20
 
 The app stops looking like something pasted into Nextcloud. Measured against Files and Notes on the same
