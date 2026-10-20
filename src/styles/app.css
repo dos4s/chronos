@@ -75,6 +75,26 @@ body.app-chronos .app-navigation {
 	min-height: 34px;
 }
 
+/*
+ * One line under a view's title saying what that view answers and what can be
+ * done in it. The hint at the foot of a chart explains the *gestures*; this
+ * explains the *view*, because the one question nobody could answer from the
+ * screen was what the roadmap is for when the timeline is right above it.
+ */
+.chronos-view-why {
+	margin: -8px 0 0;
+	padding-inline-start: 48px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+	max-width: 80ch;
+}
+
+@media (max-width: 700px) {
+	.chronos-view-why {
+		padding-inline-start: 4px;
+	}
+}
+
 .chronos-dot {
 	width: 10px;
 	height: 10px;

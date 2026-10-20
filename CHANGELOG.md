@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-10-20
+
+Asked what the difference between the roadmap and the timeline is, and found the app had been hiding it.
+
+### Fixed
+
+- **The roadmap shows every project again, whatever the sidebar has selected.** It was filtered by the
+  selection like every other view — so the moment anybody clicked a project, which is how the board and the
+  timeline are used at all, the roadmap showed that one project as a single bar with nothing to compare it
+  against, and the two charts looked like the same view twice. The project being worked in is **marked**
+  there now, bold with a rule down its left edge, rather than being the only one drawn.
+
+### Added
+
+- **Every planning view says what it is for**, in one line under its title: the question it answers and what
+  can be done in it. The hint at the foot of a chart explains the gestures; this explains the view.
+  - *Tasks* — everything in this list, as a tree.
+  - *Board* — one column per status; drag a card across to change it.
+  - *Timeline* — when each task in **this project** runs; drag a bar, an edge, or the dot onto another task.
+  - *Roadmap* — **every project at once**, each line read from its own tasks rather than drawn; click a line
+    to open that project's timeline, double-click to put a milestone on it.
+
 ## [0.5.9] - 2026-10-19
 
 Two more gaps from `docs/REFERENCES.md`, one on the board and one on the roadmap — and in both cases the

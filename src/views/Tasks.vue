@@ -135,6 +135,10 @@ async function saveDetails(changes: Partial<TaskWritePayload>) {
 			</span>
 		</div>
 
+		<p class="chronos-view-why">
+			{{ t('chronos', 'Everything in this list, as a tree. Tick one off, rename it in place, give it a subtask, or promote a subproject to a list of its own.') }}
+		</p>
+
 		<div :class="$style.picker">
 			<ProjectHeading />
 			<div :class="$style.spacer" />

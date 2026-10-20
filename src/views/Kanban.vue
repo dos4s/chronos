@@ -420,6 +420,10 @@ async function columnSaved(): Promise<void> {
 			</span>
 		</div>
 
+		<p class="chronos-view-why">
+			{{ t('chronos', 'One column per status: drag a card across to change it, and everyone else’s client sees the same status. Add cards straight into a column.') }}
+		</p>
+
 		<div :class="$style.picker">
 			<ProjectHeading />
 			<FilterBar
