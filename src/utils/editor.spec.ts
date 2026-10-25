@@ -44,6 +44,8 @@ function session(): Session {
 		note: 'A day',
 		projectUri: 'principals/users/alice/work',
 		projectName: 'Work',
+		taskUid: null,
+		taskSummary: null,
 		pauses: [{ id: 1, entryId: 7, startAt: at(4), endAt: at(5) }],
 	}
 }

@@ -34,6 +34,10 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 		<div :class="$style.startedAt">
 			{{ t('chronos', 'Started {time}', { time: formatTimeOfDay(session.startAt) }) }}
 		</div>
+		<!-- What the clock is on, when it was put on something (§12.2). -->
+		<div v-if="session.taskSummary" :class="$style.task">
+			{{ session.taskSummary }}
+		</div>
 		<div v-if="session.projectName" :class="$style.project">
 			<span class="chronos-dot" :style="{ background: projectColor }" />
 			{{ session.projectName }}
@@ -76,6 +80,16 @@ const projectColor = computed(() => projects.colorFor(props.session.projectUri) 
 </template>
 
 <style module>
+/*
+ * The task this session is about: the one line on the panel somebody reads
+ * before the clock, so it is the size of a name rather than of a label.
+ */
+.task {
+	font-size: var(--chronos-text);
+	font-weight: 600;
+	margin-block-start: var(--chronos-space-1);
+}
+
 .panel {
 	position: relative;
 }

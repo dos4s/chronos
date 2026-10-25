@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-10-25
+
+**The two halves of the app now touch.** A session could name a project and nothing else, so planning the
+work and timing it were separate acts: you moved a card on the board, walked to the Timer, and retyped
+what you were doing into a note. Nothing could answer what a task had cost.
+
+### Added
+- **Press play on a task.** The same button in the task list, on a board card and in the task's details,
+  which puts the clock on that task — carrying its name and its project, so the analytics still group the
+  way they did.
+- **Pressing play while something else is running switches.** One request ends the running session and
+  starts the new one, in one transaction, so there is never a gap with nothing running or a moment with
+  two. Moving from one task to the next is the gesture, not an error.
+- **What a task has cost**, on its row, and in its details as a figure with the number of sessions behind
+  it. It counts up live while the clock is on it.
+- The task is named where the session is: in the running panel at the top of the navigation (which used to
+  say *"Work"* while you were on the third of nine things in it), on the Timer view's panel, and in the
+  session log.
+- `GET /entries/task-totals` and `POST /entries/switch`; `task_uid` and `task_summary` on
+  `chronos_entries`, indexed `(user_id, task_uid)`. Neither column is a foreign key — a session is a record
+  of what somebody did and outlives the task being renamed, moved or deleted.
+
+### Fixed
+- An import left behind by 0.5.15 failed `npm run lint`.
+
 ## [0.5.15] - 2026-10-20
 
 ### Fixed

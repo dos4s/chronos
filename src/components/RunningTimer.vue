@@ -34,11 +34,19 @@ const session = computed(() => time.active)
  */
 const elapsed = computed(() => session.value === null ? 0 : workedSeconds(session.value, now.value))
 
-const name = computed(() => {
+const project = computed(() => {
 	const uri = session.value?.projectUri ?? null
 
 	return projects.nameFor(uri) ?? session.value?.projectName ?? t('chronos', 'No project')
 })
+
+/**
+ * What is running, said the way the person would say it: the task, when the
+ * clock was put on one, and the project otherwise. A session on a task used to
+ * read as its project here, so the panel said "Work" while you were on the
+ * third of nine things in it (§12.2).
+ */
+const name = computed(() => session.value?.taskSummary ?? project.value)
 
 const color = computed(() => projects.colorFor(session.value?.projectUri ?? null))
 
@@ -68,8 +76,8 @@ onBeforeUnmount(() => {
 
 		<div :class="$style.what">
 			<span :class="$style.clock">{{ formatClock(elapsed) }}</span>
-			<span :class="$style.where">
-				{{ time.isPaused ? t('chronos', 'Paused · {project}', { project: name }) : name }}
+			<span :class="$style.where" :title="name === project ? name : `${name} · ${project}`">
+				{{ time.isPaused ? t('chronos', 'Paused · {what}', { what: name }) : name }}
 			</span>
 		</div>
 

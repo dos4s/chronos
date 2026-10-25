@@ -61,6 +61,8 @@ class SchemaTest extends TestCase {
 			['chronos_entries', 'paused_since_at'],
 			['chronos_entries', 'paused_seconds'],
 			['chronos_entries', 'active_user_id'],
+			['chronos_entries', 'task_uid'],
+			['chronos_entries', 'task_summary'],
 			['chronos_pauses', 'entry_id'],
 			['chronos_pauses', 'start_at'],
 			['chronos_pauses', 'end_at'],

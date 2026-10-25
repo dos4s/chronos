@@ -82,6 +82,53 @@ class EntryMapper extends QBMapper {
 	}
 
 	/**
+	 * Every session that names a task, by task.
+	 *
+	 * Worked seconds come from the row's own cached totals rather than from the
+	 * pause rows, which `replacePauses` keeps in step with them: there is no
+	 * range to clip a pause against here, so the sum is exact and this stays
+	 * one query instead of one per task (§16). A running session counts up to
+	 * `$now`, minus the pause it is sitting in.
+	 *
+	 * @return list<array{taskUid: string, seconds: int, sessionCount: int, lastAt: int}>
+	 */
+	public function totalsByTask(string $userId, int $now): array {
+		$qb = $this->db->getQueryBuilder();
+		$at = $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT);
+
+		$worked = 'SUM(COALESCE(end_at, ' . $at . ') - start_at - paused_seconds'
+			. ' - CASE WHEN paused_since_at IS NULL THEN 0 ELSE ' . $at . ' - paused_since_at END)';
+
+		$qb->select('task_uid')
+			->selectAlias($qb->createFunction($worked), 'seconds')
+			->selectAlias($qb->createFunction('COUNT(*)'), 'session_count')
+			->selectAlias($qb->createFunction('MAX(start_at)'), 'last_at')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->isNotNull('task_uid'))
+			->groupBy('task_uid');
+
+		$result = $qb->executeQuery();
+		/** @var list<array<string, mixed>> $rows */
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+
+		$totals = [];
+		foreach ($rows as $row) {
+			$totals[] = [
+				'taskUid' => (string)$row['task_uid'],
+				// Never negative: a clock skew or a hand-edited session must
+				// not make a task look like it gave time back.
+				'seconds' => max(0, (int)$row['seconds']),
+				'sessionCount' => (int)$row['session_count'],
+				'lastAt' => (int)$row['last_at'],
+			];
+		}
+
+		return $totals;
+	}
+
+	/**
 	 * Selects the columns this app knows about, so a column left over from an
 	 * earlier schema (such as `pauses_blob`) can never break hydration.
 	 */

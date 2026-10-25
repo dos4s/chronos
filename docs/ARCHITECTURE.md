@@ -107,7 +107,7 @@ and the web UI); billing/invoicing.
 | F7 | Every status and assignee change recorded with who, when and source | Workflow | M2 |
 | F8 | Gantt per project/subproject: drag to move, resize, link dependencies; milestones; summary bars | Planning | M4 |
 | F9 | Cross-project roadmap grouped by area, drill-down to Gantt | Planning | M4 |
-| F10 | Time sessions (check-in, pause, check-out, edit) per project and optionally per task, with rollups | Time | M1 (fixes), M5 (per task) |
+| F10 | Time sessions (check-in, pause, check-out, edit) per project and optionally per task, with rollups | Time | M1 (fixes), 0.5.16 (per task), M5 (rollups) |
 | F11 | Goals per project stored server-side | Time | M5 |
 | F12 | SLA policies (time to own, time to resolve), business hours, pausing statuses, warning and breach notifications | SLA | M6 |
 | F13 | Custom fields (global or per project), filterable; urgency × impact → priority | Fields | M6 |
@@ -467,8 +467,10 @@ Status history is created in M2, before SLA exists, because it can't be reconstr
 
 ### 10.5 Time
 - **`chronos_entries`** (after M1): `id`, `user_id`, `start_at`, `end_at` NULL, `paused_since_at` NULL,
-  `paused_seconds`, `note`, `project_uri`, `project_name`, `active_user_id` NULL; **`task_uid`** NULL added
-  in M5. `active_user_id` carries the owner's uid while the session runs and NULL once it ends; the unique
+  `paused_seconds`, `note`, `project_uri`, `project_name`, `active_user_id` NULL; **`task_uid`** NULL and
+  **`task_summary`** NULL added in 0.5.16, indexed `(user_id, task_uid)`. Neither is a foreign key: a
+  session records what somebody did and has to outlive the task being renamed, moved to another calendar or
+  deleted — which is also why the name is copied in as it read when the clock was running. `active_user_id` carries the owner's uid while the session runs and NULL once it ends; the unique
   index over it is what makes a second simultaneous check-in impossible (AD13). It is internal and never
   sent to clients.
 - **`chronos_pauses`** (`id`, `entry_id`, `start_at`, `end_at` NULL) — replaces `pauses_blob`; pauses never
@@ -601,7 +603,8 @@ mean; a different mapping is a different workflow. A template arrives with no tr
 move is allowed until the user says otherwise. Attaching a workflow to a project gives the tasks already
 there the status that matches the standard status they have, so a list does not sit without statuses until
 something re-reads it; taking the workflow away forgets them again. `auto_timer` is recorded but does
-nothing until M5, which is where the timer learns about tasks.
+nothing yet; the timer learned about tasks in 0.5.16 (§12.2), so what is left is the transition hook and
+the per-user setting that arms it (D29).
 
 **The board reads its columns through one contract.** A board needs to know which statuses a project has,
 in which order, with which WIP limits, and which moves are allowed — and it must not care whether the
@@ -621,10 +624,23 @@ mapping, preferring a final one for `COMPLETED` and `CANCELLED` and the initial 
 That is also what lets the Chronos checkbox keep working under a workflow.
 
 ### 12.2 Time
-- Check-in, pause and check-out work as today; sessions gain an optional `task_uid` (M5).
+- Check-in, pause and check-out work as today; a session also carries an optional `task_uid` and the task's
+  name (0.5.16).
+- **Starting a task switches; it does not refuse.** `POST /entries/switch` ends whatever is running and
+  starts the new session in one transaction. Pressing play on a task while another one is running is the
+  gesture a person makes twenty times a day, not a mistake to answer with `already_checked_in` — and doing
+  it as two calls from the browser would leave a gap with nothing running, or a moment with two, which the
+  unique index over `active_user_id` would reject anyway (AD13).
+- **One control, everywhere a task is drawn.** `TaskTimerButton` is the only way the clock is put on a
+  task, in the list, on a card and in the details dialog, for the reason there is only one task composer
+  (§14.2). A finished task and a milestone do not offer it.
+- What a task has cost is one grouped query (`EntryMapper::totalsByTask`), read once per refresh and held
+  as a map. It counts from the row's own cached totals rather than the pause rows, because there is no
+  range to clip a pause against; the running session is counted **once** — the client replaces the part of
+  the server's figure that was the live session rather than adding the run on top of it.
 - One `SessionService` implements all session rules; controllers, quick links and the dashboard widget all
   use it.
-- Rollups task → parent → subproject → project, from the index tree.
+- Rollups task → parent → subproject → project, from the index tree (still M5).
 - `auto_timer` statuses can start/stop the timer on transition (per-user setting, off by default).
 - Two measures, never mixed: **work time** (sessions) and **time in state** (status history).
 - One second is the resolution (§8.1), so a pause that starts and ends within the same second is not a
@@ -1489,7 +1505,7 @@ requests never fires.
 | D31 | **Attaching a workflow skipped every task with no `STATUS`:** the bulk fill matched the four standard statuses, but most clients write none until a task is started or finished — 40 of 229 tasks on the real instance, and all 6 of the list the check ran against | `WorkflowService::assignToProject`, `TaskMapper::fillStatusWhereUnset` | A project given a workflow showed most of its tasks with no status at all, until each was edited | Fill the tasks with no standard status with the initial status, which is the same answer the index gives when it reads one | M2 | done in 0.3.2 |
 | D32 | **Every Chronos write was recorded as external:** `WriteRegistry` was told about a write *after* the backend call, but the backend dispatches the calendar-object event from inside it, so the listener always found the registry empty — and a delete was never announced at all | `CalDavGateway`, `WriteRegistry`, `CalendarObjectListener` | Harmless until M2, because nothing read the source; status history then credited every change Chronos made to "another app" | Announce the write before the call, keyed without the etag, counted, and cleared if it throws (§11.1) | M2 | done in 0.3.2 |
 | D30 | **A status whose standard status was `NEEDS-ACTION` could not be inserted:** the entity defaulted `vtodoStatus` to that value, `Entity::setter()` therefore recorded no change, `QBMapper` left the column out of the insert, and a NOT NULL column with no default refused the row — so creating any workflow failed on MySQL | `Workflow/Db/Status`, `Version5000…` | Every workflow template failed to create on a real database; unit tests with mocked mappers could not see it | Default the property to a value no status has, give the column a database default (`Version5001…`), and assert the insert would carry each NOT NULL field | M2 | done in 0.3.1 |
-| D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Sessions gain `task_uid` and the per-user setting of §12.2 | M5 | planned |
+| D29 | **`auto_timer` is recorded and ignored:** the flag is on the status and in the templates, but nothing starts or stops a timer | `chronos_statuses`, `SessionService` | A status that says it starts the timer does not | Half of this landed in 0.5.16: a session can name a task and `switchTo()` is the call a transition would make. What is left is the listener on a status change and the per-user setting that arms it (§12.2) | M5 | in progress |
 | D33 | **Cards are not virtualised:** a column draws every card it has | `src/components/KanbanColumn.vue` | A project with thousands of open tasks in one column draws thousands of cards; §15.2 asks for virtualisation above a few hundred | Virtualise the column list; the drag engine already measures once, so only the measuring needs to follow the window | M4 | planned |
 | D34 | **A `412` is resolved by reloading, not by merging:** §15.6 says a write refused on its etag should re-apply itself when the other change touched different fields | `src/stores/board.ts`, `src/stores/tasks.ts` | Two people editing one task in different ways makes the second one re-do their change, instead of it merging silently | Fetch the current task, compare field by field, re-apply when the sets are disjoint and offer both versions when they are not | M4 | planned |
 | D36 | **Undoing a cascade puts the subtasks back at the end of their old column**, not at the place they had: the page never saw where they were, and a rank is one row per card, so the old one is gone the moment the new one is written | `src/stores/board.ts`, `Board/Service/BoardService` | An undo restores every status exactly and one position approximately, which §15.6 promises to do exactly | Return the rank each card had as well as the column, and let the undo send it back as a position rather than an end | M4 | planned |

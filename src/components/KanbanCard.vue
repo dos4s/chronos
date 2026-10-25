@@ -6,7 +6,9 @@ import { n, t } from '@nextcloud/l10n'
 import { computed } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
+import TaskTimerButton from './TaskTimerButton.vue'
 import { useNow } from '../composables/useNow.ts'
+import { useTimeStore } from '../stores/time.ts'
 import { ageInDays, ageLabel, ageLevel, ageTitle } from '../utils/age.ts'
 import { formatDate, formatTimeOfDay } from '../utils/format.ts'
 import { isDueToday, isOverdue } from '../utils/tasks.ts'
@@ -55,6 +57,10 @@ const emit = defineEmits<{
 }>()
 
 const { now } = useNow()
+const time = useTimeStore()
+
+/** The card the clock is on keeps its controls out where they can be seen. */
+const timing = computed(() => time.isTiming(props.card.uid))
 
 const overdue = computed(() => isOverdue(props.card, now.value))
 const dueToday = computed(() => isDueToday(props.card, now.value))
@@ -196,15 +202,19 @@ function onPointerDown(event: PointerEvent): void {
 			</div>
 
 			<!--
-				`.stop` on the wrapper: the card under this menu is the drag
-				handle, and reaching for the menu is not a drag (§15.1).
+				`.stop` on the wrapper: the card under these is the drag
+				handle, and reaching for a control is not a drag (§15.1).
 			-->
 			<div
 				v-if="!readOnly"
-				:class="$style.menu"
+				:class="[$style.menu, { [$style.menuShown]: timing }]"
 				@pointerdown.stop
 				@dblclick.stop
 				@keydown.stop>
+				<TaskTimerButton
+					v-if="card.completedAt === null && card.type !== 'milestone'"
+					:task="{ uid: card.uid, summary: card.summary, calendarUri: card.calendarUri }"
+					bare />
 				<NcActions :aria-label="t('chronos', 'Card actions')">
 					<NcActionButton closeAfterClick @click="emit('open')">
 						{{ t('chronos', 'Edit details') }}
@@ -330,6 +340,9 @@ function onPointerDown(event: PointerEvent): void {
  * cards reads as a column of names rather than a column of buttons.
  */
 .menu {
+	display: flex;
+	align-items: center;
+	gap: 2px;
 	flex-shrink: 0;
 	margin-block-start: -4px;
 	margin-inline-end: -6px;
@@ -338,7 +351,8 @@ function onPointerDown(event: PointerEvent): void {
 }
 
 .card:hover .menu,
-.card:focus-within .menu {
+.card:focus-within .menu,
+.menuShown {
 	opacity: 1;
 }
 

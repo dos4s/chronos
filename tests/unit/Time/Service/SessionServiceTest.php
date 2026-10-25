@@ -251,6 +251,108 @@ class SessionServiceTest extends TestCase {
 		self::assertSame(self::NOW, $session['pauses'][0]['endAt']);
 	}
 
+	public function testCheckInRecordsTheTaskItIsAbout(): void {
+		$this->entryMapper->method('findActive')->willReturn(null);
+
+		$session = $this->service->checkIn(
+			self::USER,
+			null,
+			'principals/users/alice/work',
+			'Work',
+			'task-123',
+			' Write the migration ',
+		);
+
+		self::assertSame('task-123', $session['taskUid']);
+		self::assertSame('Write the migration', $session['taskSummary']);
+	}
+
+	/**
+	 * Pressing play on a task while another one is running is the gesture, not
+	 * a mistake: the running session ends and the new one starts, in one go.
+	 */
+	public function testSwitchingEndsTheRunningSessionAndStartsTheNewOne(): void {
+		$running = $this->runningEntry();
+		$running->setTaskUid('task-before');
+		$this->entryMapper->method('findActive')->willReturn($running);
+		$this->pauseMapper->method('findForEntry')->willReturn([]);
+
+		$session = $this->service->switchTo(self::USER, null, null, null, 'task-after', 'The next one');
+
+		// The one that was running is closed, and it is the one `update` saw.
+		self::assertInstanceOf(Entry::class, $this->updatedEntry);
+		self::assertSame('task-before', $this->updatedEntry->getTaskUid());
+		self::assertSame(self::NOW, $this->updatedEntry->getEndAt());
+		self::assertNull($this->updatedEntry->getActiveUserId());
+
+		// And the answer is the new session, running on the new task.
+		self::assertSame('task-after', $session['taskUid']);
+		self::assertSame(self::NOW, $session['startAt']);
+		self::assertNull($session['endAt']);
+	}
+
+	public function testSwitchingWithNothingRunningJustStarts(): void {
+		$this->entryMapper->method('findActive')->willReturn(null);
+
+		$session = $this->service->switchTo(self::USER, null, null, null, 'task-after', 'The next one');
+
+		self::assertNull($this->updatedEntry);
+		self::assertSame('task-after', $session['taskUid']);
+		self::assertNull($session['endAt']);
+	}
+
+	/**
+	 * A switch while paused still has to record the pause it was sitting in,
+	 * for the same reason a check-out does (D2).
+	 */
+	public function testSwitchingWhilePausedClosesThePause(): void {
+		$running = $this->runningEntry();
+		$running->setPausedSinceAt(self::NOW - 600);
+		$this->entryMapper->method('findActive')->willReturn($running);
+		$this->pauseMapper->method('findForEntry')->willReturn([
+			$this->pause(self::NOW - 600, null),
+		]);
+
+		$this->service->switchTo(self::USER, null, null, null, 'task-after', 'The next one');
+
+		self::assertInstanceOf(Entry::class, $this->updatedEntry);
+		self::assertSame(600, $this->updatedEntry->getPausedSeconds());
+		self::assertNull($this->updatedEntry->getPausedSinceAt());
+	}
+
+	public function testATaskUidTooLongIsRejected(): void {
+		$this->entryMapper->method('findActive')->willReturn(null);
+
+		$this->expectException(ValidationFailedException::class);
+		$this->service->checkIn(self::USER, null, null, null, str_repeat('u', 256));
+	}
+
+	/**
+	 * The session editor does not have to know about tasks: an edit that says
+	 * nothing about one leaves the task the session was worked on alone.
+	 */
+	public function testAnEditWithoutATaskKeepsTheOneItHad(): void {
+		$entry = $this->runningEntry();
+		$entry->setEndAt(self::NOW);
+		$entry->setActiveUserId(null);
+		$entry->setTaskUid('task-123');
+		$entry->setTaskSummary('Write the migration');
+		$this->entryMapper->method('find')->willReturn($entry);
+		$this->pauseMapper->method('findForEntry')->willReturn([]);
+
+		$session = $this->service->updateSession(
+			self::USER,
+			42,
+			self::NOW - 3600,
+			self::NOW,
+			null,
+			'a better note',
+		);
+
+		self::assertSame('task-123', $session['taskUid']);
+		self::assertSame('Write the migration', $session['taskSummary']);
+	}
+
 	public function testQuickCheckOutWithoutASessionDoesNothing(): void {
 		$this->entryMapper->method('findActive')->willReturn(null);
 
