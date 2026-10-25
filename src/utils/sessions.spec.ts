@@ -17,6 +17,8 @@ function session(overrides: Partial<Session> = {}): Session {
 		pausedSeconds: 0,
 		projectUri: null,
 		projectName: null,
+		taskUid: null,
+		taskSummary: null,
 		pauses: [],
 		...overrides,
 	}

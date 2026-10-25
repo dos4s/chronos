@@ -101,6 +101,65 @@ class SessionLifecycleTest extends TestCase {
 		self::assertGreaterThanOrEqual(1, $sessions[0]['pausedSeconds']);
 	}
 
+	/**
+	 * The gesture the whole of M5 is about: the clock moves from one task to
+	 * the next in one call, against the real database and its unique index
+	 * over `active_user_id` (D5) — which is what would reject this if the
+	 * switch were two calls rather than one transaction.
+	 */
+	public function testTheClockMovesFromOneTaskToTheNext(): void {
+		$first = $this->sessions->switchTo(self::USER, null, null, null, 'itest-task-1', 'The first task');
+		self::assertSame('itest-task-1', $first['taskUid']);
+		self::assertSame('The first task', $first['taskSummary']);
+		self::assertNull($first['endAt']);
+
+		sleep(1);
+
+		$second = $this->sessions->switchTo(self::USER, null, null, null, 'itest-task-2', 'The second task');
+		self::assertSame('itest-task-2', $second['taskUid']);
+		self::assertNull($second['endAt']);
+
+		// Exactly one session is running, and it is the new one.
+		$active = $this->entries->findActive(self::USER);
+		self::assertNotNull($active);
+		self::assertSame('itest-task-2', $active->getTaskUid());
+
+		// The first one was closed on the way, not left open or deleted.
+		$sessions = $this->sessions->listSessions(self::USER, 10, 0);
+		self::assertCount(2, $sessions);
+		$closed = array_values(array_filter(
+			$sessions,
+			static fn (array $session): bool => $session['taskUid'] === 'itest-task-1',
+		));
+		self::assertCount(1, $closed);
+		self::assertNotNull($closed[0]['endAt']);
+	}
+
+	/**
+	 * What a task cost, read back from the column the UI shows it from (§16).
+	 */
+	public function testWhatATaskCostIsCountedPerTask(): void {
+		$this->sessions->switchTo(self::USER, null, null, null, 'itest-task-1', 'The first task');
+		sleep(2);
+		$this->sessions->checkOut(self::USER);
+
+		$totals = [];
+		foreach ($this->sessions->taskTotals(self::USER) as $total) {
+			$totals[$total['taskUid']] = $total;
+		}
+
+		self::assertArrayHasKey('itest-task-1', $totals);
+		self::assertGreaterThanOrEqual(2, $totals['itest-task-1']['seconds']);
+		self::assertSame(1, $totals['itest-task-1']['sessionCount']);
+	}
+
+	public function testASessionWithoutATaskIsNotCountedAgainstOne(): void {
+		$this->sessions->checkIn(self::USER, 'no task here');
+		$this->sessions->checkOut(self::USER);
+
+		self::assertSame([], $this->sessions->taskTotals(self::USER));
+	}
+
 	public function testEditingASessionMergesOverlappingPauses(): void {
 		$session = $this->sessions->checkIn(self::USER);
 		$id = (int)$session['id'];

@@ -20,7 +20,21 @@ export interface Session {
 	pausedSeconds: Seconds
 	projectUri: string | null
 	projectName: string | null
+	/**
+	 * The task this was worked on, and its name as it read then. Neither
+	 * points at a row: a session outlives the task it was about (§12.2).
+	 */
+	taskUid: string | null
+	taskSummary: string | null
 	pauses: Pause[]
+}
+
+/** What one task has cost, across every session that named it (§16). */
+export interface TaskTotal {
+	taskUid: string
+	seconds: Seconds
+	sessionCount: number
+	lastAt: UnixSeconds
 }
 
 /** A grouping above projects, which exists only in Chronos (§6). */
@@ -458,6 +472,8 @@ export interface CheckInPayload {
 	note?: string
 	projectUri?: string
 	projectName?: string
+	taskUid?: string
+	taskSummary?: string
 }
 
 export interface SessionUpdatePayload {
@@ -465,6 +481,13 @@ export interface SessionUpdatePayload {
 	endAt: UnixSeconds | null
 	pauses: { startAt: UnixSeconds, endAt: UnixSeconds | null }[]
 	note: string | null
+}
+
+/** What a view hands the timer when the clock moves onto a task. */
+export interface TimedTask {
+	uid: string
+	summary: string | null
+	calendarUri: string
 }
 
 export interface DayTotal {

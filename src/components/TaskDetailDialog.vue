@@ -2,16 +2,19 @@
 import type { StatusChange, Task, TaskType, TaskWritePayload } from '../types/index.ts'
 
 import { showError } from '@nextcloud/dialogs'
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import { computed, reactive, ref, watch } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
+import TaskTimerButton from './TaskTimerButton.vue'
 import { messageFor } from '../api/client.ts'
 import { fetchHistory } from '../api/workflows.ts'
 import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
+import { useNow } from '../composables/useNow.ts'
+import { useTimeStore } from '../stores/time.ts'
 import { useWorkflowsStore } from '../stores/workflows.ts'
 import { fromDateInput, toDateInput, toTimeInput } from '../utils/dateInput.ts'
-import { formatDate, formatTimeOfDay } from '../utils/format.ts'
+import { formatDate, formatDuration, formatTimeOfDay } from '../utils/format.ts'
 
 const props = defineProps<{
 	task: Task
@@ -27,7 +30,26 @@ const emit = defineEmits<{
 }>()
 
 const workflows = useWorkflowsStore()
+const time = useTimeStore()
 const { workflowId, statuses } = useCurrentWorkflow()
+const { now } = useNow()
+
+/**
+ * What this task has cost. The dialog is where somebody asks the question in
+ * so many words, so it answers it in words rather than as a figure on a row.
+ */
+const spent = computed(() => {
+	const seconds = time.secondsFor(props.task.uid, now.value)
+	if (seconds <= 0) {
+		return null
+	}
+
+	const total = time.totalFor(props.task.uid)
+	return {
+		duration: formatDuration(seconds),
+		sessions: total?.sessionCount ?? 1,
+	}
+})
 
 const history = ref<StatusChange[]>([])
 const loadingHistory = ref(false)
@@ -268,6 +290,27 @@ function save() {
 				</label>
 			</div>
 
+			<section :class="$style.history">
+				<h4 :class="$style.legend">
+					{{ t('chronos', 'Time') }}
+				</h4>
+				<div :class="$style.spent">
+					<p v-if="spent" :class="$style.spentFigure">
+						{{ spent.duration }}
+						<span :class="$style.empty">
+							{{ n('chronos', 'over %n session', 'over %n sessions', spent.sessions) }}
+						</span>
+					</p>
+					<p v-else :class="$style.empty">
+						{{ t('chronos', 'Nothing has been timed against this task yet.') }}
+					</p>
+					<TaskTimerButton
+						v-if="task.type !== 'milestone'"
+						:task="{ uid: task.uid, summary: task.summary, calendarUri: task.calendarUri }"
+						bare />
+				</div>
+			</section>
+
 			<section v-if="workflowId !== null" :class="$style.history">
 				<h4 :class="$style.legend">
 					{{ t('chronos', 'History') }}
@@ -415,6 +458,20 @@ function save() {
 	padding-top: 12px;
 	max-height: 220px;
 	overflow-y: auto;
+}
+
+.spent {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--chronos-space-3);
+}
+
+.spentFigure {
+	margin: 0;
+	font-size: var(--chronos-text);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
 }
 
 .empty {

@@ -26,6 +26,8 @@ function session(extra: Partial<Session> = {}): Session {
 		note: null,
 		projectUri: 'principals/users/alice/work',
 		projectName: 'Work',
+		taskUid: null,
+		taskSummary: null,
 		pauses: [],
 		...extra,
 	}

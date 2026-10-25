@@ -26,6 +26,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setProjectUri(?string $projectUri)
  * @method string|null getProjectName()
  * @method void setProjectName(?string $projectName)
+ * @method string|null getTaskUid()
+ * @method void setTaskUid(?string $taskUid)
+ * @method string|null getTaskSummary()
+ * @method void setTaskSummary(?string $taskSummary)
  * @method string|null getActiveUserId()
  * @method void setActiveUserId(?string $activeUserId)
  */
@@ -42,6 +46,8 @@ class Entry extends Entity implements JsonSerializable {
 		'paused_seconds',
 		'project_uri',
 		'project_name',
+		'task_uid',
+		'task_summary',
 		'active_user_id',
 	];
 
@@ -53,6 +59,13 @@ class Entry extends Entity implements JsonSerializable {
 	protected int $pausedSeconds = 0;
 	protected ?string $projectUri = null;
 	protected ?string $projectName = null;
+	/**
+	 * The task this was worked on, by uid, and its name as it read at the
+	 * time. Neither is a foreign key: a session records what somebody did and
+	 * outlives the task it was about (§12.2).
+	 */
+	protected ?string $taskUid = null;
+	protected ?string $taskSummary = null;
 	/**
 	 * The owner's uid while this session runs, NULL once it ends. A unique
 	 * index over this column is what makes two simultaneous check-ins
@@ -82,6 +95,8 @@ class Entry extends Entity implements JsonSerializable {
 			'pausedSeconds' => $this->pausedSeconds,
 			'projectUri' => $this->projectUri,
 			'projectName' => $this->projectName,
+			'taskUid' => $this->taskUid,
+			'taskSummary' => $this->taskSummary,
 		];
 	}
 }

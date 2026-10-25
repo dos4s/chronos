@@ -1,4 +1,4 @@
-import type { CheckInPayload, Session, SessionUpdatePayload } from '../types/index.ts'
+import type { CheckInPayload, Session, SessionUpdatePayload, TaskTotal } from '../types/index.ts'
 
 import { del, get, post, put } from './client.ts'
 
@@ -9,6 +9,11 @@ export function fetchSessions(limit = 100, offset = 0) {
 }
 
 export const checkIn = (payload: CheckInPayload) => post<Session>('/entries/check-in', payload)
+
+/** Start this, ending whatever was running — one request, so there is no gap. */
+export const switchTo = (payload: CheckInPayload) => post<Session>('/entries/switch', payload)
+
+export const fetchTaskTotals = () => get<TaskTotal[]>('/entries/task-totals')
 
 export const pauseSession = () => post<Session>('/entries/pause')
 

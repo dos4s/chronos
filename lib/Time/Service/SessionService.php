@@ -33,6 +33,7 @@ class SessionService {
 
 	private const MAX_NOTE_LENGTH = 500;
 	private const MAX_PROJECT_LENGTH = 255;
+	private const MAX_TASK_UID_LENGTH = 255;
 
 	public function __construct(
 		private IDBConnection $db,
@@ -71,39 +72,64 @@ class SessionService {
 		?string $note = null,
 		?string $projectUri = null,
 		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
 	): array {
-		$note = $this->normalizeText($note, self::MAX_NOTE_LENGTH, 'note');
-		$projectUri = $this->normalizeText($projectUri, self::MAX_PROJECT_LENGTH, 'projectUri');
-		$projectName = $this->normalizeText($projectName, self::MAX_PROJECT_LENGTH, 'projectName');
+		$what = $this->normalizeWhat($note, $projectUri, $projectName, $taskUid, $taskSummary);
 
-		$entry = $this->transactional(function () use ($userId, $note, $projectUri, $projectName): Entry {
+		$entry = $this->transactional(function () use ($userId, $what): Entry {
 			// Fast path: a clear error instead of a constraint violation.
 			if ($this->entryMapper->findActive($userId) !== null) {
 				throw new ConflictException('already_checked_in');
 			}
 
-			$entry = new Entry();
-			$entry->setUserId($userId);
-			$entry->setActiveUserId($userId);
-			$entry->setStartAt($this->timeFactory->getTime());
-			$entry->setPausedSeconds(0);
-			$entry->setNote($note);
-			$entry->setProjectUri($projectUri);
-			$entry->setProjectName($projectName);
-
-			try {
-				return $this->entryMapper->insert($entry);
-			} catch (DbException $e) {
-				// Two check-ins at once: the unique index over active_user_id
-				// lets exactly one of them through (D5).
-				if ($e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-					throw new ConflictException('already_checked_in', $e->getMessage(), $e);
-				}
-				throw $e;
-			}
+			return $this->openEntry($userId, $what);
 		});
 
 		return $this->serialize($entry, []);
+	}
+
+	/**
+	 * Moves the clock onto a task: ends whatever is running and starts the new
+	 * session in the same transaction (§12.2).
+	 *
+	 * This exists because *check in* is the wrong verb for the thing a person
+	 * does twenty times a day. Pressing play on a task while another one is
+	 * running is not a mistake to report back as `already_checked_in` — it is
+	 * the whole gesture, and doing it as two calls from the browser would
+	 * leave a gap where nothing is running, or two things are.
+	 *
+	 * @return SessionShape
+	 */
+	public function switchTo(
+		string $userId,
+		?string $note = null,
+		?string $projectUri = null,
+		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
+	): array {
+		$what = $this->normalizeWhat($note, $projectUri, $projectName, $taskUid, $taskSummary);
+
+		$entry = $this->transactional(function () use ($userId, $what): Entry {
+			$running = $this->entryMapper->findActive($userId);
+			if ($running !== null) {
+				$this->finishEntry($running);
+			}
+
+			return $this->openEntry($userId, $what);
+		});
+
+		return $this->serialize($entry, []);
+	}
+
+	/**
+	 * What each task has cost so far, by uid (§16, M5).
+	 *
+	 * @return list<array{taskUid: string, seconds: int, sessionCount: int, lastAt: int}>
+	 */
+	public function taskTotals(string $userId): array {
+		return $this->entryMapper->totalsByTask($userId, $this->timeFactory->getTime());
 	}
 
 	/**
@@ -165,19 +191,7 @@ class SessionService {
 	 */
 	public function checkOut(string $userId): array {
 		return $this->transactional(function () use ($userId): array {
-			$entry = $this->requireActive($userId);
-			$now = max($this->timeFactory->getTime(), $entry->getStartAt());
-
-			$shapes = $this->toShapes($this->pauseMapper->findForEntry($entry->getId()));
-			$pausedSince = $entry->getPausedSinceAt();
-			if ($pausedSince !== null && $this->normalizer->openStart($shapes) === null) {
-				$shapes[] = ['start' => $pausedSince, 'end' => $now];
-			}
-
-			$entry->setEndAt($now);
-			$entry->setActiveUserId(null);
-
-			return $this->replacePauses($entry, $shapes);
+			return $this->finishEntry($this->requireActive($userId));
 		});
 	}
 
@@ -197,6 +211,8 @@ class SessionService {
 		?string $note,
 		?string $projectUri = null,
 		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
 	): array {
 		UnixSeconds::assert($startAt);
 		UnixSeconds::assert($endAt);
@@ -204,9 +220,10 @@ class SessionService {
 			throw new ValidationFailedException('invalid_times');
 		}
 
-		$note = $this->normalizeText($note, self::MAX_NOTE_LENGTH, 'note');
-		$projectUri = $this->normalizeText($projectUri, self::MAX_PROJECT_LENGTH, 'projectUri');
-		$projectName = $this->normalizeText($projectName, self::MAX_PROJECT_LENGTH, 'projectName');
+		$what = $this->normalizeWhat($note, $projectUri, $projectName, $taskUid, $taskSummary);
+		$note = $what['note'];
+		$projectUri = $what['projectUri'];
+		$projectName = $what['projectName'];
 
 		if ($pauses !== null) {
 			foreach ($pauses as $pause) {
@@ -216,7 +233,7 @@ class SessionService {
 		}
 
 		return $this->transactional(function () use (
-			$userId, $id, $startAt, $endAt, $pauses, $note, $projectUri, $projectName
+			$userId, $id, $startAt, $endAt, $pauses, $note, $projectUri, $projectName, $what
 		): array {
 			$entry = $this->requireOwned($userId, $id);
 			$shapes = $pauses ?? $this->toShapes($this->pauseMapper->findForEntry($entry->getId()));
@@ -227,6 +244,12 @@ class SessionService {
 			if ($projectUri !== null || $projectName !== null) {
 				$entry->setProjectUri($projectUri);
 				$entry->setProjectName($projectName);
+			}
+			// Only when the editor sent one: an edit that says nothing about
+			// the task leaves the task it was worked on alone.
+			if ($what['taskUid'] !== null) {
+				$entry->setTaskUid($what['taskUid']);
+				$entry->setTaskSummary($what['taskSummary']);
 			}
 
 			if ($endAt === null) {
@@ -276,6 +299,81 @@ class SessionService {
 		} catch (ConflictException) {
 			// Nothing to end.
 		}
+	}
+
+	/**
+	 * Validates and trims everything that says *what* a session is about, so
+	 * check-in, switch and edit all agree on the limits (D13).
+	 *
+	 * @throws ValidationFailedException
+	 * @return array{note: ?string, projectUri: ?string, projectName: ?string, taskUid: ?string, taskSummary: ?string}
+	 */
+	private function normalizeWhat(
+		?string $note,
+		?string $projectUri,
+		?string $projectName,
+		?string $taskUid,
+		?string $taskSummary,
+	): array {
+		return [
+			'note' => $this->normalizeText($note, self::MAX_NOTE_LENGTH, 'note'),
+			'projectUri' => $this->normalizeText($projectUri, self::MAX_PROJECT_LENGTH, 'projectUri'),
+			'projectName' => $this->normalizeText($projectName, self::MAX_PROJECT_LENGTH, 'projectName'),
+			'taskUid' => $this->normalizeText($taskUid, self::MAX_TASK_UID_LENGTH, 'taskUid'),
+			'taskSummary' => $this->normalizeText($taskSummary, self::MAX_PROJECT_LENGTH, 'taskSummary'),
+		];
+	}
+
+	/**
+	 * Starts a session. The caller is inside a transaction and has already
+	 * decided that it is allowed to.
+	 *
+	 * @param array{note: ?string, projectUri: ?string, projectName: ?string, taskUid: ?string, taskSummary: ?string} $what
+	 * @throws ConflictException
+	 */
+	private function openEntry(string $userId, array $what): Entry {
+		$entry = new Entry();
+		$entry->setUserId($userId);
+		$entry->setActiveUserId($userId);
+		$entry->setStartAt($this->timeFactory->getTime());
+		$entry->setPausedSeconds(0);
+		$entry->setNote($what['note']);
+		$entry->setProjectUri($what['projectUri']);
+		$entry->setProjectName($what['projectName']);
+		$entry->setTaskUid($what['taskUid']);
+		$entry->setTaskSummary($what['taskSummary']);
+
+		try {
+			return $this->entryMapper->insert($entry);
+		} catch (DbException $e) {
+			// Two check-ins at once: the unique index over active_user_id
+			// lets exactly one of them through (D5).
+			if ($e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw new ConflictException('already_checked_in', $e->getMessage(), $e);
+			}
+			throw $e;
+		}
+	}
+
+	/**
+	 * Ends a running session, finalising an open pause on the way (D2). The
+	 * caller is inside a transaction.
+	 *
+	 * @return SessionShape
+	 */
+	private function finishEntry(Entry $entry): array {
+		$now = max($this->timeFactory->getTime(), $entry->getStartAt());
+
+		$shapes = $this->toShapes($this->pauseMapper->findForEntry($entry->getId()));
+		$pausedSince = $entry->getPausedSinceAt();
+		if ($pausedSince !== null && $this->normalizer->openStart($shapes) === null) {
+			$shapes[] = ['start' => $pausedSince, 'end' => $now];
+		}
+
+		$entry->setEndAt($now);
+		$entry->setActiveUserId(null);
+
+		return $this->replacePauses($entry, $shapes);
 	}
 
 	/**

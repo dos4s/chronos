@@ -50,14 +50,54 @@ class EntryController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/entries/task-totals')]
+	public function taskTotals(): JSONResponse {
+		return new JSONResponse($this->sessions->taskTotals($this->currentUser->getUid()));
+	}
+
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'POST', url: '/entries/check-in')]
 	public function checkIn(
 		?string $note = null,
 		?string $projectUri = null,
 		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
 	): JSONResponse {
 		return new JSONResponse(
-			$this->sessions->checkIn($this->currentUser->getUid(), $note, $projectUri, $projectName),
+			$this->sessions->checkIn(
+				$this->currentUser->getUid(),
+				$note,
+				$projectUri,
+				$projectName,
+				$taskUid,
+				$taskSummary,
+			),
+			Http::STATUS_CREATED,
+		);
+	}
+
+	/**
+	 * Start this, ending whatever was running: one gesture, one request.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/entries/switch')]
+	public function switchTo(
+		?string $note = null,
+		?string $projectUri = null,
+		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
+	): JSONResponse {
+		return new JSONResponse(
+			$this->sessions->switchTo(
+				$this->currentUser->getUid(),
+				$note,
+				$projectUri,
+				$projectName,
+				$taskUid,
+				$taskSummary,
+			),
 			Http::STATUS_CREATED,
 		);
 	}
@@ -90,6 +130,8 @@ class EntryController extends Controller {
 		?string $note = null,
 		?string $projectUri = null,
 		?string $projectName = null,
+		?string $taskUid = null,
+		?string $taskSummary = null,
 	): JSONResponse {
 		$body = SessionUpdateRequest::fromParams($startAt, $endAt, $pauses, $note);
 
@@ -102,6 +144,8 @@ class EntryController extends Controller {
 			$body->note,
 			$projectUri,
 			$projectName,
+			$taskUid,
+			$taskSummary,
 		));
 	}
 

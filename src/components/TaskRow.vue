@@ -5,6 +5,7 @@ import { t } from '@nextcloud/l10n'
 import { computed, ref } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
+import TaskTimerButton from './TaskTimerButton.vue'
 import { useCurrentWorkflow } from '../composables/useCurrentWorkflow.ts'
 import { useNow } from '../composables/useNow.ts'
 import { useModulesStore } from '../stores/modules.ts'
@@ -132,6 +133,16 @@ async function commit() {
 					<span v-if="task.assignee">{{ task.assignee }}</span>
 				</div>
 			</div>
+
+			<!--
+				A finished task is not timed: the clock is for work in front of
+				you, and a play button on a struck-through row is an invitation
+				to make a mistake.
+			-->
+			<TaskTimerButton
+				v-if="!done && task.type !== 'milestone'"
+				:task="{ uid: task.uid, summary: task.summary, calendarUri: task.calendarUri }"
+				:readOnly="readOnly" />
 
 			<NcActions v-if="!readOnly" :aria-label="t('chronos', 'Task actions')">
 				<NcActionButton closeAfterClick @click="emit('edit', node)">

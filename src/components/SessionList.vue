@@ -63,10 +63,16 @@ async function confirmDelete(session: Session) {
 					:style="{ background: projects.colorFor(session.projectUri) || 'var(--color-text-maxcontrast)' }"
 					:title="session.projectName || t('chronos', 'No project')" />
 				<div :class="$style.main">
+					<!--
+						What this session was for: the task it was worked on
+						when it names one, which is now the usual case, and the
+						note only when there is no task to name (§12.2).
+					-->
 					<div :class="$style.note">
-						{{ session.note || t('chronos', 'Untitled session') }}
+						{{ session.taskSummary || session.note || t('chronos', 'Untitled session') }}
 					</div>
 					<div :class="$style.meta">
+						<span v-if="session.taskSummary && session.note">{{ session.note }} · </span>
 						<span v-if="session.projectName" :class="$style.project">
 							{{ session.projectName }}
 						</span>
